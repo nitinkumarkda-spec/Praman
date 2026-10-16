@@ -1,0 +1,2 @@
+# Never serve this folder over HTTP
+Require all denied

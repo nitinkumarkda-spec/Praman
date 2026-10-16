@@ -1,0 +1,11 @@
+# Storage files (session and logs)
+storage/logs/*
+!storage/logs/.gitignore
+storage/sessions/*
+!storage/sessions/.gitignore
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

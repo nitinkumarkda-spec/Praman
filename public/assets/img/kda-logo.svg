@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PRAMAN">
+  <circle cx="32" cy="32" r="30" fill="#0f2b52"/>
+  <circle cx="32" cy="32" r="27" fill="none" stroke="#c9a227" stroke-width="2.5"/>
+  <path d="M32 13 L47 21 H17 Z" fill="#c9a227"/>
+  <rect x="18" y="22.5" width="28" height="2.5" fill="#d9b84a"/>
+  <rect x="20.5" y="27" width="3.5" height="13" rx="1" fill="#ffffff"/>
+  <rect x="27" y="27" width="3.5" height="13" rx="1" fill="#ffffff"/>
+  <rect x="33.5" y="27" width="3.5" height="13" rx="1" fill="#ffffff"/>
+  <rect x="40" y="27" width="3.5" height="13" rx="1" fill="#ffffff"/>
+  <rect x="17" y="41.5" width="30" height="3" fill="#d9b84a"/>
+  <path d="M23 49.5 l4 4 l8-8" fill="none" stroke="#c9a227" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

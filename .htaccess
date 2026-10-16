@@ -1,0 +1,42 @@
+# =====================================================================
+# PRAMAN — project root .htaccess
+# Routes every request into /public and blocks access to source folders.
+# =====================================================================
+Options -Indexes -MultiViews
+ServerSignature Off
+DirectoryIndex public/index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ---- Force HTTPS (enable in production) ----
+    # RewriteCond %{HTTPS} !=on
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # ---- Allow only GET and POST ----
+    RewriteCond %{REQUEST_METHOD} !^(GET|POST)$
+    RewriteRule ^ - [F,L]
+
+    # ---- Deny source / data folders and dot-files ----
+    RewriteRule ^(app|config|database|storage|vendor|node_modules)(/|$) - [F,L,NC]
+    RewriteRule (^|/)\. - [F,L]
+    RewriteRule \.(sql|log|env|ini|md|lock|bak|old|swp|dist|sh|yml|yaml|json|xml|txt)$ - [F,L,NC]
+
+    # ---- Everything else is served from /public ----
+    RewriteRule ^$ public/ [L]
+    RewriteCond %{REQUEST_URI} !/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+# Defence in depth if mod_rewrite is ever disabled
+<FilesMatch "\.(sql|log|env|ini|md|lock|bak|old|swp|sh|yml|yaml)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
+</IfModule>
