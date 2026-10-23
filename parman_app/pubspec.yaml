@@ -1,0 +1,55 @@
+name: parman_app
+description: "PRAMAN — property verification demo app of the Kota Development Authority. Native Flutter port of html/index.html (same data, screens and workflow; works offline)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.5.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # demo database + session (the web app uses localStorage)
+  shared_preferences: ">=2.2.0 <3.0.0"
+  # attachments: pick PDF / JPG / PNG, keep them in the app folder, open PDFs in a viewer app
+  file_picker: ">=8.0.0 <11.0.0"
+  path_provider: ">=2.1.0 <3.0.0"
+  open_filex: ">=4.4.0 <5.0.0"
+  # "kdakota.rajasthan.gov.in" link on the landing page
+  url_launcher: ">=6.2.0 <7.0.0"
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ">=4.0.0 <7.0.0"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/images/slides/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Poppins-Bold.ttf
+          weight: 700
+    # Font Awesome Free 6.5.2 solid icons (lib/app/fa.dart)
+    - family: FASolid
+      fonts:
+        - asset: assets/fonts/fa-solid-900.ttf
