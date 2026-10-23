@@ -1620,7 +1620,7 @@ html.lp-lock { overflow: hidden; }
 .lp-card .toggle-password { right: 8px; color: #475569; }
 .lp-card .btn-lg { min-height: 50px; border-radius: 10px; font-size: 15.5px; font-weight: 600; background: linear-gradient(180deg, #245ca8 0%, #163f7a 100%); box-shadow: 0 12px 24px -12px rgba(22, 63, 122, .8); }
 .lp-card .btn-lg:hover { background: linear-gradient(180deg, #1f5196 0%, #12346a 100%); }
-.lp-card .demo-box { margin-top: 22px; padding: 16px 18px; border: 1px solid #f1e2b1; border-radius: 12px; background: #fdf8e9; }
+.lp-card .demo-box { margin-top: 22px; padding: 16px 18px; border: 1px solid #e2e8f0; border-radius: 12px; background: #ffffff; }
 .lp-card .demo-title { margin-bottom: 4px; gap: 10px; }
 .lp-card .demo-title > i { font-size: 17px; color: var(--navy-700); }
 .lp-card .demo-title small { display: inline-flex; align-items: center; gap: 8px; color: #64748b; }
@@ -4430,7 +4430,7 @@ html.lp-lock { overflow: hidden; }
             '<p class="demo-sub">Panel users and Role Users (verification sections):</p><div class="demo-grid">' + DEMO_ACCOUNTS.map(function (a) {
                 return '<button type="button" class="btn btn-light btn-sm demo-login" data-demo-login="' + a[0] + '">' + icon(a[2]) + ' <span>' + e(a[1]) + '</span></button>';
             }).join('') + '</div>' +
-            '<p class="demo-note">' + icon('fa-database') + ' <span>All data is stored in this browser only (localStorage).</span>' +
+            '<p class="demo-note">' + icon('fa-database') + ' <span>Encrypted offline storage & local application database.</span>' +
             '<button type="button" class="link-button" data-demo-reset>' + icon('fa-rotate') + ' Reset</button></p></div>';
     };
 

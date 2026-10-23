@@ -723,7 +723,7 @@ class _SignInDialogState extends State<_SignInDialog> {
   Widget _demoBox() {
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-      decoration: BoxDecoration(color: const Color(0xFFFDF8E9), borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFF1E2B1))),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: const Color(0xFFE2E8F0))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 8, runSpacing: 6, children: [
           const Icon(FA.users, size: 15, color: C.navy700),
@@ -731,7 +731,7 @@ class _SignInDialogState extends State<_SignInDialog> {
           Text('password', style: T.s(12, color: C.muted)),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(999), border: Border.all(color: const Color(0xFFE8DAB0))),
+            decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(999), border: Border.all(color: const Color(0xFFE2E8F0))),
             child: Text('Praman@123', style: T.s(12, weight: FontWeight.w500, color: C.navy800)),
           ),
         ]),
@@ -767,7 +767,7 @@ class _SignInDialogState extends State<_SignInDialog> {
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Padding(padding: EdgeInsets.only(top: 2), child: Icon(FA.database, size: 11, color: C.muted)),
           const SizedBox(width: 6),
-          Expanded(child: Text('All data is stored on this phone only (demo database).', style: T.s(11.5, color: C.muted))),
+          Expanded(child: Text('All data is stored securely in native app storage (offline).', style: T.s(11.5, color: C.muted))),
           InkWell(
             onTap: () async {
               final yes = await P.confirm(title: 'Reset demo data', message: 'Reset ALL demo data to the original sample data? Everything you added will be removed.', okText: 'Yes, reset', variant: 'danger');
