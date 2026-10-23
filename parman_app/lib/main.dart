@@ -9,6 +9,7 @@ import 'app/store.dart';
 import 'app/theme.dart';
 import 'ui/common.dart';
 import 'ui/landing.dart';
+import 'ui/onboarding.dart';
 import 'ui/shell.dart';
 
 Future<void> main() async {
@@ -62,7 +63,7 @@ class _PramanAppState extends State<PramanApp> with WidgetsBindingObserver {
   }
 }
 
-/// Splash while the database loads, then the landing page (guests) or the panel shell (signed in).
+/// Splash while the database loads, then Onboarding/Terms screen (Accept/Skip), then Landing page or Shell.
 class RootView extends StatefulWidget {
   const RootView({super.key});
   @override
@@ -71,6 +72,7 @@ class RootView extends StatefulWidget {
 
 class _RootViewState extends State<RootView> {
   bool _splashDone = false;
+  bool _onboardingDone = false;
   DateTime? _lastBack;
 
   @override
@@ -78,11 +80,38 @@ class _RootViewState extends State<RootView> {
     super.initState();
     final minSplash = Future<void>.delayed(const Duration(milliseconds: 1400));
     Future.wait<void>([P.init(), minSplash]).then((_) {
-      if (mounted) setState(() => _splashDone = true);
+      if (mounted) {
+        final accepted = P.prefs.getBool('onboarding_accepted');
+        setState(() {
+          _splashDone = true;
+          _onboardingDone = accepted == true;
+        });
+      }
     });
   }
 
+  void _finishOnboarding({required bool accepted}) {
+    P.prefs.setBool('onboarding_accepted', true);
+    if (accepted) {
+      P.toast('ok', 'Terms accepted. Welcome to PRAMAN!', 2500);
+    }
+    if (mounted) {
+      setState(() => _onboardingDone = true);
+    }
+  }
+
   void _onBack() {
+    if (!_onboardingDone) {
+      final now = DateTime.now();
+      if (_lastBack != null && now.difference(_lastBack!) < const Duration(seconds: 2)) {
+        SystemNavigator.pop();
+        return;
+      }
+      _lastBack = now;
+      P.messengerKey.currentState?.hideCurrentSnackBar();
+      P.toast('info', 'Press back again to exit ${App.name}.', 2000);
+      return;
+    }
     final scaffold = shellScaffoldKey.currentState;
     if (scaffold != null && scaffold.isDrawerOpen) {
       scaffold.closeDrawer();
@@ -102,6 +131,18 @@ class _RootViewState extends State<RootView> {
   @override
   Widget build(BuildContext context) {
     if (!_splashDone || !P.ready) return const SplashScreen();
+    if (!_onboardingDone) {
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          if (!didPop) _onBack();
+        },
+        child: OnboardingSplashScreen(
+          onAccept: () => _finishOnboarding(accepted: true),
+          onSkip: () => _finishOnboarding(accepted: false),
+        ),
+      );
+    }
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? result) {
