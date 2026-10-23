@@ -160,9 +160,9 @@ class _AttachmentViewer extends StatelessWidget {
     final lines = (a['lines'] as List? ?? const []).map((e) => e.toString()).toList();
     Widget body;
     if (!pdf && a['storage'] == 'file') {
-      body = InteractiveViewer(child: Image.file(File(str(a['path'])), fit: BoxFit.contain, errorBuilder: (c, e, s) => _missing()));
+      body = ClipRRect(borderRadius: BorderRadius.circular(8), child: Image.file(File(str(a['path'])), fit: BoxFit.contain, errorBuilder: (c, e, s) => _missing()));
     } else if (!pdf) {
-      body = InteractiveViewer(child: AspectRatio(aspectRatio: 640 / 400, child: CustomPaint(painter: SitePhotoPainter(lines))));
+      body = ClipRRect(borderRadius: BorderRadius.circular(8), child: AspectRatio(aspectRatio: 640 / 400, child: CustomPaint(painter: SitePhotoPainter(lines))));
     } else if (lines.isNotEmpty) {
       body = _PaperPreview(lines);
     } else {
