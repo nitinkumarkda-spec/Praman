@@ -3,6 +3,8 @@ include: package:flutter_lints/flutter.yaml
 analyzer:
   exclude:
     - lib/app/fa.dart
+    - build/**
+    - android/**
 
 linter:
   rules:

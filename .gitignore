@@ -9,3 +9,7 @@ storage/sessions/*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Binaries & Temporary
+*.apk
+parman_app/proxy.js
