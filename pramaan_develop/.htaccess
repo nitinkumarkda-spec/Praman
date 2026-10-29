@@ -1,0 +1,81 @@
+# =====================================================================
+# PRAMAN — root .htaccess
+# Only /public is reachable. Source code, config, database scripts,
+# storage (sessions, logs, uploads) and dot-files are never served.
+# =====================================================================
+
+Options -Indexes -MultiViews -Includes -ExecCGI
+ServerSignature Off
+DirectoryIndex disabled
+AddDefaultCharset UTF-8
+FileETag None
+
+# ---- block dot-files (.git, .env, .htaccess …) and sensitive extensions everywhere
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "\.(?i:sql|log|ini|env|md|json|lock|yml|yaml|xml|bak|old|orig|swp|dist|sh|ps1|bat|cmd|phar|inc|tpl|twig|cache|txt|sess)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(?i:composer\.(json|lock)|package(-lock)?\.json|README.*|LICENSE.*|web\.config)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # ---- HTTPS (enable on the live server)
+    # RewriteCond %{HTTPS} !=on
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+    # ---- only GET / POST / HEAD
+    RewriteCond %{REQUEST_METHOD} !^(GET|POST|HEAD)$
+    RewriteRule ^ - [F,L]
+
+    # ---- block TRACE/TRACK and obvious attack strings
+    RewriteCond %{QUERY_STRING} (\.\./|%2e%2e|<script|%3Cscript|union[^a-z]+select|base64_encode|GLOBALS=|_REQUEST=|proc/self/environ) [NC]
+    RewriteRule ^ - [F,L]
+
+    # ---- source folders are never public
+    RewriteRule ^(app|config|database|storage|vendor|node_modules)(/|$) - [F,L]
+
+    # ---- everything else is served from /public
+    RewriteCond %{REQUEST_URI} !/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    # Without mod_rewrite the app cannot run safely.
+    Require all denied
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always unset X-Powered-By
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    Header always set Cross-Origin-Opener-Policy "same-origin"
+    Header always set X-Permitted-Cross-Domain-Policies "none"
+    # HSTS — enable only on HTTPS:
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+</IfModule>
+
+# ---- PHP hardening (mod_php; ignored by PHP-FPM — set these in php.ini there)
+<IfModule mod_php.c>
+    php_flag  display_errors        Off
+    php_flag  display_startup_errors Off
+    php_flag  session.use_strict_mode On
+    php_flag  session.cookie_httponly On
+    php_flag  session.use_only_cookies On
+    php_value session.cookie_samesite Strict
+    php_value upload_max_filesize   6M
+    php_value post_max_size         60M
+    php_value max_file_uploads      10
+    php_value max_input_vars        3000
+    php_value max_execution_time    60
+    php_value memory_limit          256M
+</IfModule>
+
+# ---- request limits (slow / huge uploads)
+LimitRequestBody 62914560

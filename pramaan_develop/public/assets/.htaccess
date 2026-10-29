@@ -1,0 +1,16 @@
+# Static files only: nothing here may ever run as a script.
+Options -Indexes -ExecCGI -Includes
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar .pl .py .cgi .sh .asp .aspx .jsp
+RemoveType .php .phtml .phar
+<FilesMatch "\.(?i:php\d?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp|exe|bat|cmd|htaccess|htpasswd|ini|log|sql)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

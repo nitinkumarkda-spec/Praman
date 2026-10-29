@@ -215,21 +215,23 @@ button { font: inherit; cursor: pointer; }
 .card-footer { padding: 14px 18px; border-top: 1px solid var(--border); background: var(--navy-50); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 
 /* ---------- Stat cards ---------- */
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 20px; }
-.stat-card { position: relative; display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-sm); overflow: hidden; transition: transform .25s ease, box-shadow .25s ease; }
-.stat-card::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent, var(--navy-700)); }
-.stat-icon { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; color: var(--accent, var(--navy-700)); background: var(--accent-bg, var(--navy-100)); transition: transform .3s ease; }
-.stat-value { font-size: 26px; font-weight: 700; color: var(--navy-800); line-height: 1.1; }
-.stat-label { color: var(--text-muted); font-weight: 500; }
-.stat-card { min-width: 0; }
-.stat-card > :not(.stat-icon) { min-width: 0; overflow-wrap: anywhere; }
-.stat-sub { color: var(--text-muted); font-size: 12px; }
-.stat-navy  { --accent: var(--navy-700);  --accent-bg: var(--navy-100); }
-.stat-gold  { --accent: var(--gold-600);  --accent-bg: var(--gold-100); }
-.stat-green { --accent: var(--green-600); --accent-bg: var(--green-100); }
-.stat-red   { --accent: var(--red-600);   --accent-bg: var(--red-100); }
-.stat-blue  { --accent: var(--blue-600);  --accent-bg: var(--blue-100); }
-.stat-amber { --accent: var(--amber-600); --accent-bg: var(--amber-100); }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); grid-auto-rows: 1fr; align-items: stretch; gap: 16px; margin-bottom: 22px; }
+.stat-card { position: relative; display: flex; align-items: center; height: 100%; min-height: 102px; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 16px 18px 18px; box-shadow: var(--shadow-sm); overflow: hidden; box-sizing: border-box; transition: transform .25s ease, box-shadow .25s ease, border-color .2s ease; }
+.stat-card::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--accent, var(--navy-700)); border-radius: var(--radius-lg) 0 0 var(--radius-lg); transition: width .2s ease; }
+.stat-card:hover::after { width: 7px; }
+.stat-icon { width: 48px; height: 48px; flex: 0 0 48px; border-radius: 13px; display: grid; place-items: center; font-size: 20px; color: var(--accent, var(--navy-700)); background: var(--accent-bg, var(--navy-100)); border: 1px solid var(--accent-border, rgba(0, 0, 0, 0.04)); box-shadow: 0 2px 4px rgba(15, 43, 82, .03); transition: transform .25s cubic-bezier(.34, 1.56, .64, 1); }
+.stat-card:hover .stat-icon { transform: scale(1.08); }
+.stat-content, .stat-card > div:not(.stat-icon) { display: flex; flex-direction: column; justify-content: center; flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.stat-value { font-size: 26px; font-weight: 700; color: var(--navy-800); line-height: 1.15; margin: 0; letter-spacing: -0.02em; font-feature-settings: "tnum"; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-label { font-size: 13.5px; font-weight: 600; color: var(--text-muted); line-height: 1.35; margin: 3px 0 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-sub { display: block; font-size: 12px; line-height: 1.4; min-height: 18px; color: var(--text-muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-sub.stat-sub-empty { visibility: hidden; user-select: none; pointer-events: none; }
+.stat-navy  { --accent: var(--navy-700);  --accent-bg: var(--navy-100); --accent-border: #bfdbfe; }
+.stat-gold  { --accent: var(--gold-600);  --accent-bg: var(--gold-100); --accent-border: #fde68a; }
+.stat-green { --accent: var(--green-600); --accent-bg: var(--green-100); --accent-border: #bbf7d0; }
+.stat-red   { --accent: var(--red-600);   --accent-bg: var(--red-100);   --accent-border: #fecaca; }
+.stat-blue  { --accent: var(--blue-600);  --accent-bg: var(--blue-100);  --accent-border: #bfdbfe; }
+.stat-amber { --accent: var(--amber-600); --accent-bg: var(--amber-100); --accent-border: #fed7aa; }
 
 /* ---------- Buttons ---------- */
 .btn {
@@ -823,9 +825,143 @@ a.stat-link:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); b
 a.stat-link:focus-visible { outline: none; box-shadow: var(--focus); }
 a.stat-link .stat-label::after { content: "\f061"; font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 10px; margin-left: 6px; opacity: 0; transition: opacity .18s, margin-left .18s; }
 a.stat-link:hover .stat-label::after { opacity: .7; margin-left: 9px; }
-.dash-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.dash-stats .stat-card { padding: 16px 14px; gap: 12px; }
-.dash-stats .stat-icon { width: 42px; height: 42px; flex-basis: 42px; font-size: 18px; }
+.dash-stats,
+body .stat-grid.dash-stats {
+    display: grid;
+    grid-auto-rows: 1fr;
+    align-items: stretch;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+@media (min-width: 1200px) {
+    .dash-stats,
+    body .stat-grid.dash-stats {
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 14px;
+    }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .dash-stats,
+    body .stat-grid.dash-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+    }
+    .dash-stats .stat-card,
+    body .dash-stats .stat-card {
+        min-height: 98px;
+        padding: 16px 14px 16px 16px;
+    }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .dash-stats,
+    body .stat-grid.dash-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .dash-stats .stat-card,
+    body .dash-stats .stat-card {
+        min-height: 96px;
+        padding: 16px 14px 16px 16px;
+    }
+}
+
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .dash-stats,
+    body .stat-grid.dash-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+    .dash-stats .stat-card,
+    body .dash-stats .stat-card {
+        min-height: 92px;
+        padding: 14px 12px;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .dash-stats,
+    body .stat-grid.dash-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    .dash-stats .stat-card,
+    body .dash-stats .stat-card {
+        min-height: 86px;
+        padding: 14px 14px;
+    }
+    .dash-stats .stat-icon,
+    body .dash-stats .stat-icon {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+    }
+}
+
+/* =====================================================================
+   Angular ngbTooltip style tooltip (Black badge, positioned at bottom)
+   ===================================================================== */
+.ngb-tooltip {
+    position: fixed;
+    z-index: 100000;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity .15s cubic-bezier(.16, 1, .3, 1), transform .15s cubic-bezier(.16, 1, .3, 1);
+    font-family: inherit;
+    display: none;
+    will-change: transform, opacity;
+}
+.ngb-tooltip.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+.ngb-tooltip.ngb-tooltip-bottom {
+    transform: translateY(-4px);
+}
+.ngb-tooltip.ngb-tooltip-bottom.show {
+    transform: translateY(0);
+}
+
+.ngb-tooltip .tooltip-inner {
+    max-width: 290px;
+    padding: 6px 12px;
+    color: #ffffff;
+    text-align: center;
+    background-color: #0b1120;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.42;
+    word-wrap: break-word;
+    box-shadow: 0 8px 24px -2px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.25);
+    letter-spacing: 0.01em;
+}
+
+.ngb-tooltip .tooltip-arrow {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+}
+
+.ngb-tooltip-top .tooltip-arrow {
+    bottom: -6px;
+    margin-left: -6px;
+    border-width: 6px 6px 0 6px;
+    border-color: #0b1120 transparent transparent transparent;
+}
+
+.ngb-tooltip-bottom .tooltip-arrow {
+    top: -6px;
+    margin-left: -6px;
+    border-width: 0 6px 6px 6px;
+    border-color: transparent transparent #0b1120 transparent;
+}
 
 /* ---------- Dashboard charts ---------- */
 .chart-grid { display: grid; gap: 20px; margin-bottom: 20px; }
@@ -3425,10 +3561,19 @@ html.lp-lock { overflow: hidden; }
             (actions ? '<div class="page-actions">' + actions + '</div>' : '') + '</div>';
     }
     function statCard(color, ic, value, text, sub, href) {
-        const inner = '<span class="stat-icon">' + icon(ic) + '</span><div><p class="stat-value">' + fmt_num(value) + '</p><p class="stat-label">' + e(text) + '</p>' +
-            (sub ? '<small class="stat-sub">' + sub + '</small>' : '') + '</div>';
-        return href ? '<a class="stat-card stat-' + color + ' stat-link" href="' + e(href) + '">' + inner + '</a>'
-            : '<div class="stat-card stat-' + color + '">' + inner + '</div>';
+        const rawSub = (sub !== null && sub !== undefined) ? String(sub).replace(/<[^>]+>/g, '').trim() : '';
+        const fullTip = text + (rawSub ? ' — ' + rawSub : '');
+        const subHtml = rawSub
+            ? '<small class="stat-sub" data-tooltip="' + e(rawSub) + '">' + sub + '</small>'
+            : '<small class="stat-sub stat-sub-empty" aria-hidden="true">&nbsp;</small>';
+        const inner = '<span class="stat-icon">' + icon(ic) + '</span>' +
+            '<div class="stat-content">' +
+                '<p class="stat-value">' + fmt_num(value) + '</p>' +
+                '<p class="stat-label" data-tooltip="' + e(text) + '">' + e(text) + '</p>' +
+                subHtml +
+            '</div>';
+        return href ? '<a class="stat-card stat-' + color + ' stat-link" href="' + e(href) + '" data-tooltip="' + e(fullTip) + '">' + inner + '</a>'
+            : '<div class="stat-card stat-' + color + '" data-tooltip="' + e(fullTip) + '">' + inner + '</div>';
     }
 
     /* ---------------- Layout ---------------- */
@@ -3669,11 +3814,129 @@ html.lp-lock { overflow: hidden; }
         go(u ? HOME[u.panel] : '/login');
     };
 
+
+    /* =====================================================================
+       Black Floating Tooltip (ngbTooltip Angular style)
+       Placed below the element (bottom), with top-arrow pointing up
+       ===================================================================== */
+    function initNgbTooltip() {
+        let tipEl = null;
+        let arrowEl = null;
+        let innerEl = null;
+        let activeTarget = null;
+        let hideTimer = null;
+
+        function ensureTip() {
+            if (tipEl) { return; }
+            tipEl = document.createElement('div');
+            tipEl.className = 'ngb-tooltip';
+            tipEl.setAttribute('role', 'tooltip');
+            tipEl.innerHTML = '<div class="tooltip-arrow"></div><div class="tooltip-inner"></div>';
+            arrowEl = tipEl.querySelector('.tooltip-arrow');
+            innerEl = tipEl.querySelector('.tooltip-inner');
+            document.body.appendChild(tipEl);
+        }
+
+        function showTip(target, text) {
+            if (!text || !text.trim()) { hideTip(); return; }
+            ensureTip();
+            clearTimeout(hideTimer);
+            activeTarget = target;
+            innerEl.textContent = text.trim();
+            tipEl.className = 'ngb-tooltip';
+            tipEl.style.display = 'block';
+            tipEl.style.visibility = 'hidden';
+            tipEl.style.left = '0px';
+            tipEl.style.top = '0px';
+
+            const rect = target.getBoundingClientRect();
+            const tipW = tipEl.offsetWidth;
+            const tipH = tipEl.offsetHeight;
+
+            // Center horizontally on target, keep 8px within viewport
+            let left = rect.left + (rect.width / 2) - (tipW / 2);
+            left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+
+            // Default placement: bottom (niche aayegi)
+            let top = rect.bottom + 8;
+            let placement = 'bottom';
+            // Agar bottom me screen overflow ho to hi top par flip kare
+            if (top + tipH > window.innerHeight - 8 && rect.top - tipH - 8 > 8) {
+                top = rect.top - tipH - 8;
+                placement = 'top';
+            }
+
+            tipEl.className = 'ngb-tooltip ngb-tooltip-' + placement;
+            tipEl.style.left = Math.round(left) + 'px';
+            tipEl.style.top = Math.round(top) + 'px';
+            tipEl.style.visibility = 'visible';
+
+            // Point arrow at center of target
+            const targetCenter = rect.left + (rect.width / 2);
+            let arrowLeft = targetCenter - left;
+            arrowLeft = Math.max(10, Math.min(arrowLeft, tipW - 10));
+            arrowEl.style.left = Math.round(arrowLeft) + 'px';
+
+            requestAnimationFrame(function () {
+                if (activeTarget === target) {
+                    tipEl.classList.add('show');
+                }
+            });
+        }
+
+        function hideTip() {
+            activeTarget = null;
+            if (!tipEl) { return; }
+            tipEl.classList.remove('show');
+            clearTimeout(hideTimer);
+            hideTimer = setTimeout(function () {
+                if (!activeTarget && tipEl) {
+                    tipEl.style.display = 'none';
+                }
+            }, 160);
+        }
+
+        // Global mouseover listener: supports both data-tooltip and title
+        document.addEventListener('mouseover', function (e) {
+            const el = e.target.closest('[data-tooltip], [title]');
+            if (!el) { return; }
+            let text = el.getAttribute('data-tooltip');
+            if (!text && el.hasAttribute('title')) {
+                text = el.getAttribute('title');
+                el.setAttribute('data-tooltip', text);
+                el.removeAttribute('title'); // prevent browser's native popup
+            }
+            if (text && text.trim()) {
+                showTip(el, text);
+            }
+        }, { passive: true });
+
+        document.addEventListener('mouseout', function (e) {
+            if (!activeTarget) { return; }
+            const related = e.relatedTarget;
+            if (related && (activeTarget === related || activeTarget.contains(related))) {
+                return;
+            }
+            hideTip();
+        }, { passive: true });
+
+        window.addEventListener('scroll', hideTip, { passive: true });
+        window.addEventListener('wheel', hideTip, { passive: true });
+        window.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') { hideTip(); }
+        }, { passive: true });
+    }
+
     window.addEventListener('hashchange', render);
     document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('modal-root').innerHTML = CONFIRM_MODAL;
         render();
+        initNgbTooltip();
     });
+    // Agar DOM pehle se ready ho (e.g. late load):
+    if (document.readyState === 'interactive' || document.readyState === 'complete') {
+        initNgbTooltip();
+    }
 
     Object.assign(Praman, {
         APP: APP, PANELS: PANELS, HOME: HOME, SECURITY: SECURITY, Lookups: Lookups, DB: DB, Auth: Auth,
@@ -5291,8 +5554,8 @@ html.lp-lock { overflow: hidden; }
             P.statCard('green', 'fa-calendar-day', all.filter(function (a) { return dateOnly(a.performed_at) === t; }).length, 'Today') +
             P.statCard('blue', 'fa-user-check', activeUsers, 'Active users') +
             P.statCard('gold', 'fa-layer-group', modules, 'Modules') +
-            '<div class="stat-card stat-red"><span class="stat-icon">' + icon('fa-clock') + '</span><div><p class="stat-value ins-stat-time">' +
-            (last ? e(dayLabel(last.performed_at).slice(0, 6) + ', ' + timeOnly(last.performed_at)) : '—') + '</p><p class="stat-label">Last activity</p></div></div></div>';
+            P.statCard('red', 'fa-clock', (last ? dayLabel(last.performed_at).slice(0, 6) + ', ' + timeOnly(last.performed_at) : '—'), 'Last activity', 'most recent log') +
+            '</div>';
 
         // ---- quick chips + filter form ----
         const quick = q.quick || (q.from || q.to || q.area ? '' : 'all');
@@ -7393,7 +7656,7 @@ html.lp-lock { overflow: hidden; }
                 P.statCard('blue', 'fa-map', c.schemes_total, 'Schemes', P.fmt_num(c.schemes_active) + ' active', P.url('/admin/audit-logs', { area: 'SCHEME', quick: 'area:SCHEME' })) +
                 P.statCard('green', 'fa-building', c.properties_total, 'Properties', 'registered', P.url('/admin/audit-logs', { area: 'PROPERTY', quick: 'area:PROPERTY' })) +
                 P.statCard('red', 'fa-user-lock', c.users_locked, 'Locked accounts', P.fmt_num(c.failed_24h) + ' failed logins (24h)', P.url('/admin/users', { status: 'locked' })) +
-                P.statCard('navy', 'fa-fingerprint', c.logs_today, 'Actions today', 'audit entries', P.url('/admin/audit-logs', { quick: 'today', from: DB.today(), to: DB.today() })) +
+                P.statCard('navy', 'fa-gavel', c.logs_today, 'Actions today', 'audit entries', P.url('/admin/audit-logs', { quick: 'today', from: DB.today(), to: DB.today() })) +
                 '</div>' +
                 grid('cols-2', P.chartCard('ch-status', 'Property status', 'fa-chart-pie', { height: 300, sub: 'click a slice' }) +
                     sectionOutcomeCard(sectionOutcomes(), 'Section verification outcomes', 'tasks per section, all rounds')) +
@@ -7421,11 +7684,11 @@ html.lp-lock { overflow: hidden; }
                 '<a href="#/data-entry/schemes/create" class="btn btn-light">' + icon('fa-map') + ' <span>Create Scheme</span></a>' +
                 '<a href="#/data-entry/properties/create" class="btn btn-primary">' + icon('fa-circle-plus') + ' <span>Add Property</span></a>') +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('navy', 'fa-map', DB.count('schemes', { is_active: 1 }), 'Active schemes', null, P.url('/data-entry/schemes', { status: 'active' })) +
-                P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', null, '#/data-entry/schemes') +
-                P.statCard('blue', 'fa-building', DB.count('properties', { is_active: 1 }), 'All properties', null, '#/data-entry/properties') +
-                P.statCard('green', 'fa-list', DB.count('properties', { is_active: 1, current_status: 'LISTED' }), 'Listed (editable)', null, P.url('/data-entry/properties', { status: 'LISTED' })) +
-                P.statCard('red', 'fa-user-pen', DB.count('properties', { is_active: 1, created_by: me }), 'Entered by me', null, '#/data-entry/properties') +
+                P.statCard('navy', 'fa-map', DB.count('schemes', { is_active: 1 }), 'Active schemes', P.fmt_num(DB.count('schemes')) + ' in register', P.url('/data-entry/schemes', { status: 'active' })) +
+                P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', 'in active schemes', '#/data-entry/schemes') +
+                P.statCard('blue', 'fa-building', DB.count('properties', { is_active: 1 }), 'All properties', 'registered', '#/data-entry/properties') +
+                P.statCard('green', 'fa-list', DB.count('properties', { is_active: 1, current_status: 'LISTED' }), 'Listed (editable)', 'ready to send', P.url('/data-entry/properties', { status: 'LISTED' })) +
+                P.statCard('red', 'fa-user-pen', DB.count('properties', { is_active: 1, created_by: me }), 'Entered by me', 'your records', '#/data-entry/properties') +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-status', 'My properties by status', 'fa-chart-pie', { sub: 'click a slice' }) +
                     P.chartCard('ch-types', 'Properties by type', 'fa-shapes') +
@@ -7471,10 +7734,10 @@ html.lp-lock { overflow: hidden; }
                 '<a href="' + P.url('/oic/properties', { status: 'LISTED' }) + '" class="btn btn-primary">' + icon('fa-paper-plane') + ' <span>Send for verification</span></a>' +
                 '<a href="' + P.url('/oic/properties', { status: 'NOT_READY' }) + '" class="btn btn-light">' + icon('fa-rotate') + ' <span>Not ready properties</span></a>') +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('blue', 'fa-list', sc.LISTED, 'Listed (to send)', null, P.url('/oic/properties', { status: 'LISTED' })) +
+                P.statCard('blue', 'fa-list', sc.LISTED, 'Listed (to send)', 'ready to verify', P.url('/oic/properties', { status: 'LISTED' })) +
                 P.statCard('gold', 'fa-hourglass-half', sc.UNDER_VERIFICATION, 'Under verification', P.fmt_num(pending) + ' pending role tasks', P.url('/oic/properties', { status: 'UNDER_VERIFICATION' })) +
-                P.statCard('green', 'fa-circle-check', sc.AUCTION_READY, 'Auction ready', null, P.url('/oic/properties', { status: 'AUCTION_READY' })) +
-                P.statCard('red', 'fa-circle-xmark', sc.NOT_READY, 'Not ready', null, P.url('/oic/properties', { status: 'NOT_READY' })) +
+                P.statCard('green', 'fa-circle-check', sc.AUCTION_READY, 'Auction ready', 'cleared by all cells', P.url('/oic/properties', { status: 'AUCTION_READY' })) +
+                P.statCard('red', 'fa-circle-xmark', sc.NOT_READY, 'Not ready', 'rejected / issues found', P.url('/oic/properties', { status: 'NOT_READY' })) +
                 P.statCard('navy', 'fa-folder-open', rr.open, 'Open rounds', P.fmt_num(rr.ready) + ' ready / ' + P.fmt_num(rr.notReady) + ' not ready closed', P.url('/oic/properties', { status: 'UNDER_VERIFICATION' })) +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-status', 'Property status', 'fa-chart-pie', { sub: 'click a slice' }) +
@@ -7539,10 +7802,10 @@ html.lp-lock { overflow: hidden; }
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), e((ctx.user.role_name || '') + ' · ' + ctx.user.designation) + ' — properties sent to you for verification.',
                 '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>') +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', null, P.url('/role/tasks', { status: 'pending' })) +
-                P.statCard('red', 'fa-stopwatch' + (c.overdue > 0 ? ' fa-shake' : ''), c.overdue, 'Overdue (SLA)', null, P.url('/role/tasks', { status: 'overdue' })) +
-                P.statCard('green', 'fa-circle-check', c.approved, 'Approved by me', null, P.url('/role/tasks', { status: 'approved' })) +
-                P.statCard('navy', 'fa-circle-xmark', c.rejected, 'Rejected by me', null, P.url('/role/tasks', { status: 'rejected' })) +
+                P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', 'requires your action', P.url('/role/tasks', { status: 'pending' })) +
+                P.statCard('red', 'fa-stopwatch' + (c.overdue > 0 ? ' fa-shake' : ''), c.overdue, 'Overdue (SLA)', 'immediate priority', P.url('/role/tasks', { status: 'overdue' })) +
+                P.statCard('green', 'fa-circle-check', c.approved, 'Approved by me', 'verification passed', P.url('/role/tasks', { status: 'approved' })) +
+                P.statCard('navy', 'fa-circle-xmark', c.rejected, 'Rejected by me', 'issues flagged', P.url('/role/tasks', { status: 'rejected' })) +
                 P.statCard('blue', 'fa-minus', c.closed, 'Not required', 'round closed by another section', P.url('/role/tasks', { status: 'closed' })) +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-mine', 'My tasks by status', 'fa-chart-pie', { sub: 'click a slice' }) +
@@ -7868,10 +8131,10 @@ html.lp-lock { overflow: hidden; }
                 '<button type="button" class="btn btn-light" data-notif-delete-read>' + icon('fa-broom') + ' <span>Delete read</span></button>' +
                 '<button type="button" class="btn btn-primary" data-notif-all-read>' + icon('fa-check-double') + ' <span>Mark all read</span></button>') +
                 '<div class="stat-grid dash-stats">' +
-                '<a class="stat-card stat-navy stat-link" href="#/notifications"><span class="stat-icon">' + icon('fa-bell') + '</span><div><p class="stat-value" data-notif-stat="total">' + all.length + '</p><p class="stat-label">Total</p></div></a>' +
-                '<a class="stat-card stat-gold stat-link" href="' + P.url('/notifications', { filter: 'unread' }) + '"><span class="stat-icon">' + icon('fa-envelope') + '</span><div><p class="stat-value" data-notif-stat="unread">' + unread + '</p><p class="stat-label">Unread</p></div></a>' +
-                '<div class="stat-card stat-green"><span class="stat-icon">' + icon('fa-calendar-day') + '</span><div><p class="stat-value" data-notif-stat="today">' +
-                all.filter(function (n) { return n.created_at.slice(0, 10) === DB.today(); }).length + '</p><p class="stat-label">Today</p></div></div></div>' +
+                P.statCard('navy', 'fa-bell', all.length, 'Total', 'all notifications', '#/notifications') +
+                P.statCard('gold', 'fa-envelope', unread, 'Unread', 'needs attention', P.url('/notifications', { filter: 'unread' })) +
+                P.statCard('green', 'fa-calendar-day', all.filter(function (n) { return n.created_at.slice(0, 10) === DB.today(); }).length, 'Today', 'received today') +
+                '</div>' +
                 '<nav class="tabs" aria-label="Notification filter">' + tabs.map(function (x) {
                     return '<a href="' + P.url('/notifications', { filter: x[0] }) + '" class="tab' + (cur === x[0] ? ' active' : '') + '">' + icon(x[2]) + ' ' + x[1] +
                         ' <span class="tab-count">' + x[3] + '</span></a>';

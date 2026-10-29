@@ -1,0 +1,2 @@
+/* PRAMAAN — landing slider photos now come from the `slides` table (Super Admin → App Settings → Landing page slides).
+   Files live in assets/img/slides; js/pages/landing.js sets each slide's background image. */

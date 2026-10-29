@@ -1,0 +1,253 @@
+/* =====================================================================
+   PRAMAAN — responsive rules
+   Mobile 320–575 | Tablet/iPad 576–991 | Laptop 992–1399 | Desktop 1400+
+   Goal: no horizontal page scroll on any device.
+   ===================================================================== */
+
+/* ---------- Desktop 1400+ ---------- */
+@media (min-width: 1400px) {
+    :root { --sidebar-w: 272px; }
+    .content { padding: 12px 12px; }
+    .stat-grid { grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+}
+
+/* ---------- Laptop 992–1399 ---------- */
+@media (min-width: 992px) and (max-width: 1399.98px) {
+    :root { --sidebar-w: 240px; }
+    .form-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------- Off-canvas sidebar below 992 ---------- */
+@media (max-width: 991.98px) {
+    .sidebar { transform: translateX(-100%); box-shadow: none; width: min(290px, 86vw); }
+    body.sidebar-open .sidebar { transform: translateX(0); box-shadow: var(--shadow-lg); }
+    body.sidebar-open { overflow: hidden; }
+    .sidebar-overlay { display: block; position: fixed; inset: 0; z-index: 1030; background: rgba(10,31,60,.45); opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility .25s; }
+    body.sidebar-open .sidebar-overlay { opacity: 1; visibility: visible; }
+    .sidebar-close { display: inline-grid; }
+    .sidebar-toggle { display: inline-grid; }
+    .main { margin-left: 0; }
+    .topbar { padding: 0 16px; }
+    .content { padding: 20px 16px; }
+}
+
+/* ---------- Tablet / iPad 576–991 ---------- */
+@media (min-width: 576px) and (max-width: 991.98px) {
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .form-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .topbar-date { display: none; }
+    .auth-card { grid-template-columns: 1fr 1fr; }
+    .auth-side, .auth-form { padding: 32px 26px; }
+}
+
+/* Between 576 and 767: auth becomes single column */
+@media (max-width: 767.98px) {
+    .auth-card { grid-template-columns: 1fr; max-width: 460px; }
+    .auth-side { display: none; }
+    .auth-logo-sm { display: block; }
+    .detail-list { grid-template-columns: 1fr; gap: 2px 0; }
+    .detail-list dd { margin-bottom: 10px; }
+}
+
+/* ---------- Mobile 320–575 ---------- */
+@media (max-width: 575.98px) {
+    body { font-size: 14px; }
+    .content { padding: 16px 12px; }
+    .topbar { gap: 8px; padding: 0 10px; }
+    .topbar-title { font-size: 15px; }
+    .topbar-date, .user-meta, .user-caret { display: none; }
+    .user-trigger { padding: 2px; }
+    .dropdown-menu { right: -4px; min-width: min(260px, calc(100vw - 24px)); }
+
+    .page-header { flex-direction: column; align-items: stretch; }
+    .page-title { font-size: 19px; }
+    .page-actions { width: 100%; }
+    .page-actions .btn { flex: 1 1 auto; }
+
+    .grid-2, .grid-3, .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+    .stat-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .stat-card { padding: 14px; }
+    .stat-value { font-size: 22px; }
+
+    .card-header, .card-body { padding: 14px; }
+    .form-actions .btn { flex: 1 1 100%; }
+
+    /* Toolbar stacks */
+    .toolbar { padding: 12px; }
+    .toolbar-search { flex-basis: 100%; }
+    .toolbar-filters { width: 100%; }
+    .toolbar-filters .form-select { flex: 1 1 100%; width: 100%; min-width: 0; }
+    .toolbar-actions { width: 100%; justify-content: space-between; }
+
+    .pagination-bar { flex-direction: column; align-items: center; padding: 12px; }
+
+
+    .modal-footer { flex-direction: column-reverse; }
+    .modal-footer .btn { width: 100%; }
+    .toast-container { top: auto; bottom: 12px; right: 12px; left: 12px; width: auto; }
+    /* slide up from the bottom: a sideways slide pushes past the screen edge and lets the page pan */
+    .toast { animation-name: toastInUp; }
+    .toast.is-leaving { animation-name: toastOutDown; }
+    .app-footer { flex-direction: column; text-align: center; padding: 12px; }
+
+    .auth-wrap { padding: 12px; }
+    .auth-form { padding: 26px 18px; }
+    .error-card { padding: 32px 18px; }
+}
+
+/* Very small phones (320) */
+@media (max-width: 359.98px) {
+    .btn { padding: 8px 12px; }
+    .brand-text small { display: none; }
+}
+
+/* ---------- Panel screens on small devices ---------- */
+@media (max-width: 575.98px) {
+    .sector-row { flex-wrap: wrap; }
+    .sector-input { flex-basis: 100%; }
+    .mapping-grid { grid-template-columns: 1fr; }
+    .bulk-bar { padding: 10px 12px; }
+    .bulk-bar .btn { width: 100%; }
+    .simulate-form { justify-content: stretch; width: 100%; }
+    .simulate-form .form-control { width: 100%; }
+    .simulate-form .btn { flex: 1 1 auto; }
+    .truncate { max-width: 160px; }
+    .radio-row { flex-direction: column; gap: 10px; }
+    .audit-json { max-width: 100%; }
+    .toolbar-filters input[type="date"] { flex: 1 1 45%; width: 100%; }
+}
+@media (min-width: 576px) and (max-width: 991.98px) {
+    .simulate-form .form-control { width: 160px; }
+}
+
+@media (max-width: 575.98px) {
+    .decision-row { grid-template-columns: 1fr; }
+    .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
+    .tab { white-space: nowrap; }
+    .activity-list li { flex-wrap: wrap; }
+}
+
+@media (max-width: 575.98px) {
+    .btn-back-admin span { display: none; }
+    .btn-back-admin { padding: 0 11px; }
+}
+
+/* =====================================================================
+   body Device coverage — every screen class, body smallest last-matching rules win.
+   Breakpoints:
+     4K / ultra-wide ........ 1920+          Desktop ........ 1400–1919
+     Laptop ................. 1200–1399      Small laptop / iPad Pro landscape 992–1199
+     iPad / tablet landscape  768–991 (off-canvas menu)
+     iPad portrait / large phone landscape 576–767
+     Phone .................. 360–575        Small phone .... 320–359
+   Plus: phone landscape (short screens), body touch devices, body notch safe-areas, body print.
+   ===================================================================== */
+
+/* ---------- 4K / ultra-wide 1920+ ---------- */
+@media (min-width: 1920px) {
+    :root { --sidebar-w: 288px; }
+    body .content { max-width: 1760px; padding: 20px 28px; }
+    body .stat-grid { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+    body .ins-layout { grid-template-columns: minmax(0, 2fr) minmax(360px, 1fr); }
+}
+@media (min-width: 2560px) {
+    html { font-size: 17px; }
+    body .content { max-width: 2200px; }
+}
+
+/* ---------- Small laptop / iPad Pro landscape 992–1199 ---------- */
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    :root { --sidebar-w: 228px; }
+    body .content { padding: 18px; }
+    body .topbar-date { display: none; }
+    body .stat-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+    body .user-meta small { display: none; }
+}
+
+/* ---------- iPad / tablet landscape 768–991 ---------- */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    body .content { padding: 20px; }
+    body .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    body .notif-panel { width: 380px; }
+    body .att-viewer-box { height: 86vh; }
+}
+
+/* ---------- iPad portrait / large phone landscape 576–767 ---------- */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    body .content { padding: 18px 14px; }
+    body .form-grid, body .form-grid-3 { grid-template-columns: 1fr; }
+    body .page-header { flex-wrap: wrap; }
+    body .page-actions { flex-wrap: wrap; }
+    body .toolbar-filters .form-select { flex: 1 1 45%; min-width: 0; }
+    body .att-viewer { padding: 10px; }
+    body .att-viewer-box { height: 92vh; }
+}
+
+/* ---------- Phones 360–575 ---------- */
+@media (max-width: 575.98px) {
+    /* bell panel: full width under the top bar instead of hanging off the screen edge */
+    body .notif-panel { position: fixed; top: calc(var(--topbar-h, 64px) + 6px); left: 8px; right: 8px; width: auto; max-width: none; max-height: calc(100dvh - var(--topbar-h, 64px) - 16px); overflow-y: auto; }
+    /* attachment viewer: full screen */
+    body .att-viewer { padding: 0; }
+    body .att-viewer-box { width: 100%; height: 100dvh; border-radius: 0; }
+    body .modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+    body .lp-modal-dialog { padding: 0; border-radius: 18px; }
+    body .topbar-title { max-width: 46vw; }
+    body .page-link { min-width: 36px; height: 36px; }
+    body .table-wrap { margin: 0; }
+}
+
+/* ---------- Small phones 320–359 ---------- */
+@media (max-width: 359.98px) {
+    body .content { padding: 12px 8px; }
+    body .page-title { font-size: 17px; }
+    body .stat-value { font-size: 20px; }
+    body .card-header, body .card-body { padding: 12px; }
+    body .topbar-title { font-size: 14px; max-width: 40vw; }
+    body .notif-bell { width: 34px; height: 34px; }
+    body .lp-modal-dialog { padding: 0; }
+}
+
+/* ---------- Phone landscape / short screens ---------- */
+@media (max-height: 500px) and (orientation: landscape) {
+    body .sidebar-brand { padding-top: 8px; padding-bottom: 8px; }
+    body .modal, body .lp-modal-dialog { max-height: 92vh; overflow-y: auto; }
+    body .att-viewer { padding: 0; }
+    body .att-viewer-box { height: 100vh; border-radius: 0; }
+    body .notif-panel { max-height: calc(100vh - 70px); overflow-y: auto; }
+    body .toast-container { top: auto; bottom: 8px; }
+}
+
+/* ---------- Touch screens (phones, tablets, iPad) ---------- */
+@media (hover: none) and (pointer: coarse) {
+    /* 16px text in inputs: iOS / Android do not zoom the page when a field is focused */
+    body input.form-control, body select.form-select, body textarea.form-control { font-size: 16px; }
+    body .nav-link { min-height: 44px; }
+    body .check input[type="checkbox"], body .check input[type="radio"] { min-width: 18px; min-height: 18px; }
+    body .btn, body .page-link, body .tab { touch-action: manipulation; }
+    body .table-wrap, body .sidebar-nav, body .notif-body { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+}
+
+/* ---------- Notch / rounded-corner phones (iPhone, Android cut-outs) ---------- */
+@supports (padding: env(safe-area-inset-left)) {
+    @media (max-width: 991.98px) {
+        body .topbar { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+        body .sidebar { padding-bottom: env(safe-area-inset-bottom); }
+        body .app-footer { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    }
+    @media (max-width: 575.98px) {
+        body .toast-container { bottom: max(12px, env(safe-area-inset-bottom)); }
+        body .content { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
+    }
+}
+
+/* ---------- Print (A4) ---------- */
+@media print {
+    body .sidebar, body .sidebar-overlay, body .topbar, body .toast-container, body .page-actions, body .toolbar, body .pagination-bar nav, body .notif-menu, body .btn, body .bulk-bar { display: none !important; }
+    body .main { margin-left: 0 !important; }
+    body .content { padding: 0; max-width: none; }
+    body .card { break-inside: avoid; box-shadow: none; border: 1px solid #ccc; }
+    body .table-wrap { overflow: visible; }
+}

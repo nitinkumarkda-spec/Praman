@@ -1,0 +1,7 @@
+# secrets + runtime files
+.env
+storage/logs/*
+storage/sessions/*
+storage/cache/*
+storage/uploads/*
+!storage/*/.gitignore

@@ -1,8 +1,20 @@
 # Storage files (session and logs)
-storage/logs/*
-!storage/logs/.gitignore
-storage/sessions/*
-!storage/sessions/.gitignore
+pramaan_develop/storage/logs/*
+!pramaan_develop/storage/logs/.gitignore
+pramaan_develop/storage/cache/*
+!pramaan_develop/storage/cache/.gitignore
+pramaan_develop/storage/sessions/*
+!pramaan_develop/storage/sessions/.gitignore
+pramaan_develop/storage/uploads/*
+!pramaan_develop/storage/uploads/.gitignore
+praman_develop/storage/logs/*
+!praman_develop/storage/logs/.gitignore
+praman_develop/storage/cache/*
+!praman_develop/storage/cache/.gitignore
+praman_develop/storage/sessions/*
+!praman_develop/storage/sessions/.gitignore
+praman_develop/storage/uploads/*
+!praman_develop/storage/uploads/.gitignore
 
 # IDE & OS files
 .vscode/
@@ -12,4 +24,5 @@ Thumbs.db
 
 # Binaries & Temporary
 *.apk
+pramaan_app/proxy.js
 parman_app/proxy.js
