@@ -62,8 +62,8 @@ final class StateService
 
         $t = &$state['tables'];
         $t['roles'] = Role::where([], 'sort_order');
-        foreach (['zones' => 'Zone', 'wards' => 'Ward', 'assemblies' => 'Assembly', 'plot_types' => 'PlotType', 'statuses' => 'Status',
-                     'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
+        foreach (['plot_types' => 'PlotType', 'statuses' => 'Status',
+                 'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }
         $t['users'] = self::users($panel === 'SUPER_ADMIN', $uid, $imp ? (int) $imp['user_id'] : null);

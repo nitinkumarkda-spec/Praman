@@ -5,13 +5,10 @@ namespace App\Controllers\DataEntry;
 
 use App\Core\Auth;
 use App\Core\Controller;
-use App\Models\Assembly;
 use App\Models\PlotType;
 use App\Models\Property;
 use App\Models\Scheme;
 use App\Models\Sector;
-use App\Models\Ward;
-use App\Models\Zone;
 use App\Services\Audit;
 use App\Services\PropertyService;
 
@@ -31,8 +28,6 @@ final class PropertyController extends Controller
         $_POST['plot_no'] = strtoupper($this->request->str('plot_no'));
         $d = $this->validate([
             'sector_id'     => ['Sector', 'required|integer'],
-            'ward_id'       => ['Ward', 'required|integer'],
-            'assembly_id'   => ['Assembly constituency', 'required|integer'],
             'plot_no'       => ['Plot no.', 'required|plotno'],
             'property_type' => ['Plot type', 'required|max:30'],
             'area_value'    => ['Area', 'required|decimal:2|positive'],
@@ -52,22 +47,13 @@ final class PropertyController extends Controller
         if (Property::valueExists('plot_no', $plot, $id, ['sector_id' => $sector['sector_id']])) {
             $this->fail('Plot no. ' . $plot . ' already exists in this sector.', 'plot_no');
         }
-        $ward = Ward::find((int) $d['ward_id']);
-        $zone = Zone::find($sch['zone_id']);
-        if (!$ward || (int) $ward['zone_id'] !== (int) $sch['zone_id'] || (!$ward['is_active'] && (!$prop || (int) $prop['ward_id'] !== $ward['ward_id']))) {
-            $this->fail('Please select an active ward of ' . ($zone['zone_name'] ?? 'the zone') . '.', 'ward_id');
-        }
-        $asm = Assembly::find((int) $d['assembly_id']);
-        if (!$asm || (!$asm['is_active'] && (!$prop || (int) $prop['assembly_id'] !== $asm['assembly_id']))) {
-            $this->fail('Please select an active assembly constituency.', 'assembly_id');
-        }
         $pt = PlotType::first(['code' => $d['property_type']]);
         if (!$pt || (!$pt['is_active'] && (!$prop || $prop['property_type'] !== $pt['code']))) {
             $this->fail('Please select an active plot type.', 'property_type');
         }
         $area = round((float) $d['area_value'], 2);
         $data = [
-            'scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'], 'ward_id' => $ward['ward_id'], 'assembly_id' => $asm['assembly_id'],
+            'scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'],
             'plot_no' => $plot, 'property_type' => $pt['code'], 'area_value' => $area, 'area_unit' => $d['area_unit'],
             'area_sqm' => PropertyService::toSqm($area, $d['area_unit']), 'remarks' => $d['remarks'] ?: null,
         ];

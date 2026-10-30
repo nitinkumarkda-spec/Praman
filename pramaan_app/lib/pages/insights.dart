@@ -33,9 +33,6 @@ String areaOf(Rec a) {
       return 'PROPERTY';
     case 'SCHEME':
       return 'SCHEME';
-    case 'ZONE':
-    case 'WARD':
-    case 'ASSEMBLY':
     case 'PLOT_TYPE':
     case 'STATUS':
     case 'SECTOR':

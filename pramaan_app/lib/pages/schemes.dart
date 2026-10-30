@@ -33,7 +33,6 @@ class SchemeListPage extends StatelessWidget {
         'mapped_roles': maps.map((m) => m['role_id']).toSet().length,
         'mapped_users': maps.length,
         'property_count': db.count('properties', {'scheme_id': s['scheme_id'], 'is_active': 1}),
-        'zone': db.zoneName(s['zone_id']),
       };
     }).toList();
     if (ctx.q('type').isNotEmpty) rows = rows.where((s) => s['scheme_type'] == ctx.q('type')).toList();
@@ -42,12 +41,11 @@ class SchemeListPage extends StatelessWidget {
     final p = paginate<Rec>(rows, ctx,
         sort: 'name',
         filters: const ['type', 'status'],
-        search: (s) => [s['scheme_name'], s['scheme_code'], s['zone']],
+        search: (s) => [s['scheme_name'], s['scheme_code']],
         sortable: {
           'code': (s) => s['scheme_code'],
           'name': (s) => s['scheme_name'],
           'type': (s) => s['scheme_type'],
-          'zone': (s) => s['zone'],
           'year': (s) => toNum(s['year_of_scheme']),
           'sectors': (s) => toNum(s['sector_count']),
           'properties': (s) => toNum(s['property_count']),
@@ -63,9 +61,9 @@ class SchemeListPage extends StatelessWidget {
       ListCard(
         toolbar: ListToolbar(
           p: p,
-          placeholder: 'Search scheme name, code or zone…',
+          placeholder: 'Search scheme name or code…',
           filters: const [FilterDef('type', 'Scheme type', kSchemeTypes, 'All types'), FilterDef('status', 'Status', kActiveOpts, 'All status')],
-          sorts: const [('code', 'Code'), ('name', 'Scheme'), ('type', 'Type'), ('zone', 'Zone'), ('year', 'Year'), ('sectors', 'Sectors'), ('properties', 'Properties')],
+          sorts: const [('code', 'Code'), ('name', 'Scheme'), ('type', 'Type'), ('year', 'Year'), ('sectors', 'Sectors'), ('properties', 'Properties')],
         ),
         rows: [
           for (final s in p.items)
@@ -75,7 +73,6 @@ class SchemeListPage extends StatelessWidget {
               trailing: activePill(s['is_active']),
               fields: [
                 ('Type', val(kSchemeTypes[s['scheme_type']] ?? s['scheme_type'])),
-                ('Zone', val(s['zone'])),
                 ('Year', val(s['year_of_scheme'])),
                 (
                   'Sectors',
@@ -147,7 +144,7 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
     _existing = s == null ? <Rec>[] : db.schemeSectors(s['scheme_id']);
     final init = <String, Object?>{};
     if (s != null) {
-      init.addAll({'scheme_name': s['scheme_name'], 'scheme_code': s['scheme_code'], 'scheme_type': s['scheme_type'], 'zone_id': s['zone_id'], 'year_of_scheme': s['year_of_scheme']});
+      init.addAll({'scheme_name': s['scheme_name'], 'scheme_code': s['scheme_code'], 'scheme_type': s['scheme_type'], 'year_of_scheme': s['year_of_scheme']});
       for (final x in _existing) {
         init['sec_name_${x['sector_id']}'] = x['sector_name'];
         init['sec_active_${x['sector_id']}'] = truthy(x['is_active']) ? '1' : '';
@@ -238,14 +235,8 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
     final data = <String, Object?>{
       'scheme_name': _f.trimmed('scheme_name'),
       'scheme_type': _f.value('scheme_type'),
-      'zone_id': toInt(_f.value('zone_id')),
       'year_of_scheme': toInt(_f.trimmed('year_of_scheme')),
     };
-    final zone = db.find('master_zones', data['zone_id']);
-    if (zone == null || (!truthy(zone['is_active']) && (scheme == null || toInt(scheme['zone_id']) != data['zone_id']))) {
-      _f.fail('zone_id', 'Please select an active zone.');
-      return;
-    }
     if (db.valueExists('schemes', 'scheme_name', data['scheme_name'], id)) {
       _f.fail('scheme_name', 'A scheme with this name already exists.');
       return;
@@ -331,7 +322,7 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
       db.audit('SCHEME', sid, 'CREATED', null, {...data, 'sectors': fresh, 'mapping': mapJson});
       P.flash('success', 'Scheme "${data['scheme_name']}" created with ${fresh.length} sector(s).');
     } else {
-      db.audit('SCHEME', sid, 'UPDATED', {'scheme_name': scheme!['scheme_name'], 'zone_id': scheme['zone_id']}, {...data, 'new_sectors': fresh, 'mapping': mapJson});
+      db.audit('SCHEME', sid, 'UPDATED', {'scheme_name': scheme!['scheme_name']}, {...data, 'new_sectors': fresh, 'mapping': mapJson});
       P.flash('success', 'Scheme "${data['scheme_name']}" updated. Changes apply to new properties only.');
     }
     P.go(_base, null, true);
@@ -341,7 +332,6 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
   Widget build(BuildContext context) {
     final scheme = widget.scheme;
     final isEdit = scheme != null;
-    final zones = activeMap('master_zones', 'zone_id', 'zone_name', isEdit ? scheme['zone_id'] : null);
     return AnimatedBuilder(
       animation: _f,
       builder: (context, _) {
@@ -378,7 +368,6 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
                 hint: isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.',
               ),
               FSelect(form: _f, name: 'scheme_type', label: 'Scheme type', options: kSchemeTypes, rules: 'required', placeholder: 'Select type'),
-              FSelect(form: _f, name: 'zone_id', label: 'Zone', options: zones, rules: 'required', placeholder: 'Select zone'),
               FText(form: _f, name: 'year_of_scheme', label: 'Year of scheme', rules: 'required|year', placeholder: 'e.g. 2019', keyboard: TextInputType.number, maxLength: 4),
             ]),
           ),

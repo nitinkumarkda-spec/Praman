@@ -85,83 +85,6 @@ class MasterDef {
   });
 }
 
-Map<String, String> zoneOptions(Object? cur) {
-  final rows = P.db.all('master_zones')..sort((a, b) => toNum(a['sort_order']).compareTo(toNum(b['sort_order'])));
-  return {
-    for (final z in rows)
-      if (truthy(z['is_active']) || toInt(z['zone_id']) == toInt(cur)) str(z['zone_id']): '${z['zone_name']}${truthy(z['is_active']) ? '' : ' (inactive)'}',
-  };
-}
-
-(int, String) _props(int n) => (n, '$n propert${n == 1 ? 'y' : 'ies'}');
-
-Widget _sub(Object? main, Object? sub, {bool strong = true}) => cellSub(main, sub, strong: strong);
-
-final Map<String, MasterDef> kMasters = {
-  'zones': MasterDef(
-    table: 'master_zones', pk: 'zone_id', title: 'Zone Master', one: 'Zone', icon: FA.mapLocationDot, entity: 'ZONE',
-    sub: 'Administrative zones of KDA. Every scheme belongs to one zone; wards are grouped under zones.',
-    name: (r) => str(r['zone_name']), sort: 'order',
-    fields: [
-      const MField('zone_code', 'Zone code', rules: 'required|ucode', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. ZONE-5', hint: 'CAPITAL letters, digits, / _ - . Cannot be changed later.'),
-      const MField('zone_name', 'Zone name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Zone 5'),
-      const MField('name_hi', 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. ज़ोन 5'),
-      const MField('area', 'Area / description', rules: 'max:150|text', placeholder: 'e.g. North Kota'),
-      MField('sort_order', 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: () => P.db.count('master_zones') + 1),
-    ],
-    columns: [
-      MColumn('order', '#', (r) => toNum(r['sort_order']), (r) => val(r['sort_order'])),
-      MColumn('code', 'Code', (r) => r['zone_code'], (r) => val(r['zone_code'], mono: true)),
-      MColumn('name', 'Zone', (r) => r['zone_name'], (r) => _sub(r['zone_name'], r['name_hi'])),
-      MColumn('area', 'Area', (r) => r['area'], (r) => val(r['area'])),
-    ],
-    usage: (r) {
-      final s = P.db.count('schemes', {'zone_id': r['zone_id']});
-      final w = P.db.count('master_wards', {'zone_id': r['zone_id']});
-      return (s + w, '$s scheme(s) · $w ward(s)');
-    },
-    search: (r) => [r['zone_code'], r['zone_name'], r['name_hi'], r['area']],
-  ),
-  'wards': MasterDef(
-    table: 'master_wards', pk: 'ward_id', title: 'Ward Master', one: 'Ward', icon: FA.locationCrosshairs, entity: 'WARD',
-    sub: "Municipal wards. A ward belongs to one zone; a property is tagged with a ward of its scheme's zone.",
-    name: (r) => 'Ward ${r['ward_no']} — ${r['ward_name']}', sort: 'no',
-    fields: [
-      const MField('ward_no', 'Ward no.', type: 'number', rules: 'required|integer|between:1,999', unique: true, placeholder: 'e.g. 17'),
-      const MField('ward_name', 'Ward name / locality', rules: 'required|min:2|max:80|text', placeholder: 'e.g. Talwandi'),
-      const MField('zone_id', 'Zone', type: 'select', rules: 'required', options: zoneOptions, number: true, hint: 'Only active zones are listed.'),
-      const MField('councillor', 'Councillor (optional)', rules: 'max:80|text', placeholder: 'Name of ward councillor'),
-    ],
-    columns: [
-      MColumn('no', 'Ward no.', (r) => toNum(r['ward_no']), (r) => val(r['ward_no'], strong: true)),
-      MColumn('name', 'Ward name', (r) => r['ward_name'], (r) => _sub(r['ward_name'], r['councillor'], strong: false)),
-      MColumn('zone', 'Zone', (r) => P.db.zoneName(r['zone_id']), (r) => Align(alignment: Alignment.centerLeft, child: Pill(P.db.zoneName(r['zone_id']), tone: Tone.primary))),
-    ],
-    filters: (q) => [FilterDef('zone_id', 'Zone', zoneOptions(q['zone_id']), 'All zones')],
-    filterKeys: const ['zone_id'],
-    applyFilter: (rows, q) => (q['zone_id'] ?? '').isEmpty ? rows : rows.where((r) => str(r['zone_id']) == q['zone_id']).toList(),
-    usage: (r) => _props(P.db.count('properties', {'ward_id': r['ward_id'], 'is_active': 1})),
-    search: (r) => [r['ward_no'], r['ward_name'], r['councillor'], P.db.zoneName(r['zone_id'])],
-  ),
-  'assemblies': MasterDef(
-    table: 'master_assemblies', pk: 'assembly_id', title: 'Assembly Master', one: 'Assembly constituency', icon: FA.landmark, entity: 'ASSEMBLY',
-    sub: 'Vidhan Sabha (assembly) constituencies. Every property is tagged with its constituency.',
-    name: (r) => '${r['ac_no']} — ${r['ac_name']}', sort: 'no',
-    fields: [
-      const MField('ac_no', 'AC no.', type: 'number', rules: 'required|integer|between:1,300', unique: true, placeholder: 'e.g. 189'),
-      const MField('ac_name', 'Constituency name', rules: 'required|min:2|max:80|text', unique: true, placeholder: 'e.g. Kota North'),
-      const MField('name_hi', 'Name (Hindi)', rules: 'max:80|text', placeholder: 'e.g. कोटा उत्तर'),
-      MField('district', 'District', rules: 'required|min:2|max:60|text', def: () => 'Kota'),
-      const MField('mla_name', 'MLA (optional)', rules: 'max:80|text'),
-    ],
-    columns: [
-      MColumn('no', 'AC no.', (r) => toNum(r['ac_no']), (r) => val(r['ac_no'], strong: true)),
-      MColumn('name', 'Constituency', (r) => r['ac_name'], (r) => _sub(r['ac_name'], r['name_hi'])),
-      MColumn('district', 'District', (r) => r['district'], (r) => _sub(r['district'], r['mla_name'] != null ? 'MLA: ${r['mla_name']}' : null, strong: false)),
-    ],
-    usage: (r) => _props(P.db.count('properties', {'assembly_id': r['assembly_id'], 'is_active': 1})),
-    search: (r) => [r['ac_no'], r['ac_name'], r['name_hi'], r['district'], r['mla_name']],
-  ),
   'plot-types': MasterDef(
     table: 'master_plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: FA.shapes, entity: 'PLOT_TYPE',
     sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
@@ -347,12 +270,6 @@ class MasterListPage extends StatelessWidget {
 
 String? _blockDeactivate(String key, Rec r) {
   final db = P.db;
-  if (key == 'zones') {
-    final n = db.count('schemes', {'zone_id': r['zone_id'], 'is_active': 1});
-    if (n > 0) return 'Zone "${r['zone_name']}" is used by $n active scheme(s). Move or deactivate those schemes first.';
-  }
-  if (key == 'plot-types' && db.count('master_plot_types', {'is_active': 1}) <= 1) return 'At least one plot type must remain active.';
-  if (key == 'assemblies' && db.count('master_assemblies', {'is_active': 1}) <= 1) return 'At least one assembly constituency must remain active.';
   if (key == 'statuses' && truthy(r['is_system'])) return 'System statuses cannot be deactivated.';
   return null;
 }
@@ -552,7 +469,7 @@ class SectorListPage extends StatelessWidget {
       final sc = db.find('schemes', s['scheme_id']) ?? <String, dynamic>{};
       return <String, dynamic>{
         ...s, 'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'scheme_active': sc['is_active'],
-        'zone': db.zoneName(sc['zone_id']), 'props': db.count('properties', {'sector_id': s['sector_id'], 'is_active': 1}),
+        'props': db.count('properties', {'sector_id': s['sector_id'], 'is_active': 1}),
       };
     }).toList();
     if (ctx.q('scheme_id').isNotEmpty) rows = rows.where((r) => str(r['scheme_id']) == ctx.q('scheme_id')).toList();
@@ -561,7 +478,7 @@ class SectorListPage extends StatelessWidget {
     final p = paginate<Rec>(rows, ctx,
         sort: 'scheme',
         filters: const ['scheme_id', 'status'],
-        search: (r) => [r['sector_name'], r['scheme_name'], r['scheme_code'], r['zone']],
+        search: (r) => [r['sector_name'], r['scheme_name'], r['scheme_code']],
         sortable: {
           'scheme': (r) => '${r['scheme_name']} ${str(r['sort_order']).padLeft(3, '0')}',
           'name': (r) => r['sector_name'],
@@ -582,7 +499,7 @@ class SectorListPage extends StatelessWidget {
       ListCard(
         toolbar: ListToolbar(
           p: p,
-          placeholder: 'Search sector, scheme or zone…',
+          placeholder: 'Search sector or scheme…',
           filters: [FilterDef('scheme_id', 'Scheme', schemeOptions(), 'All schemes'), const FilterDef('status', 'Status', kActiveOpts, 'All status')],
           sorts: const [('scheme', 'Scheme'), ('name', 'Sector'), ('order', 'Order'), ('props', 'Properties')],
         ),
@@ -590,7 +507,7 @@ class SectorListPage extends StatelessWidget {
           for (final r in p.items)
             RecordCard(
               title: Text(str(r['sector_name']), style: T.s(14.5, weight: FontWeight.w700)),
-              subtitle: Text('${r['scheme_name']} · ${r['scheme_code']} · ${r['zone']}${truthy(r['scheme_active']) ? '' : ' · scheme inactive'}', style: T.small),
+              subtitle: Text('${r['scheme_name']} · ${r['scheme_code']}${truthy(r['scheme_active']) ? '' : ' · scheme inactive'}', style: T.small),
               trailing: activePill(r['is_active']),
               fields: [
                 ('Order', val(r['sort_order'])),

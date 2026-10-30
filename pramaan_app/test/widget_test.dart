@@ -7,7 +7,7 @@ import 'package:parman_app/app/validation.dart';
 void main() {
   test('validation rules match the web form', () {
     expect(Validator.check('', 'required', 'Name'), 'Name is required.');
-    expect(Validator.check('', 'required', 'Zone', choice: true), 'Please select Zone.');
+    expect(Validator.check('', 'required', 'Sector', choice: true), 'Please select Sector.');
     expect(Validator.check('Praman@123', 'required|password', 'Password'), isNull);
     expect(Validator.check('abc', 'required|password', 'Password'), isNotNull);
     expect(Validator.check('9800000001', 'mobile', 'Mobile'), isNull);

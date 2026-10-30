@@ -24,9 +24,6 @@
         audit_logs:     'log_id',
         login_attempts: 'attempt_id',
         notifications:  'notification_id',
-        zones:          'zone_id',
-        wards:          'ward_id',
-        assemblies:     'assembly_id',
         plot_types:     'plot_type_id',
         statuses:       'status_id',
         attachments:    'attachment_id'
@@ -127,9 +124,9 @@
         raw: function () { return data; }
     };
 
-    DB.zoneName = function (id) { const z = DB.find('zones', id); return z ? z.zone_name : '—'; };
-    DB.wardName = function (id) { const w = DB.find('wards', id); return w ? 'Ward ' + w.ward_no + ' — ' + w.ward_name : '—'; };
-    DB.assemblyName = function (id) { const a = DB.find('assemblies', id); return a ? a.ac_no + ' — ' + a.ac_name : '—'; };
+    DB.zoneName = function () { return '—'; };
+    DB.wardName = function () { return '—'; };
+    DB.assemblyName = function () { return '—'; };
     DB.panelUsers = function (panel) {
         return DB.where('users', { panel: panel, is_active: 1 }).map(function (u) { return u.user_id; });
     };

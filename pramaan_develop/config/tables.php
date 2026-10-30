@@ -13,9 +13,6 @@ return [
     'users'            => 'users',
     'login_attempts'   => 'login_attempts',
     // masters
-    'zones'            => 'zones',
-    'wards'            => 'wards',
-    'assemblies'       => 'assemblies',
     'plot_types'       => 'plot_types',
     'statuses'         => 'statuses',
     // schemes

@@ -6,7 +6,6 @@ namespace App\Services;
 use App\Core\Clock;
 use App\Core\Database;
 use App\Core\Password;
-use App\Models\Assembly;
 use App\Models\LoginAttempt;
 use App\Models\PlotType;
 use App\Models\Property;
@@ -19,8 +18,6 @@ use App\Models\Status;
 use App\Models\Task;
 use App\Models\TaskAssignee;
 use App\Models\User;
-use App\Models\Ward;
-use App\Models\Zone;
 
 /**
  * Sample data: the same roles, users, masters, schemes, properties and
@@ -33,7 +30,7 @@ final class Seeder
     private const DAY = 1440;
 
     private const TABLES = ['site_inspections', 'sale_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'wards', 'zones', 'assemblies', 'plot_types', 'statuses', 'users', 'roles'];
+        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'users', 'roles'];
 
     public static function run(): void
     {
@@ -154,18 +151,6 @@ final class Seeder
         Audit::log('SYSTEM', null, 'DATABASE_SEEDED', null, ['roles' => count($roles), 'users' => count($users)], null, self::actor(1));
 
         // ---- masters ----
-        foreach ([['ZONE-1', 'Zone 1', 'ज़ोन 1', 'North Kota'], ['ZONE-2', 'Zone 2', 'ज़ोन 2', 'South Kota'], ['ZONE-3', 'Zone 3', 'ज़ोन 3', 'East / Industrial belt'],
-                     ['ZONE-4', 'Zone 4', 'ज़ोन 4', 'West / Peripheral area']] as $i => $z) {
-            Zone::insert(['zone_code' => $z[0], 'zone_name' => $z[1], 'name_hi' => $z[2], 'area' => $z[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
-        }
-        foreach (['Talwandi', 'Mahaveer Nagar', 'Vigyan Nagar', 'Dadabari', 'Kunhadi', 'Rangbari', 'Borkhera', 'Indra Vihar', 'Keshavpura', 'Shrinathpuram',
-                     'Gumanpura', 'Nayapura', 'Station Area', 'Rampura', 'Chhawani', 'Bhimganj Mandi'] as $i => $n) {
-            Ward::insert(['ward_no' => $i + 1, 'ward_name' => $n, 'zone_id' => intdiv($i, 4) + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
-        }
-        foreach ([[187, 'Pipalda', 'पीपल्दा'], [188, 'Sangod', 'सांगोद'], [189, 'Kota North', 'कोटा उत्तर'], [190, 'Kota South', 'कोटा दक्षिण'],
-                     [191, 'Ladpura', 'लाडपुरा'], [192, 'Ramganj Mandi', 'रामगंज मंडी']] as $a) {
-            Assembly::insert(['ac_no' => $a[0], 'ac_name' => $a[1], 'name_hi' => $a[2], 'district' => 'Kota', 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
-        }
         foreach ([['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
                      ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property']] as $i => $t) {
             PlotType::insert(['code' => $t[0], 'name' => $t[1], 'name_hi' => $t[2], 'description' => $t[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
@@ -186,16 +171,16 @@ final class Seeder
 
         // ---- schemes (created by Data Entry, 20-16 days ago) ----
         $schemes = [
-            ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 1, 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
-            ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2, 2021, ['Block-A', 'Block-B']],
-            ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 3, 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
+            ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
+            ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2021, ['Block-A', 'Block-B']],
+            ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
         ];
         $roleUsers = User::where(['panel' => 'ROLE_USER'], 'user_id');
         foreach ($schemes as $i => $s) {
             self::loginAt(2, (20 - $i * 2) * self::DAY + 30, 0);
             self::at((20 - $i * 2) * self::DAY);
-            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'zone_id' => $s[3], 'year_of_scheme' => $s[4], 'is_active' => 1, 'created_by' => 2]);
-            foreach ($s[5] as $j => $name) {
+            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'year_of_scheme' => $s[3], 'is_active' => 1, 'created_by' => 2]);
+            foreach ($s[4] as $j => $name) {
                 Sector::insert(['scheme_id' => $sid, 'sector_name' => $name, 'sort_order' => $j + 1, 'is_active' => 1, 'created_by' => 2]);
             }
             // user 1 of each role (both for Engineering)
@@ -204,11 +189,11 @@ final class Seeder
                     SchemeUser::insert(['scheme_id' => $sid, 'role_id' => $u['role_id'], 'user_id' => $u['user_id'], 'is_active' => 1, 'created_by' => 2]);
                 }
             }
-            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'zone' => 'Zone ' . $s[3],
-                'year_of_scheme' => $s[4], 'sectors' => implode(', ', $s[5])], null, $de);
+            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2],
+                'year_of_scheme' => $s[3], 'sectors' => implode(', ', $s[4])], null, $de);
         }
         self::at(15 * self::DAY);
-        Audit::log('SCHEME', 1, 'UPDATED', ['zone_id' => 4, 'year_of_scheme' => 2018], ['zone_id' => 1, 'year_of_scheme' => 2019], null, $de);
+        Audit::log('SCHEME', 1, 'UPDATED', ['year_of_scheme' => 2018], ['year_of_scheme' => 2019], null, $de);
 
         // ---- properties (10-6 days ago) ----
         $props = [
@@ -221,7 +206,7 @@ final class Seeder
         foreach ($props as $i => $x) {
             self::at(10 * self::DAY - $i * 3 * 60);
             $res = PropertyService::create([
-                'scheme_id' => $x[0], 'sector_id' => $x[1], 'ward_id' => ($x[0] - 1) * 4 + 1 + ($i % 4), 'assembly_id' => [3, 4, 5][$x[0] - 1],
+                'scheme_id' => $x[0], 'sector_id' => $x[1],
                 'plot_no' => $x[2], 'property_type' => $x[3], 'area_value' => $x[4], 'area_unit' => $x[5], 'area_sqm' => PropertyService::toSqm($x[4], $x[5]),
             ], 2);
             $p = $res['property'];

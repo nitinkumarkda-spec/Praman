@@ -20,7 +20,7 @@
             case 'ROUND': case 'TASK': return 'VERIFICATION';
             case 'PROPERTY': return 'PROPERTY';
             case 'SCHEME': return 'SCHEME';
-            case 'ZONE': case 'WARD': case 'ASSEMBLY': case 'PLOT_TYPE': case 'STATUS': case 'SECTOR': return 'MASTERS';
+            case 'PLOT_TYPE': case 'STATUS': case 'SECTOR': return 'MASTERS';
             case 'USER': case 'ROLE': return ['IMPERSONATION_STARTED', 'IMPERSONATION_ENDED', 'ACCOUNT_LOCKED', 'PASSWORD_CHANGED'].indexOf(a.action) !== -1 ? 'AUTH' : 'MASTERS';
             default: return 'SYSTEM';
         }

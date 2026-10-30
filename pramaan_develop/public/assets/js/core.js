@@ -37,8 +37,6 @@
         get ALLOTMENT_MODES() { return DB.lookup('allotment_modes'); },
         get STATUS_COLORS() { return DB.lookup('status_colors'); },
         get STATUS_ICONS() { return DB.lookup('status_icons'); },
-        // Zone / plot type / status lists come from the Super Admin masters (all rows → names for display)
-        get ZONES() { return masterMap('zones', 'zone_id', 'zone_name', false); },
         get PROPERTY_TYPES() { return masterMap('plot_types', 'code', 'name', false); },
         get PROPERTY_STATUSES() { return masterMap('statuses', 'code', 'name', false); },
         /** Only active rows (+ the current value, so old records still show it) — for entry forms. */
@@ -402,8 +400,7 @@
     const MENUS = {
         SUPER_ADMIN: [['Dashboard', 'fa-gauge-high', '/admin/dashboard'], { section: 'Masters' },
             ['Role Master', 'fa-sitemap', '/admin/roles'], ['User Master', 'fa-users', '/admin/users'], { section: 'Property Masters' },
-            ['Scheme', 'fa-map', '/admin/masters/schemes'], ['Sector', 'fa-table-cells', '/admin/masters/sectors'], ['Zone', 'fa-map-location-dot', '/admin/masters/zones'],
-            ['Ward', 'fa-location-crosshairs', '/admin/masters/wards'], ['Assembly', 'fa-landmark', '/admin/masters/assemblies'],
+            ['Scheme', 'fa-map', '/admin/masters/schemes'], ['Sector', 'fa-table-cells', '/admin/masters/sectors'],
             ['Plot Type', 'fa-shapes', '/admin/masters/plot-types'], ['Status', 'fa-flag', '/admin/masters/statuses'], { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs'],
             { section: 'System' }, ['App Settings', 'fa-sliders', '/admin/settings']],
         DATA_ENTRY: [['Dashboard', 'fa-gauge-high', '/data-entry/dashboard'], { section: 'Masters' }, ['Scheme Master', 'fa-map', '/data-entry/schemes'],

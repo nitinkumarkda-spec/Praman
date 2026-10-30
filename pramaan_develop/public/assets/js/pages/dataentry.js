@@ -14,7 +14,7 @@
             return Object.assign({}, s, {
                 sector_count: secs.length, sector_names: secs.map(function (x) { return x.sector_name; }).join(', '),
                 mapped_roles: new Set(maps.map(function (m) { return m.role_id; })).size, mapped_users: maps.length,
-                property_count: DB.count('properties', { scheme_id: s.scheme_id, is_active: 1 }), zone: DB.zoneName(s.zone_id)
+                property_count: DB.count('properties', { scheme_id: s.scheme_id, is_active: 1 })
             });
         });
     }
@@ -26,10 +26,10 @@
         if (q.status === 'inactive') { rows = rows.filter(function (s) { return !s.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'name', dir: 'asc', filters: ['type', 'status'],
-            search: function (s) { return [s.scheme_name, s.scheme_code, s.zone]; },
+            search: function (s) { return [s.scheme_name, s.scheme_code]; },
             sortable: {
                 code: function (s) { return s.scheme_code; }, name: function (s) { return s.scheme_name; }, type: function (s) { return s.scheme_type; },
-                zone: function (s) { return s.zone; }, year: function (s) { return s.year_of_scheme; }, sectors: function (s) { return s.sector_count; },
+                year: function (s) { return s.year_of_scheme; }, sectors: function (s) { return s.sector_count; },
                 properties: function (s) { return s.property_count; }
             }
         });
@@ -39,15 +39,15 @@
             title: 'Scheme Master',
             html: (crumbs ? crumbs('Scheme Master') : '') + P.pageHeader(icon('fa-map') + ' Scheme Master', 'Schemes with their sectors and the role users who will verify properties in them.',
                 '<a href="#' + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a>') +
-                '<div class="card">' + P.list_toolbar(p, 'Search scheme name, code or zone…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search scheme name or code…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'type', 'Type') + P.th_sort(p, 'zone', 'Zone') +
+                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'type', 'Type') +
                 P.th_sort(p, 'year', 'Year') + P.th_sort(p, 'sectors', 'Sectors') + '<th>Role mapping</th>' + P.th_sort(p, 'properties', 'Properties') +
                 '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (s) {
                     const on = s.is_active === 1;
                     return '<tr><td data-label="Code"><span class="mono">' + e(s.scheme_code) + '</span></td><td data-label="Scheme"><strong>' + e(s.scheme_name) + '</strong></td>' +
-                        '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type] || s.scheme_type) + '</td><td data-label="Zone">' + e(s.zone) + '</td>' +
+                        '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type] || s.scheme_type) + '</td>' +
                         '<td data-label="Year">' + s.year_of_scheme + '</td><td data-label="Sectors"><span class="badge badge-info">' + s.sector_count + '</span>' +
                         '<span class="cell-sub truncate" title="' + e(s.sector_names) + '">' + e(s.sector_names || '—') + '</span></td>' +
                         '<td data-label="Role mapping">' + s.mapped_roles + ' roles<span class="cell-sub">' + s.mapped_users + ' users</span></td>' +
@@ -73,7 +73,6 @@
         const sectors = isEdit ? DB.Scheme.sectors(scheme.scheme_id) : [];
         const mapping = isEdit ? DB.Scheme.mapping(scheme.scheme_id) : {};
         const options = DB.Scheme.roleUserOptions();
-        const zones = L.activeMap('zones', 'zone_id', 'zone_name', isEdit ? scheme.zone_id : null);
 
         let html = (crumbs ? crumbs('Scheme Master', isEdit ? 'Edit' : 'Add') : '') + P.pageHeader(icon('fa-map') + ' ' + (isEdit ? 'Edit Scheme' : 'Create Scheme'),
             isEdit ? 'Changes to sectors and role mapping apply to NEW properties only — existing properties keep their snapshot.'
@@ -92,8 +91,6 @@
             '<div class="form-hint">' + (isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.') + '</div><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="scheme_type">Scheme type <span class="required">*</span></label>' +
             '<select id="scheme_type" name="scheme_type" class="form-select" data-rules="required" data-label="Scheme type">' + L.options(L.SCHEME_TYPES, v('scheme_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="zone">Zone <span class="required">*</span></label>' +
-            '<select id="zone" name="zone_id" class="form-select" data-rules="required" data-label="Zone">' + L.options(zones, v('zone_id'), 'Select zone') + '</select><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="year_of_scheme">Year of scheme <span class="required">*</span></label>' +
             '<input type="number" id="year_of_scheme" name="year_of_scheme" class="form-control" min="1950" max="2100" value="' + e(v('year_of_scheme')) + '" placeholder="e.g. 2019" data-rules="required|year" data-label="Year of scheme"><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
@@ -218,8 +215,7 @@
             const round = p.current_round_id ? DB.find('rounds', p.current_round_id) : null;
             const tasks = round ? DB.where('tasks', { round_id: round.round_id }) : [];
             return Object.assign({}, p, {
-                scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, zone: DB.zoneName(sc.zone_id), sector_name: se.sector_name,
-                ward_name: DB.wardName(p.ward_id), assembly_name: DB.assemblyName(p.assembly_id),
+                scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, sector_name: se.sector_name,
                 role_count: new Set(ru.map(function (x) { return x.role_id; })).size,
                 role_users: ru.map(function (x) { return x.role_name + ': ' + x.name; }).join(', '),
                 created_by_name: cu ? cu.name : '', round_no: round ? round.round_no : null,
@@ -235,14 +231,12 @@
         const none = !Object.keys(sectors).length;
         return '<select name="scheme_id" class="form-select" aria-label="Scheme" data-auto-submit data-reset-on-change="sector_id">' + L.options(schemes, q.scheme_id, 'All schemes') + '</select>' +
             '<select name="sector_id" class="form-select" aria-label="Sector" data-auto-submit' + (none ? ' disabled' : '') + '>' + L.options(sectors, q.sector_id, none ? 'Select scheme first' : 'All sectors') + '</select>' +
-            '<select name="assembly_id" class="form-select" aria-label="Assembly" data-auto-submit>' + L.options(L.activeMap('assemblies', 'assembly_id', 'ac_name', q.assembly_id), q.assembly_id, 'All assemblies') + '</select>' +
             '<select name="type" class="form-select" aria-label="Plot type" data-auto-submit>' + L.options(L.PROPERTY_TYPES, q.type, 'All types') + '</select>' +
             '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' + L.options(Object.assign({}, L.PROPERTY_STATUSES, extraStatuses || {}), q.status, 'All status') + '</select>';
     };
     P.filterProperties = function (rows, q) {
         if (q.scheme_id) { rows = rows.filter(function (r) { return String(r.scheme_id) === q.scheme_id; }); }
         if (q.sector_id) { rows = rows.filter(function (r) { return String(r.sector_id) === q.sector_id; }); }
-        if (q.assembly_id) { rows = rows.filter(function (r) { return String(r.assembly_id) === q.assembly_id; }); }
         if (q.type) { rows = rows.filter(function (r) { return r.property_type === q.type; }); }
         if (q.status === 'REVERIFY_DUE') { rows = rows.filter(function (r) { return DB.Verification.isDue(r); }); }
         else if (q.status) { rows = rows.filter(function (r) { return r.current_status === q.status; }); }
@@ -317,14 +311,7 @@
                 '</select><div class="form-hint">Only schemes with at least one active sector are listed.</div>') + '<div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector <span class="required">*</span></label>' +
             '<select id="sector_id" name="sector_id" class="form-select" data-rules="required" data-label="Sector" data-selected="' + e(v('sector_id')) + '"' + (isEdit ? '' : ' disabled') + '>' + sectorOpts + '</select>' +
-            '<div class="form-hint" data-sector-hint>Sectors load from the selected scheme.</div><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="ward_id">Ward <span class="required">*</span></label>' +
-            '<select id="ward_id" name="ward_id" class="form-select" data-rules="required" data-label="Ward" data-selected="' + e(v('ward_id')) + '"' + (isEdit ? '' : ' disabled') + '>' +
-            (isEdit ? wardOptions(sc.zone_id, prop.ward_id) : '<option value="">Select scheme first</option>') + '</select>' +
-            '<div class="form-hint" data-ward-hint>' + (isEdit ? 'Wards of ' + e(DB.zoneName(sc.zone_id)) + '.' : 'Wards of the scheme\'s zone are listed.') + '</div><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="assembly_id">Assembly constituency <span class="required">*</span></label>' +
-            '<select id="assembly_id" name="assembly_id" class="form-select" data-rules="required" data-label="Assembly constituency">' +
-            L.options(L.activeMap('assemblies', 'assembly_id', 'ac_name', v('assembly_id')), v('assembly_id'), 'Select constituency') + '</select><div class="invalid-feedback"></div></div></div>' +
+            '<div class="form-hint" data-sector-hint>Sectors load from the selected scheme.</div><div class="invalid-feedback"></div></div></div>' +
             '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property be created in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
             '<div class="radio-row"><label class="check"><input type="radio" name="confirm_location" value="YES" data-rules="required" data-label="the confirmation (Yes / No)"> <span><strong>Yes</strong>, that is correct</span></label>' +
             '<label class="check"><input type="radio" name="confirm_location" value="NO"> <span><strong>No</strong>, I need to change it</span></label></div><div class="invalid-feedback"></div>' +
@@ -343,26 +330,8 @@
             '<a href="#/data-entry/properties" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
         return {
             title: isEdit ? 'Edit Property' : 'Add Property', html: html,
-            after: isEdit ? null : function (root) {
-                // ward list follows the zone of the chosen scheme
-                const scheme = root.querySelector('#scheme_id');
-                const ward = root.querySelector('#ward_id');
-                const hint = root.querySelector('[data-ward-hint]');
-                scheme.addEventListener('change', function () {
-                    const sc = DB.find('schemes', scheme.value);
-                    ward.innerHTML = sc ? wardOptions(sc.zone_id, null) : '<option value="">Select scheme first</option>';
-                    ward.disabled = !sc;
-                    hint.textContent = sc ? 'Wards of ' + DB.zoneName(sc.zone_id) + '.' : 'Wards of the scheme\'s zone are listed.';
-                });
-            }
+            after: null
         };
-    }
-    function wardOptions(zoneId, current) {
-        const list = DB.where('wards', function (w) { return w.zone_id === zoneId && (w.is_active || w.ward_id === current); })
-            .sort(function (a, b) { return a.ward_no - b.ward_no; });
-        return '<option value="">' + (list.length ? 'Select ward' : 'No active ward in this zone') + '</option>' + list.map(function (w) {
-            return '<option value="' + w.ward_id + '"' + (w.ward_id === current ? ' selected' : '') + '>Ward ' + w.ward_no + ' — ' + e(w.ward_name) + (w.is_active ? '' : ' (inactive)') + '</option>';
-        }).join('');
     }
     P.route('/data-entry/properties/create', PANEL, function () { return propertyForm(null); });
     P.route('/data-entry/properties/{id}', PANEL, function (ctx) {
@@ -376,7 +345,6 @@
                 (prop.current_status === 'LISTED' ? '<a href="#/data-entry/properties/' + prop.property_id + '/edit" class="btn btn-primary">' + icon('fa-pen') + ' <span>Edit</span></a>' : '')) +
                 '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
                 '<dt>Property code</dt><dd class="mono">' + e(prop.property_code) + '</dd><dt>Scheme</dt><dd>' + e(prop.scheme_name + ' (' + prop.scheme_code + ')') + '</dd>' +
-                '<dt>Zone</dt><dd>' + e(prop.zone) + '</dd><dt>Ward</dt><dd>' + e(prop.ward_name) + '</dd><dt>Assembly</dt><dd>' + e(prop.assembly_name) + '</dd>' +
                 '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[prop.property_type] || prop.property_type) + '</dd>' +
                 '<dt>Area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + '</dd><dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
                 (prop.remarks ? '<dt>Remarks</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>' +

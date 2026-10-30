@@ -28,8 +28,7 @@ List<Rec> propertyRows() {
     final tasks = round != null ? db.where('verification_tasks', {'round_id': round['round_id']}) : <Rec>[];
     return <String, dynamic>{
       ...p,
-      'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'zone': db.zoneName(sc['zone_id']), 'sector_name': se['sector_name'],
-      'ward_name': db.wardName(p['ward_id']), 'assembly_name': db.assemblyName(p['assembly_id']),
+      'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'sector_name': se['sector_name'],
       'role_count': ru.map((x) => x['role_id']).toSet().length,
       'role_users': ru.map((x) => '${x['role_name']}: ${x['name']}').join(', '),
       'created_by_name': cu?['name'] ?? '', 'round_no': round?['round_no'],
@@ -48,20 +47,18 @@ List<FilterDef> propertyFilters(Map<String, String> q) {
   return [
     FilterDef('scheme_id', 'Scheme', schemeOptions(), 'All schemes', resetKey: 'sector_id'),
     FilterDef('sector_id', 'Sector', sectors, sectors.isEmpty ? 'Select scheme first' : 'All sectors', enabled: sectors.isNotEmpty),
-    FilterDef('assembly_id', 'Assembly', activeMap('master_assemblies', 'assembly_id', 'ac_name', q['assembly_id']), 'All assemblies'),
     FilterDef('type', 'Plot type', propertyTypes(), 'All types'),
     FilterDef('status', 'Status', propertyStatuses(), 'All status'),
   ];
 }
 
-const List<String> kPropertyFilterKeys = ['scheme_id', 'sector_id', 'assembly_id', 'type', 'status'];
+const List<String> kPropertyFilterKeys = ['scheme_id', 'sector_id', 'type', 'status'];
 
 List<Rec> filterProperties(List<Rec> rows, Map<String, String> q) {
   var r = rows;
   String g(String k) => q[k] ?? '';
   if (g('scheme_id').isNotEmpty) r = r.where((x) => str(x['scheme_id']) == g('scheme_id')).toList();
   if (g('sector_id').isNotEmpty) r = r.where((x) => str(x['sector_id']) == g('sector_id')).toList();
-  if (g('assembly_id').isNotEmpty) r = r.where((x) => str(x['assembly_id']) == g('assembly_id')).toList();
   if (g('type').isNotEmpty) r = r.where((x) => x['property_type'] == g('type')).toList();
   if (g('status').isNotEmpty) r = r.where((x) => x['current_status'] == g('status')).toList();
   return r;
@@ -79,7 +76,7 @@ final Map<String, Object? Function(Rec r)> kPropertySortable = {
 };
 const List<(String, String)> kPropertySorts = [('created', 'Created'), ('code', 'Code'), ('scheme', 'Scheme'), ('sector', 'Sector'), ('plot', 'Plot no.'), ('type', 'Type'), ('area', 'Area'), ('status', 'Status')];
 
-List<Object?> propertySearch(Rec r) => [r['plot_no'], r['property_code'], r['scheme_name'], r['sector_name'], r['ward_name'], r['assembly_name']];
+List<Object?> propertySearch(Rec r) => [r['plot_no'], r['property_code'], r['scheme_name'], r['sector_name']];
 
 Widget areaCell(Rec r) => cellSub(
       '${fmtNum(r['area_value'], 2)} ${unitShort(r['area_unit'])}',
@@ -95,9 +92,6 @@ Widget propertyDetails(Rec prop) => AppCard(
       child: DetailList([
         ('Property code', val(prop['property_code'], mono: true)),
         ('Scheme', val('${prop['scheme_name']} (${prop['scheme_code']})')),
-        ('Zone', val(prop['zone'])),
-        ('Ward', val(prop['ward_name'])),
-        ('Assembly', val(prop['assembly_name'])),
         ('Sector', val(prop['sector_name'])),
         ('Plot no.', val(prop['plot_no'], strong: true)),
         ('Plot type', val(typeName(prop['property_type']))),
@@ -139,7 +133,7 @@ class PropertyListPage extends StatelessWidget {
               trailing: statusPill(r['current_status']),
               fields: [
                 ('Scheme', cellSub(r['scheme_name'], r['scheme_code'])),
-                ('Sector', cellSub(r['sector_name'], r['ward_name'])),
+                ('Sector', val(r['sector_name'])),
                 ('Type', val(typeName(r['property_type']))),
                 ('Area', areaCell(r)),
                 ('Role users', Align(alignment: Alignment.centerLeft, child: Pill('${r['role_count']} roles', icon: FA.userTie))),
@@ -235,7 +229,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     _f = FormModel(p == null
         ? {'area_unit': 'SQM'}
         : {
-            'scheme_id': p['scheme_id'], 'sector_id': p['sector_id'], 'ward_id': p['ward_id'], 'assembly_id': p['assembly_id'], 'plot_no': p['plot_no'],
+            'scheme_id': p['scheme_id'], 'sector_id': p['sector_id'], 'plot_no': p['plot_no'],
             'property_type': p['property_type'], 'area_value': p['area_value'], 'area_unit': p['area_unit'], 'remarks': p['remarks'],
           });
     if (p != null) {
@@ -256,7 +250,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
   /// scheme → sectors (with the short "Loading sectors…" step of the web form)
   void _onScheme(String id) {
     _f.set('sector_id', '');
-    _f.set('ward_id', '');
     _f.set('confirm_location', '');
     _t?.cancel();
     if (id.isEmpty) {
@@ -287,14 +280,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
     });
   }
 
-  Map<String, String> _wardOptions() {
-    final sc = _scheme;
-    if (sc == null) return {};
-    final cur = toInt(_isEdit ? _prop!['ward_id'] : null);
-    final list = P.db.filter('master_wards', (w) => toInt(w['zone_id']) == toInt(sc['zone_id']) && (truthy(w['is_active']) || toInt(w['ward_id']) == cur))
-      ..sort((a, b) => toNum(a['ward_no']).compareTo(toNum(b['ward_no'])));
-    return {for (final w in list) str(w['ward_id']): 'Ward ${w['ward_no']} — ${w['ward_name']}${truthy(w['is_active']) ? '' : ' (inactive)'}'};
-  }
 
   String _areaPreview() {
     final v = double.tryParse(_f.trimmed('area_value'));
@@ -325,17 +310,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
         _f.fail('plot_no', 'Plot no. $plot already exists in this sector.');
         return;
       }
-      final ward = db.find('master_wards', _f.value('ward_id'));
-      final sch = db.find('schemes', schemeId)!;
-      if (ward == null || toInt(ward['zone_id']) != toInt(sch['zone_id']) || (!truthy(ward['is_active']) && (prop == null || toInt(prop['ward_id']) != toInt(ward['ward_id'])))) {
-        _f.fail('ward_id', 'Please select an active ward of ${db.zoneName(sch['zone_id'])}.');
-        return;
-      }
-      final asm = db.find('master_assemblies', _f.value('assembly_id'));
-      if (asm == null || (!truthy(asm['is_active']) && (prop == null || toInt(prop['assembly_id']) != toInt(asm['assembly_id'])))) {
-        _f.fail('assembly_id', 'Please select an active assembly constituency.');
-        return;
-      }
       final pt = db.first('master_plot_types', {'code': _f.value('property_type')});
       if (pt == null || (!truthy(pt['is_active']) && (prop == null || prop['property_type'] != pt['code']))) {
         _f.fail('property_type', 'Please select an active plot type.');
@@ -344,7 +318,7 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
       final area = ((double.tryParse(_f.trimmed('area_value')) ?? 0) * 100).round() / 100;
       final unit = _f.value('area_unit');
       final data = <String, Object?>{
-        'scheme_id': schemeId, 'sector_id': sectorId, 'ward_id': ward['ward_id'], 'assembly_id': asm['assembly_id'], 'plot_no': plot,
+        'scheme_id': schemeId, 'sector_id': sectorId, 'plot_no': plot,
         'property_type': _f.value('property_type'), 'area_value': area, 'area_unit': unit, 'area_sqm': toSqm(area, unit),
         'remarks': _f.trimmed('remarks').isEmpty ? null : _f.trimmed('remarks'),
       };
@@ -453,24 +427,6 @@ class _PropertyFormPageState extends State<PropertyFormPage> {
                 placeholder: _loadingSectors ? 'Loading sectors…' : (_f.value('scheme_id').isEmpty && !_isEdit ? 'Select scheme first' : (_sectorOpts.isEmpty ? 'No active sector' : 'Select sector')),
                 hint: _sectorHint,
                 onChanged: (_) => _f.set('confirm_location', ''),
-              ),
-              FSelect(
-                form: _f,
-                name: 'ward_id',
-                label: 'Ward',
-                options: _wardOptions(),
-                rules: 'required',
-                enabled: scheme != null,
-                placeholder: scheme == null ? 'Select scheme first' : (_wardOptions().isEmpty ? 'No active ward in this zone' : 'Select ward'),
-                hint: scheme == null ? "Wards of the scheme's zone are listed." : 'Wards of ${db.zoneName(scheme['zone_id'])}.',
-              ),
-              FSelect(
-                form: _f,
-                name: 'assembly_id',
-                label: 'Assembly constituency',
-                options: activeMap('master_assemblies', 'assembly_id', 'ac_name', _f.value('assembly_id')),
-                rules: 'required',
-                placeholder: 'Select constituency',
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),

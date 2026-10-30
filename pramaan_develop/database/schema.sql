@@ -87,60 +87,6 @@ CREATE TABLE login_attempts (
 -- ---------------------------------------------------------------------
 -- 2. Masters (Super Admin)
 -- ---------------------------------------------------------------------
-CREATE TABLE zones (
-    zone_id     INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    zone_code   VARCHAR(30)       NOT NULL,
-    zone_name   VARCHAR(60)       NOT NULL,
-    name_hi     VARCHAR(60)       NULL,
-    area        VARCHAR(150)      NULL,
-    sort_order  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-    is_active   TINYINT(1)        NOT NULL DEFAULT 1,
-    is_system   TINYINT(1)        NOT NULL DEFAULT 0,
-    created_by  INT UNSIGNED      NULL,
-    created_at  DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by  INT UNSIGNED      NULL,
-    updated_at  DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (zone_id),
-    UNIQUE KEY uq_zones_code (zone_code),
-    UNIQUE KEY uq_zones_name (zone_name)
-) ENGINE=InnoDB;
-
-CREATE TABLE wards (
-    ward_id     INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    ward_no     SMALLINT UNSIGNED NOT NULL,
-    ward_name   VARCHAR(80)       NOT NULL,
-    zone_id     INT UNSIGNED      NOT NULL,
-    councillor  VARCHAR(80)       NULL,
-    is_active   TINYINT(1)        NOT NULL DEFAULT 1,
-    is_system   TINYINT(1)        NOT NULL DEFAULT 0,
-    created_by  INT UNSIGNED      NULL,
-    created_at  DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by  INT UNSIGNED      NULL,
-    updated_at  DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (ward_id),
-    UNIQUE KEY uq_wards_no (ward_no),
-    KEY ix_wards_zone (zone_id, is_active),
-    CONSTRAINT fk_wards_zone FOREIGN KEY (zone_id) REFERENCES zones (zone_id) ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB;
-
-CREATE TABLE assemblies (
-    assembly_id  INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    ac_no        SMALLINT UNSIGNED NOT NULL,
-    ac_name      VARCHAR(80)       NOT NULL,
-    name_hi      VARCHAR(80)       NULL,
-    district     VARCHAR(60)       NOT NULL DEFAULT 'Kota',
-    mla_name     VARCHAR(80)       NULL,
-    is_active    TINYINT(1)        NOT NULL DEFAULT 1,
-    is_system    TINYINT(1)        NOT NULL DEFAULT 0,
-    created_by   INT UNSIGNED      NULL,
-    created_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_by   INT UNSIGNED      NULL,
-    updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (assembly_id),
-    UNIQUE KEY uq_assemblies_no (ac_no),
-    UNIQUE KEY uq_assemblies_name (ac_name)
-) ENGINE=InnoDB;
-
 CREATE TABLE plot_types (
     plot_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     code         VARCHAR(30)       NOT NULL,
@@ -187,7 +133,6 @@ CREATE TABLE schemes (
     scheme_code     VARCHAR(30)       NOT NULL,
     scheme_name     VARCHAR(150)      NOT NULL,
     scheme_type     ENUM('RESIDENTIAL','COMMERCIAL','INDUSTRIAL','MIXED','FARMHOUSE') NOT NULL,
-    zone_id         INT UNSIGNED      NOT NULL,
     year_of_scheme  SMALLINT UNSIGNED NOT NULL,
     is_active       TINYINT(1)        NOT NULL DEFAULT 1,
     created_by      INT UNSIGNED      NULL,
@@ -197,9 +142,7 @@ CREATE TABLE schemes (
     PRIMARY KEY (scheme_id),
     UNIQUE KEY uq_schemes_code (scheme_code),
     UNIQUE KEY uq_schemes_name (scheme_name),
-    KEY ix_schemes_zone (zone_id),
     KEY ix_schemes_active (is_active, scheme_name),
-    CONSTRAINT fk_schemes_zone FOREIGN KEY (zone_id) REFERENCES zones (zone_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT ck_schemes_year CHECK (year_of_scheme BETWEEN 1950 AND 2100)
 ) ENGINE=InnoDB;
 
@@ -245,8 +188,6 @@ CREATE TABLE properties (
     property_code   VARCHAR(20)    NULL,
     scheme_id       INT UNSIGNED   NOT NULL,
     sector_id       INT UNSIGNED   NOT NULL,
-    ward_id         INT UNSIGNED   NULL,
-    assembly_id     INT UNSIGNED   NULL,
     plot_no         VARCHAR(30)    NOT NULL,
     property_type   VARCHAR(30)    NOT NULL,
     area_value      DECIMAL(12,2)  NOT NULL,
@@ -270,8 +211,6 @@ CREATE TABLE properties (
     KEY ix_properties_created (created_by, is_active),                 -- "entered by me"
     CONSTRAINT fk_properties_scheme   FOREIGN KEY (scheme_id)      REFERENCES schemes (scheme_id)       ON DELETE RESTRICT,
     CONSTRAINT fk_properties_sector   FOREIGN KEY (sector_id)      REFERENCES sectors (sector_id)       ON DELETE RESTRICT,
-    CONSTRAINT fk_properties_ward     FOREIGN KEY (ward_id)        REFERENCES wards (ward_id)           ON DELETE RESTRICT,
-    CONSTRAINT fk_properties_assembly FOREIGN KEY (assembly_id)    REFERENCES assemblies (assembly_id)  ON DELETE RESTRICT,
     CONSTRAINT fk_properties_type     FOREIGN KEY (property_type)  REFERENCES plot_types (code)         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_properties_status   FOREIGN KEY (current_status) REFERENCES statuses (code)           ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT ck_properties_area CHECK (area_value > 0)

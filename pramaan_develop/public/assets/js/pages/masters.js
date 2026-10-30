@@ -15,79 +15,9 @@
     // badge colours / icons offered for statuses (same lists the server accepts)
     const COLOR_OPTS = function () { return L.STATUS_COLORS; };
     const ICON_OPTS = function () { return L.STATUS_ICONS; };
-    const zoneOptions = function (cur) {
-        const m = {};
-        DB.all('zones').sort(P.by(function (z) { return z.sort_order; })).forEach(function (z) {
-            if (z.is_active || z.zone_id === Number(cur)) { m[z.zone_id] = z.zone_name + (z.is_active ? '' : ' (inactive)'); }
-        });
-        return m;
-    };
 
     /* ---------------- config of the generic masters ---------------- */
     const MASTERS = {
-        zones: {
-            table: 'zones', pk: 'zone_id', title: 'Zone Master', one: 'Zone', icon: 'fa-map-location-dot', entity: 'ZONE',
-            sub: 'Administrative zones of ' + P.APP.org_short + '. Every scheme belongs to one zone; wards are grouped under zones.',
-            name: function (r) { return r.zone_name; }, sort: 'order',
-            fields: [
-                { name: 'zone_code', label: 'Zone code', rules: 'required|ucode', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. ZONE-5', hint: 'CAPITAL letters, digits, / _ - . Cannot be changed later.' },
-                { name: 'zone_name', label: 'Zone name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Zone 5' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. ज़ोन 5' },
-                { name: 'area', label: 'Area / description', rules: 'max:150|text', placeholder: 'e.g. North Kota' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('zones') + 1; } }
-            ],
-            columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
-                ['code', 'Code', function (r) { return r.zone_code; }, function (r) { return '<span class="mono">' + e(r.zone_code) + '</span>'; }],
-                ['name', 'Zone', function (r) { return r.zone_name; }, function (r) { return '<strong>' + e(r.zone_name) + '</strong>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
-                ['area', 'Area', function (r) { return r.area; }, function (r) { return e(r.area || '—'); }]
-            ],
-            usage: function (r) {
-                const s = DB.count('schemes', { zone_id: r.zone_id }), w = DB.count('wards', { zone_id: r.zone_id });
-                return { n: s + w, text: s + ' scheme(s) · ' + w + ' ward(s)' };
-            },
-            search: function (r) { return [r.zone_code, r.zone_name, r.name_hi, r.area]; }
-        },
-        wards: {
-            table: 'wards', pk: 'ward_id', title: 'Ward Master', one: 'Ward', icon: 'fa-location-crosshairs', entity: 'WARD',
-            sub: 'Municipal wards. A ward belongs to one zone; a property is tagged with a ward of its scheme\'s zone.',
-            name: function (r) { return 'Ward ' + r.ward_no + ' — ' + r.ward_name; }, sort: 'no',
-            fields: [
-                { name: 'ward_no', label: 'Ward no.', type: 'number', rules: 'required|integer|between:1,999', unique: true, placeholder: 'e.g. 17' },
-                { name: 'ward_name', label: 'Ward name / locality', rules: 'required|min:2|max:80|text', placeholder: 'e.g. Talwandi' },
-                { name: 'zone_id', label: 'Zone', type: 'select', rules: 'required', options: zoneOptions, number: true, hint: 'Only active zones are listed.' },
-                { name: 'councillor', label: 'Councillor (optional)', rules: 'max:80|text', placeholder: 'Name of ward councillor' }
-            ],
-            columns: [
-                ['no', 'Ward no.', function (r) { return r.ward_no; }, function (r) { return '<strong>' + r.ward_no + '</strong>'; }],
-                ['name', 'Ward name', function (r) { return r.ward_name; }, function (r) { return e(r.ward_name) + (r.councillor ? '<span class="cell-sub">' + e(r.councillor) + '</span>' : ''); }],
-                ['zone', 'Zone', function (r) { return DB.zoneName(r.zone_id); }, function (r) { return '<span class="badge badge-primary">' + e(DB.zoneName(r.zone_id)) + '</span>'; }]
-            ],
-            filters: function (q) { return '<select name="zone_id" class="form-select" aria-label="Zone" data-auto-submit>' + L.options(zoneOptions(q.zone_id), q.zone_id, 'All zones') + '</select>'; },
-            filterKeys: ['zone_id'],
-            applyFilter: function (rows, q) { return q.zone_id ? rows.filter(function (r) { return String(r.zone_id) === q.zone_id; }) : rows; },
-            usage: function (r) { const n = DB.count('properties', { ward_id: r.ward_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.ward_no, r.ward_name, r.councillor, DB.zoneName(r.zone_id)]; }
-        },
-        assemblies: {
-            table: 'assemblies', pk: 'assembly_id', title: 'Assembly Master', one: 'Assembly constituency', icon: 'fa-landmark', entity: 'ASSEMBLY',
-            sub: 'Vidhan Sabha (assembly) constituencies. Every property is tagged with its constituency.',
-            name: function (r) { return r.ac_no + ' — ' + r.ac_name; }, sort: 'no',
-            fields: [
-                { name: 'ac_no', label: 'AC no.', type: 'number', rules: 'required|integer|between:1,300', unique: true, placeholder: 'e.g. 189' },
-                { name: 'ac_name', label: 'Constituency name', rules: 'required|min:2|max:80|text', unique: true, placeholder: 'e.g. Kota North' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:80|text', placeholder: 'e.g. कोटा उत्तर' },
-                { name: 'district', label: 'District', rules: 'required|min:2|max:60|text', def: function () { return 'Kota'; } },
-                { name: 'mla_name', label: 'MLA (optional)', rules: 'max:80|text' }
-            ],
-            columns: [
-                ['no', 'AC no.', function (r) { return r.ac_no; }, function (r) { return '<strong>' + r.ac_no + '</strong>'; }],
-                ['name', 'Constituency', function (r) { return r.ac_name; }, function (r) { return '<strong>' + e(r.ac_name) + '</strong>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
-                ['district', 'District', function (r) { return r.district; }, function (r) { return e(r.district) + (r.mla_name ? '<span class="cell-sub">MLA: ' + e(r.mla_name) + '</span>' : ''); }]
-            ],
-            usage: function (r) { const n = DB.count('properties', { assembly_id: r.assembly_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.ac_no, r.ac_name, r.name_hi, r.district, r.mla_name]; }
-        },
         'plot-types': {
             table: 'plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
@@ -253,7 +183,7 @@
         return DB.all('sectors').map(function (s) {
             const sc = DB.find('schemes', s.scheme_id);
             return Object.assign({}, s, { scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_active: sc.is_active,
-                zone: DB.zoneName(sc.zone_id), props: DB.count('properties', { sector_id: s.sector_id, is_active: 1 }) });
+                props: DB.count('properties', { sector_id: s.sector_id, is_active: 1 }) });
         });
     }
     P.route(BASE + '/sectors', PANEL, function (ctx) {
@@ -264,7 +194,7 @@
         if (q.status === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'scheme', dir: 'asc', filters: ['scheme_id', 'status'],
-            search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code, r.zone]; },
+            search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code]; },
             sortable: { scheme: function (r) { return r.scheme_name + ' ' + String(r.sort_order).padStart(3, '0'); }, name: function (r) { return r.sector_name; },
                 order: function (r) { return r.sort_order; }, props: function (r) { return r.props; } }
         });
@@ -279,12 +209,12 @@
                 '<a href="' + P.url(BASE + '/sectors/create', q.scheme_id ? { scheme_id: q.scheme_id } : null) + '" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Sector</span></a>') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
-                '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or zone…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search sector or scheme…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'name', 'Sector') +
                 P.th_sort(p, 'order', 'Order') + P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code + ' · ' + r.zone) + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
+                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
                         '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
                         '<td data-label="Properties"><a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +

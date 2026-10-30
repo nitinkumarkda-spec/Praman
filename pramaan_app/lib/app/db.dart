@@ -24,9 +24,6 @@ const Map<String, String> kTables = {
   'audit_logs': 'log_id',
   'login_attempts': 'attempt_id',
   'notifications': 'notification_id',
-  'master_zones': 'zone_id',
-  'master_wards': 'ward_id',
-  'master_assemblies': 'assembly_id',
   'master_plot_types': 'plot_type_id',
   'master_statuses': 'status_id',
   'attachments': 'attachment_id',
@@ -285,20 +282,11 @@ class Db {
     }
   }
 
-  String zoneName(Object? id) {
-    final z = find('master_zones', id);
-    return z != null ? str(z['zone_name']) : '—';
-  }
+  String zoneName(Object? id) => '—';
 
-  String wardName(Object? id) {
-    final w = find('master_wards', id);
-    return w != null ? 'Ward ${w['ward_no']} — ${w['ward_name']}' : '—';
-  }
+  String wardName(Object? id) => '—';
 
-  String assemblyName(Object? id) {
-    final a = find('master_assemblies', id);
-    return a != null ? '${a['ac_no']} — ${a['ac_name']}' : '—';
-  }
+  String assemblyName(Object? id) => '—';
 
   List<int> panelUsers(String panel) =>
       where('users', {'panel': panel, 'is_active': 1}).map((u) => toInt(u['user_id'])!).toList();
@@ -503,7 +491,7 @@ class Db {
   /// Returns the new property row and how many role users were snapshotted.
   (Rec, int) propertyCreate(Map<String, Object?> d, int by) {
     final p = insert('properties', {
-      'scheme_id': d['scheme_id'], 'sector_id': d['sector_id'], 'ward_id': d['ward_id'], 'assembly_id': d['assembly_id'],
+      'scheme_id': d['scheme_id'], 'sector_id': d['sector_id'],
       'plot_no': d['plot_no'], 'property_type': d['property_type'],
       'area_value': d['area_value'], 'area_unit': d['area_unit'], 'area_sqm': d['area_sqm'], 'remarks': d['remarks'],
       'current_status': 'LISTED', 'current_round_id': null, 'last_verified_round_id': null, 'verification_valid_till': null,
@@ -670,26 +658,6 @@ class Db {
     audit('SYSTEM', null, 'DATABASE_SEEDED', null, {'roles': 8, 'users': 19}, null, find('users', 1));
 
     // ---- masters ----
-    const zones = [
-      ['ZONE-1', 'Zone 1', 'ज़ोन 1', 'North Kota'], ['ZONE-2', 'Zone 2', 'ज़ोन 2', 'South Kota'], ['ZONE-3', 'Zone 3', 'ज़ोन 3', 'East / Industrial belt'],
-      ['ZONE-4', 'Zone 4', 'ज़ोन 4', 'West / Peripheral area'],
-    ];
-    for (var i = 0; i < zones.length; i++) {
-      final z = zones[i];
-      insert('master_zones', {'zone_code': z[0], 'zone_name': z[1], 'name_hi': z[2], 'area': z[3], 'sort_order': i + 1, 'is_active': 1, 'is_system': 0, 'created_by': 1});
-    }
-    const wards = ['Talwandi', 'Mahaveer Nagar', 'Vigyan Nagar', 'Dadabari', 'Kunhadi', 'Rangbari', 'Borkhera', 'Indra Vihar', 'Keshavpura', 'Shrinathpuram',
-      'Gumanpura', 'Nayapura', 'Station Area', 'Rampura', 'Chhawani', 'Bhimganj Mandi'];
-    for (var i = 0; i < wards.length; i++) {
-      insert('master_wards', {'ward_no': i + 1, 'ward_name': wards[i], 'zone_id': i ~/ 4 + 1, 'councillor': null, 'is_active': 1, 'is_system': 0, 'created_by': 1});
-    }
-    const assemblies = [
-      [187, 'Pipalda', 'पीपल्दा'], [188, 'Sangod', 'सांगोद'], [189, 'Kota North', 'कोटा उत्तर'], [190, 'Kota South', 'कोटा दक्षिण'],
-      [191, 'Ladpura', 'लाडपुरा'], [192, 'Ramganj Mandi', 'रामगंज मंडी'],
-    ];
-    for (final a in assemblies) {
-      insert('master_assemblies', {'ac_no': a[0], 'ac_name': a[1], 'name_hi': a[2], 'district': 'Kota', 'mla_name': null, 'is_active': 1, 'is_system': 0, 'created_by': 1});
-    }
     const plotTypes = [
       ['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
       ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property'],
@@ -729,19 +697,18 @@ class Db {
 
     // ---- demo schemes (created by Data Entry, 20-16 days ago) ----
     const schemes = [
-      ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 'Zone 1', 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
-      ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 'Zone 2', 2021, ['Block-A', 'Block-B']],
-      ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 'Zone 3', 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
+      ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
+      ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2021, ['Block-A', 'Block-B']],
+      ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
     ];
     for (var i = 0; i < schemes.length; i++) {
       final s = schemes[i];
       loginAt(2, (20 - i * 2) * kDay + 30, 0);
       _at((20 - i * 2) * kDay);
-      final zoneLabel = s[3] as String;
-      final sectors = (s[5] as List).cast<String>();
+      final sectors = (s[4] as List).cast<String>();
       final sc = insert('schemes', {
-        'scheme_name': s[0], 'scheme_code': s[1], 'scheme_type': s[2], 'zone_id': int.parse(zoneLabel.substring(zoneLabel.length - 1)),
-        'year_of_scheme': s[4], 'is_active': 1, 'created_by': 2,
+        'scheme_name': s[0], 'scheme_code': s[1], 'scheme_type': s[2],
+        'year_of_scheme': s[3], 'is_active': 1, 'created_by': 2,
       });
       for (var j = 0; j < sectors.length; j++) {
         insert('scheme_sectors', {'scheme_id': sc['scheme_id'], 'sector_name': sectors[j], 'sort_order': j + 1, 'is_active': 1, 'created_by': 2});
@@ -754,12 +721,12 @@ class Db {
         }
       }
       audit('SCHEME', sc['scheme_id'], 'CREATED', null, {
-        'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'scheme_type': s[2], 'zone': s[3], 'year_of_scheme': s[4], 'sectors': sectors.join(', '),
+        'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'scheme_type': s[2], 'year_of_scheme': s[3], 'sectors': sectors.join(', '),
       }, null, de);
     }
     // a later edit, so the timeline shows a before -> after change table
     _at(15 * kDay);
-    audit('SCHEME', 1, 'UPDATED', {'zone_id': 4, 'year_of_scheme': 2018}, {'zone_id': 1, 'year_of_scheme': 2019}, null, de);
+    audit('SCHEME', 1, 'UPDATED', {'year_of_scheme': 2018}, {'year_of_scheme': 2019}, null, de);
 
     // ---- demo properties (10-6 days ago) ----
     const props = [
@@ -776,7 +743,7 @@ class Db {
       final area = x[4] as num;
       final sqm = x[5] == 'SQFT' ? (area * 0.092903 * 10000).round() / 10000 : area;
       final (p, _) = propertyCreate({
-        'scheme_id': scheme, 'sector_id': x[1], 'ward_id': (scheme - 1) * 4 + 1 + (i % 4), 'assembly_id': const [3, 4, 5][scheme - 1],
+        'scheme_id': scheme, 'sector_id': x[1],
         'plot_no': x[2], 'property_type': x[3], 'area_value': area, 'area_unit': x[5], 'area_sqm': sqm, 'remarks': null,
       }, 2);
       audit('PROPERTY', p['property_id'], 'CREATED', null, {

@@ -11,7 +11,6 @@ use App\Models\Scheme;
 use App\Models\SchemeUser;
 use App\Models\Sector;
 use App\Models\User;
-use App\Models\Zone;
 use App\Services\Audit;
 
 /**
@@ -31,7 +30,6 @@ final class SchemeController extends Controller
         $rules = [
             'scheme_name'    => ['Scheme name', 'required|min:3|max:150|text'],
             'scheme_type'    => ['Scheme type', 'required|in:' . \App\Core\Lookups::keys(\App\Core\Lookups::SCHEME_TYPES)],
-            'zone_id'        => ['Zone', 'required|integer'],
             'year_of_scheme' => ['Year of scheme', 'required|year'],
         ];
         if (!$id) {
@@ -42,11 +40,7 @@ final class SchemeController extends Controller
         if ($this->request->input('sectors_done') !== '1') {
             $this->fail('Tick “All sectors added — Done” after adding all sectors.', 'sectors_done');
         }
-        $data = ['scheme_name' => $d['scheme_name'], 'scheme_type' => $d['scheme_type'], 'zone_id' => (int) $d['zone_id'], 'year_of_scheme' => (int) $d['year_of_scheme']];
-        $zone = Zone::find($data['zone_id']);
-        if (!$zone || (!$zone['is_active'] && (!$scheme || (int) $scheme['zone_id'] !== $data['zone_id']))) {
-            $this->fail('Please select an active zone.', 'zone_id');
-        }
+        $data = ['scheme_name' => $d['scheme_name'], 'scheme_type' => $d['scheme_type'], 'year_of_scheme' => (int) $d['year_of_scheme']];
         if (Scheme::valueExists('scheme_name', $data['scheme_name'], $id)) {
             $this->fail('A scheme with this name already exists.', 'scheme_name');
         }
