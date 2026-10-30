@@ -20,6 +20,7 @@ const Map<String, List<(String, IconData?, String?)>> kMenus = {
     ('Role Master', FA.sitemap, '/admin/roles'),
     ('User Master', FA.users, '/admin/users'),
     ('Property Masters', null, null),
+    ('Area', FA.mapLocationDot, '/admin/masters/areas'),
     ('Scheme', FA.map, '/admin/masters/schemes'),
     ('Sector', FA.tableCells, '/admin/masters/sectors'),
     ('Plot Type', FA.shapes, '/admin/masters/plot-types'),

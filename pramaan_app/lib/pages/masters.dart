@@ -85,6 +85,34 @@ class MasterDef {
   });
 }
 
+(int, String) _props(int n) => (n, '$n propert${n == 1 ? 'y' : 'ies'}');
+
+Widget _sub(Object? main, Object? sub, {bool strong = true}) => cellSub(main, sub, strong: strong);
+
+final Map<String, MasterDef> kMasters = {
+  'areas': MasterDef(
+    table: 'master_areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: FA.mapLocationDot, entity: 'AREA',
+    sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
+    name: (r) => str(r['area_name']), sort: 'order',
+    fields: [
+      const MField('area_code', 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.'),
+      const MField('area_name', 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota'),
+      const MField('name_hi', 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. उत्तर कोटा'),
+      const MField('description', 'Description', rules: 'max:150|text'),
+      MField('sort_order', 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: () => P.db.count('master_areas') + 1),
+    ],
+    columns: [
+      MColumn('order', '#', (r) => toNum(r['sort_order']), (r) => val(r['sort_order'])),
+      MColumn('code', 'Code', (r) => r['area_code'], (r) => val(r['area_code'], mono: true)),
+      MColumn('name', 'Area name', (r) => r['area_name'], (r) => _sub(r['area_name'], r['name_hi'])),
+      MColumn('desc', 'Description', (r) => r['description'], (r) => val(r['description'])),
+    ],
+    usage: (r) {
+      final n = P.db.count('schemes', {'area_id': r['area_id'], 'is_active': 1});
+      return (n, '$n scheme${n == 1 ? '' : 's'}');
+    },
+    search: (r) => [r['area_code'], r['area_name'], r['name_hi'], r['description']],
+  ),
   'plot-types': MasterDef(
     table: 'master_plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: FA.shapes, entity: 'PLOT_TYPE',
     sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
@@ -270,6 +298,10 @@ class MasterListPage extends StatelessWidget {
 
 String? _blockDeactivate(String key, Rec r) {
   final db = P.db;
+  if (key == 'areas') {
+    final used = db.count('schemes', {'area_id': r['area_id'], 'is_active': 1});
+    if (used > 0) return 'This area has $used active scheme${used > 1 ? 's' : ''} and cannot be deactivated.';
+  }
   if (key == 'statuses' && truthy(r['is_system'])) return 'System statuses cannot be deactivated.';
   return null;
 }
@@ -478,7 +510,7 @@ class SectorListPage extends StatelessWidget {
     final p = paginate<Rec>(rows, ctx,
         sort: 'scheme',
         filters: const ['scheme_id', 'status'],
-        search: (r) => [r['sector_name'], r['scheme_name'], r['scheme_code']],
+        search: (r) => [r['sector_name'], r['scheme_name'], r['scheme_code'], r['area']],
         sortable: {
           'scheme': (r) => '${r['scheme_name']} ${str(r['sort_order']).padLeft(3, '0')}',
           'name': (r) => r['sector_name'],
@@ -499,7 +531,7 @@ class SectorListPage extends StatelessWidget {
       ListCard(
         toolbar: ListToolbar(
           p: p,
-          placeholder: 'Search sector or scheme…',
+          placeholder: 'Search sector, scheme or area…',
           filters: [FilterDef('scheme_id', 'Scheme', schemeOptions(), 'All schemes'), const FilterDef('status', 'Status', kActiveOpts, 'All status')],
           sorts: const [('scheme', 'Scheme'), ('name', 'Sector'), ('order', 'Order'), ('props', 'Properties')],
         ),
@@ -507,7 +539,7 @@ class SectorListPage extends StatelessWidget {
           for (final r in p.items)
             RecordCard(
               title: Text(str(r['sector_name']), style: T.s(14.5, weight: FontWeight.w700)),
-              subtitle: Text('${r['scheme_name']} · ${r['scheme_code']}${truthy(r['scheme_active']) ? '' : ' · scheme inactive'}', style: T.small),
+              subtitle: Text('${r['scheme_name']} · ${r['scheme_code']}${r['area'] != null && r['area'] != '—' ? ' · ${r['area']}' : ''}${truthy(r['scheme_active']) ? '' : ' · scheme inactive'}', style: T.small),
               trailing: activePill(r['is_active']),
               fields: [
                 ('Order', val(r['sort_order'])),

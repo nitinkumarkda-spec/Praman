@@ -20,7 +20,7 @@
             case 'ROUND': case 'TASK': return 'VERIFICATION';
             case 'PROPERTY': return 'PROPERTY';
             case 'SCHEME': return 'SCHEME';
-            case 'PLOT_TYPE': case 'STATUS': case 'SECTOR': return 'MASTERS';
+            case 'AREA': case 'PLOT_TYPE': case 'STATUS': case 'SECTOR': return 'MASTERS';
             case 'USER': case 'ROLE': return ['IMPERSONATION_STARTED', 'IMPERSONATION_ENDED', 'ACCOUNT_LOCKED', 'PASSWORD_CHANGED'].indexOf(a.action) !== -1 ? 'AUTH' : 'MASTERS';
             default: return 'SYSTEM';
         }
@@ -58,9 +58,7 @@
         if (typeof v === 'object') { return JSON.stringify(v); }
         if (k === 'is_active' || k === 'is_mandatory') { return Number(v) === 1 ? 'Yes' : 'No'; }
         if (k === 'role_id') { const r = DB.find('roles', v); return r ? r.role_name : String(v); }
-        if (k === 'zone_id') { return DB.zoneName(v); }
-        if (k === 'ward_id') { return DB.wardName(v); }
-        if (k === 'assembly_id') { return DB.assemblyName(v); }
+        if (k === 'area_id') { return DB.areaName(v); }
         if (k === 'panel') { return P.PANELS[v] || v; }
         if (/status|result|type$/.test(k) && /^[A-Z_]+$/.test(String(v))) { return P.label(v); }
         return String(v);

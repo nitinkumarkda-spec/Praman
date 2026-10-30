@@ -28,6 +28,7 @@ class SchemeListPage extends StatelessWidget {
       final maps = db.where('scheme_role_users', {'scheme_id': s['scheme_id'], 'is_active': 1});
       return <String, dynamic>{
         ...s,
+        'area': db.areaName(s['area_id']),
         'sector_count': secs.length,
         'sector_names': secs.map((x) => x['sector_name']).join(', '),
         'mapped_roles': maps.map((m) => m['role_id']).toSet().length,
@@ -41,10 +42,11 @@ class SchemeListPage extends StatelessWidget {
     final p = paginate<Rec>(rows, ctx,
         sort: 'name',
         filters: const ['type', 'status'],
-        search: (s) => [s['scheme_name'], s['scheme_code']],
+        search: (s) => [s['scheme_name'], s['scheme_code'], s['area']],
         sortable: {
           'code': (s) => s['scheme_code'],
           'name': (s) => s['scheme_name'],
+          'area': (s) => s['area'],
           'type': (s) => s['scheme_type'],
           'year': (s) => toNum(s['year_of_scheme']),
           'sectors': (s) => toNum(s['sector_count']),
@@ -61,9 +63,9 @@ class SchemeListPage extends StatelessWidget {
       ListCard(
         toolbar: ListToolbar(
           p: p,
-          placeholder: 'Search scheme name or code…',
+          placeholder: 'Search scheme name, code or area…',
           filters: const [FilterDef('type', 'Scheme type', kSchemeTypes, 'All types'), FilterDef('status', 'Status', kActiveOpts, 'All status')],
-          sorts: const [('code', 'Code'), ('name', 'Scheme'), ('type', 'Type'), ('year', 'Year'), ('sectors', 'Sectors'), ('properties', 'Properties')],
+          sorts: const [('code', 'Code'), ('name', 'Scheme'), ('area', 'Area'), ('type', 'Type'), ('year', 'Year'), ('sectors', 'Sectors'), ('properties', 'Properties')],
         ),
         rows: [
           for (final s in p.items)
@@ -72,6 +74,7 @@ class SchemeListPage extends StatelessWidget {
               subtitle: Text(str(s['scheme_code']), style: T.mono.copyWith(fontSize: 12)),
               trailing: activePill(s['is_active']),
               fields: [
+                ('Area', val(s['area'])),
                 ('Type', val(kSchemeTypes[s['scheme_type']] ?? s['scheme_type'])),
                 ('Year', val(s['year_of_scheme'])),
                 (
@@ -232,9 +235,16 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
     final db = P.db;
     final scheme = widget.scheme;
     final id = scheme == null ? null : toInt(scheme['scheme_id']);
+    final areaId = toInt(_f.value('area_id'));
+    final area = db.find('master_areas', areaId);
+    if (area == null || (id == null && !truthy(area['is_active']))) {
+      _f.fail('area_id', 'Please select an active area.');
+      return;
+    }
     final data = <String, Object?>{
       'scheme_name': _f.trimmed('scheme_name'),
       'scheme_type': _f.value('scheme_type'),
+      'area_id': areaId,
       'year_of_scheme': toInt(_f.trimmed('year_of_scheme')),
     };
     if (db.valueExists('schemes', 'scheme_name', data['scheme_name'], id)) {
@@ -322,7 +332,7 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
       db.audit('SCHEME', sid, 'CREATED', null, {...data, 'sectors': fresh, 'mapping': mapJson});
       P.flash('success', 'Scheme "${data['scheme_name']}" created with ${fresh.length} sector(s).');
     } else {
-      db.audit('SCHEME', sid, 'UPDATED', {'scheme_name': scheme!['scheme_name']}, {...data, 'new_sectors': fresh, 'mapping': mapJson});
+      db.audit('SCHEME', sid, 'UPDATED', {'scheme_name': scheme!['scheme_name'], 'area_id': scheme['area_id']}, {...data, 'new_sectors': fresh, 'mapping': mapJson});
       P.flash('success', 'Scheme "${data['scheme_name']}" updated. Changes apply to new properties only.');
     }
     P.go(_base, null, true);
@@ -368,6 +378,7 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
                 hint: isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.',
               ),
               FSelect(form: _f, name: 'scheme_type', label: 'Scheme type', options: kSchemeTypes, rules: 'required', placeholder: 'Select type'),
+              FSelect(form: _f, name: 'area_id', label: 'Area', options: areasMap(scheme?['area_id']), rules: 'required', placeholder: 'Select area'),
               FText(form: _f, name: 'year_of_scheme', label: 'Year of scheme', rules: 'required|year', placeholder: 'e.g. 2019', keyboard: TextInputType.number, maxLength: 4),
             ]),
           ),

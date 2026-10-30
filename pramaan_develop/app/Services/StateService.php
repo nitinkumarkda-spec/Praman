@@ -62,7 +62,7 @@ final class StateService
 
         $t = &$state['tables'];
         $t['roles'] = Role::where([], 'sort_order');
-        foreach (['plot_types' => 'PlotType', 'statuses' => 'Status',
+        foreach (['areas' => 'Area', 'plot_types' => 'PlotType', 'statuses' => 'Status',
                  'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }

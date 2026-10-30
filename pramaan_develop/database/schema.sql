@@ -87,6 +87,25 @@ CREATE TABLE login_attempts (
 -- ---------------------------------------------------------------------
 -- 2. Masters (Super Admin)
 -- ---------------------------------------------------------------------
+CREATE TABLE areas (
+    area_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    area_code    VARCHAR(30)       NOT NULL,
+    area_name    VARCHAR(60)       NOT NULL,
+    name_hi      VARCHAR(60)       NULL,
+    description  VARCHAR(150)      NULL,
+    sort_order   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active    TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system    TINYINT(1)        NOT NULL DEFAULT 0,
+    created_by   INT UNSIGNED      NULL,
+    created_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by   INT UNSIGNED      NULL,
+    updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (area_id),
+    UNIQUE KEY uq_areas_code (area_code),
+    UNIQUE KEY uq_areas_name (area_name),
+    KEY ix_areas_active (is_active, sort_order)
+) ENGINE=InnoDB;
+
 CREATE TABLE plot_types (
     plot_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     code         VARCHAR(30)       NOT NULL,
@@ -133,6 +152,7 @@ CREATE TABLE schemes (
     scheme_code     VARCHAR(30)       NOT NULL,
     scheme_name     VARCHAR(150)      NOT NULL,
     scheme_type     ENUM('RESIDENTIAL','COMMERCIAL','INDUSTRIAL','MIXED','FARMHOUSE') NOT NULL,
+    area_id         INT UNSIGNED      NOT NULL,
     year_of_scheme  SMALLINT UNSIGNED NOT NULL,
     is_active       TINYINT(1)        NOT NULL DEFAULT 1,
     created_by      INT UNSIGNED      NULL,
@@ -143,7 +163,9 @@ CREATE TABLE schemes (
     UNIQUE KEY uq_schemes_code (scheme_code),
     UNIQUE KEY uq_schemes_name (scheme_name),
     KEY ix_schemes_active (is_active, scheme_name),
-    CONSTRAINT ck_schemes_year CHECK (year_of_scheme BETWEEN 1950 AND 2100)
+    KEY ix_schemes_area (area_id),
+    CONSTRAINT ck_schemes_year CHECK (year_of_scheme BETWEEN 1950 AND 2100),
+    CONSTRAINT fk_schemes_area FOREIGN KEY (area_id) REFERENCES areas(area_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE sectors (

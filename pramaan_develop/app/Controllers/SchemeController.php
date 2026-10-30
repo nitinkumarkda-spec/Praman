@@ -6,6 +6,7 @@ namespace App\Controllers;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
+use App\Models\Area;
 use App\Models\Role;
 use App\Models\Scheme;
 use App\Models\SchemeUser;
@@ -30,6 +31,7 @@ final class SchemeController extends Controller
         $rules = [
             'scheme_name'    => ['Scheme name', 'required|min:3|max:150|text'],
             'scheme_type'    => ['Scheme type', 'required|in:' . \App\Core\Lookups::keys(\App\Core\Lookups::SCHEME_TYPES)],
+            'area_id'        => ['Area', 'required|integer'],
             'year_of_scheme' => ['Year of scheme', 'required|year'],
         ];
         if (!$id) {
@@ -37,10 +39,19 @@ final class SchemeController extends Controller
             $rules['scheme_code'] = ['Scheme code', 'required|ucode'];
         }
         $d = $this->validate($rules);
+        $area = Area::find((int) $d['area_id']);
+        if (!$area || (!$id && !$area['is_active'])) {
+            $this->fail('Please select a valid active area.', 'area_id');
+        }
         if ($this->request->input('sectors_done') !== '1') {
             $this->fail('Tick “All sectors added — Done” after adding all sectors.', 'sectors_done');
         }
-        $data = ['scheme_name' => $d['scheme_name'], 'scheme_type' => $d['scheme_type'], 'year_of_scheme' => (int) $d['year_of_scheme']];
+        $data = [
+            'scheme_name'    => $d['scheme_name'],
+            'scheme_type'    => $d['scheme_type'],
+            'area_id'        => (int) $d['area_id'],
+            'year_of_scheme' => (int) $d['year_of_scheme'],
+        ];
         if (Scheme::valueExists('scheme_name', $data['scheme_name'], $id)) {
             $this->fail('A scheme with this name already exists.', 'scheme_name');
         }
@@ -130,7 +141,7 @@ final class SchemeController extends Controller
             Audit::log('SCHEME', $sid, 'CREATED', null, $data + ['sectors' => $fresh, 'mapping' => $map]);
             $this->done('Scheme "' . $data['scheme_name'] . '" created with ' . count($fresh) . ' sector(s).', $back);
         }
-        Audit::log('SCHEME', $sid, 'UPDATED', ['scheme_name' => $scheme['scheme_name'], 'zone_id' => $scheme['zone_id']], $data + ['new_sectors' => $fresh, 'mapping' => $map]);
+        Audit::log('SCHEME', $sid, 'UPDATED', ['scheme_name' => $scheme['scheme_name'], 'area_id' => $scheme['area_id'] ?? null], $data + ['new_sectors' => $fresh, 'mapping' => $map]);
         $this->done('Scheme "' . $data['scheme_name'] . '" updated. Changes apply to new properties only.', $back);
     }
 

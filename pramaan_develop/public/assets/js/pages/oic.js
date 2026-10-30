@@ -211,9 +211,10 @@
         }
         html += '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Property code</dt><dd class="mono">' + e(prop.property_code) + '</dd><dt>Scheme</dt><dd>' + e(prop.scheme_name + ' (' + prop.scheme_code + ')') + '</dd>' +
+            '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' +
             '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot no.</dt><dd>' + e(prop.plot_no) + '</dd>' +
             '<dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[prop.property_type]) + '</dd>' +
-            '<dt>Area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + (prop.area_unit === 'SQFT' ? ' <span class="text-muted">(= ' + P.fmt_num(prop.area_sqm, 2) + ' sq m)</span>' : '') + '</dd>' +
+            '<dt>Plot area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + (prop.area_unit === 'SQFT' ? ' <span class="text-muted">(= ' + P.fmt_num(prop.area_sqm, 2) + ' sq m)</span>' : '') + '</dd>' +
             '<dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
             (prop.remarks ? '<dt>Remarks</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users</h3><span class="text-muted small">Snapshot taken when the property was created</span></div>' +

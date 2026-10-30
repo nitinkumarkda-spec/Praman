@@ -31,6 +31,7 @@
             property_id: p.property_id, property_code: p.property_code, plot_no: p.plot_no, property_type: p.property_type,
             area_value: p.area_value, area_unit: p.area_unit, area_sqm: p.area_sqm, property_remarks: p.remarks,
             scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_type: sc.scheme_type, sector_name: se.sector_name,
+            area: sc ? DB.areaName(sc.area_id) : '—',
             role_name: r.role_name, role_code: r.role_code, responded_by_name: ru ? ru.name : null,
             initiated_by_name: iu ? iu.name : '', initiated_by_designation: iu ? iu.designation : ''
         });
@@ -299,9 +300,10 @@
         }
         html += '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Property code</dt><dd class="mono">' + e(task.property_code) + '</dd><dt>Scheme</dt><dd>' + e(task.scheme_name + ' (' + task.scheme_code + ')') + '</dd>' +
+            '<dt>Area</dt><dd>' + e(task.area) + '</dd>' +
             '<dt>Scheme type</dt><dd>' + e(L.SCHEME_TYPES[task.scheme_type]) + '</dd><dt>Sector</dt><dd>' + e(task.sector_name) + '</dd>' +
             '<dt>Plot no.</dt><dd><strong>' + e(task.plot_no) + '</strong></dd><dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[task.property_type]) + '</dd>' +
-            '<dt>Area</dt><dd>' + P.fmt_num(task.area_value, 2) + ' ' + e(L.AREA_UNITS[task.area_unit]) + (task.area_unit === 'SQFT' ? ' <span class="text-muted">(= ' + P.fmt_num(task.area_sqm, 2) + ' sq m)</span>' : '') + '</dd>' +
+            '<dt>Plot area</dt><dd>' + P.fmt_num(task.area_value, 2) + ' ' + e(L.AREA_UNITS[task.area_unit]) + (task.area_unit === 'SQFT' ? ' <span class="text-muted">(= ' + P.fmt_num(task.area_sqm, 2) + ' sq m)</span>' : '') + '</dd>' +
             (task.property_remarks ? '<dt>Remarks</dt><dd>' + e(task.property_remarks) + '</dd>' : '') + '</dl></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-layer-group') + ' Verification task</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Section</dt><dd>' + e(task.role_name) + '</dd><dt>Round</dt><dd>R' + task.round_no + ' ' + P.status_badge(task.round_status) + '</dd>' +

@@ -29,6 +29,7 @@ List<Rec> propertyRows() {
     return <String, dynamic>{
       ...p,
       'scheme_name': sc['scheme_name'], 'scheme_code': sc['scheme_code'], 'sector_name': se['sector_name'],
+      'area': db.areaName(sc['area_id']),
       'role_count': ru.map((x) => x['role_id']).toSet().length,
       'role_users': ru.map((x) => '${x['role_name']}: ${x['name']}').join(', '),
       'created_by_name': cu?['name'] ?? '', 'round_no': round?['round_no'],

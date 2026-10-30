@@ -33,6 +33,7 @@
     };
 
     const Lookups = {
+        get AREAS() { return masterMap('areas', 'area_id', 'area_name', false); },
         get SCHEME_TYPES() { return DB.lookup('scheme_types'); },
         get ALLOTMENT_MODES() { return DB.lookup('allotment_modes'); },
         get STATUS_COLORS() { return DB.lookup('status_colors'); },
@@ -400,6 +401,7 @@
     const MENUS = {
         SUPER_ADMIN: [['Dashboard', 'fa-gauge-high', '/admin/dashboard'], { section: 'Masters' },
             ['Role Master', 'fa-sitemap', '/admin/roles'], ['User Master', 'fa-users', '/admin/users'], { section: 'Property Masters' },
+            ['Area', 'fa-map-location-dot', '/admin/masters/areas'],
             ['Scheme', 'fa-map', '/admin/masters/schemes'], ['Sector', 'fa-table-cells', '/admin/masters/sectors'],
             ['Plot Type', 'fa-shapes', '/admin/masters/plot-types'], ['Status', 'fa-flag', '/admin/masters/statuses'], { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs'],
             { section: 'System' }, ['App Settings', 'fa-sliders', '/admin/settings']],

@@ -26,6 +26,7 @@
         notifications:  'notification_id',
         plot_types:     'plot_type_id',
         statuses:       'status_id',
+        areas:          'area_id',
         attachments:    'attachment_id'
     };
 
@@ -145,6 +146,11 @@
         },
         /** Can OIC start a new round now? Listed / Not Ready / Expired, or Auction Ready inside the window. */
         canSend: function (p) { return SENDABLE.indexOf(p.current_status) !== -1 || DB.Verification.isDue(p); }
+    };
+
+    DB.areaName = function (id) {
+        const a = DB.find('areas', id);
+        return a ? a.area_name : '—';
     };
 
     /* =================================================================

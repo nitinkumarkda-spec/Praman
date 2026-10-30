@@ -6,6 +6,7 @@ namespace App\Services;
 use App\Core\Clock;
 use App\Core\Database;
 use App\Core\Password;
+use App\Models\Area;
 use App\Models\LoginAttempt;
 use App\Models\PlotType;
 use App\Models\Property;
@@ -30,7 +31,7 @@ final class Seeder
     private const DAY = 1440;
 
     private const TABLES = ['site_inspections', 'sale_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'users', 'roles'];
+        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'areas', 'users', 'roles'];
 
     public static function run(): void
     {
@@ -151,6 +152,14 @@ final class Seeder
         Audit::log('SYSTEM', null, 'DATABASE_SEEDED', null, ['roles' => count($roles), 'users' => count($users)], null, self::actor(1));
 
         // ---- masters ----
+        foreach ([
+            ['AREA-1', 'Area 1', 'एरिया 1', 'North Kota'],
+            ['AREA-2', 'Area 2', 'एरिया 2', 'South Kota'],
+            ['AREA-3', 'Area 3', 'एरिया 3', 'East Kota belt'],
+            ['AREA-4', 'Area 4', 'एरिया 4', 'West Kota'],
+        ] as $i => $a) {
+            Area::insert(['area_code' => $a[0], 'area_name' => $a[1], 'name_hi' => $a[2], 'description' => $a[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
+        }
         foreach ([['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
                      ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property']] as $i => $t) {
             PlotType::insert(['code' => $t[0], 'name' => $t[1], 'name_hi' => $t[2], 'description' => $t[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
@@ -171,16 +180,16 @@ final class Seeder
 
         // ---- schemes (created by Data Entry, 20-16 days ago) ----
         $schemes = [
-            ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
-            ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2021, ['Block-A', 'Block-B']],
-            ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
+            ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 1, 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
+            ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2, 2021, ['Block-A', 'Block-B']],
+            ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 3, 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
         ];
         $roleUsers = User::where(['panel' => 'ROLE_USER'], 'user_id');
         foreach ($schemes as $i => $s) {
             self::loginAt(2, (20 - $i * 2) * self::DAY + 30, 0);
             self::at((20 - $i * 2) * self::DAY);
-            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'year_of_scheme' => $s[3], 'is_active' => 1, 'created_by' => 2]);
-            foreach ($s[4] as $j => $name) {
+            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'area_id' => $s[3], 'year_of_scheme' => $s[4], 'is_active' => 1, 'created_by' => 2]);
+            foreach ($s[5] as $j => $name) {
                 Sector::insert(['scheme_id' => $sid, 'sector_name' => $name, 'sort_order' => $j + 1, 'is_active' => 1, 'created_by' => 2]);
             }
             // user 1 of each role (both for Engineering)
@@ -190,7 +199,7 @@ final class Seeder
                 }
             }
             Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2],
-                'year_of_scheme' => $s[3], 'sectors' => implode(', ', $s[4])], null, $de);
+                'area_id' => $s[3], 'year_of_scheme' => $s[4], 'sectors' => implode(', ', $s[5])], null, $de);
         }
         self::at(15 * self::DAY);
         Audit::log('SCHEME', 1, 'UPDATED', ['year_of_scheme' => 2018], ['year_of_scheme' => 2019], null, $de);

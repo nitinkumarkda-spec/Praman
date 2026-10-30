@@ -24,6 +24,7 @@ const Map<String, String> kTables = {
   'audit_logs': 'log_id',
   'login_attempts': 'attempt_id',
   'notifications': 'notification_id',
+  'master_areas': 'area_id',
   'master_plot_types': 'plot_type_id',
   'master_statuses': 'status_id',
   'attachments': 'attachment_id',
@@ -159,6 +160,11 @@ class Db {
   }
 
   List<Rec> all(String t) => List<Rec>.of(_t(t));
+
+  String areaName(Object? id) {
+    final a = find('master_areas', id);
+    return a != null ? str(a['area_name']) : '—';
+  }
 
   Rec? find(String t, Object? id) {
     final pk = kTables[t]!;
@@ -658,6 +664,16 @@ class Db {
     audit('SYSTEM', null, 'DATABASE_SEEDED', null, {'roles': 8, 'users': 19}, null, find('users', 1));
 
     // ---- masters ----
+    const areas = [
+      ['AREA-1', 'Area 1', 'एरिया 1', 'North Kota'],
+      ['AREA-2', 'Area 2', 'एरिया 2', 'South Kota'],
+      ['AREA-3', 'Area 3', 'एरिया 3', 'East Kota belt'],
+      ['AREA-4', 'Area 4', 'एरिया 4', 'West Kota'],
+    ];
+    for (var i = 0; i < areas.length; i++) {
+      final a = areas[i];
+      insert('master_areas', {'area_code': a[0], 'area_name': a[1], 'name_hi': a[2], 'description': a[3], 'sort_order': i + 1, 'is_active': 1, 'is_system': 0, 'created_by': 1});
+    }
     const plotTypes = [
       ['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
       ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property'],
@@ -697,18 +713,18 @@ class Db {
 
     // ---- demo schemes (created by Data Entry, 20-16 days ago) ----
     const schemes = [
-      ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
-      ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2021, ['Block-A', 'Block-B']],
-      ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
+      ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 1, 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
+      ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2, 2021, ['Block-A', 'Block-B']],
+      ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 3, 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
     ];
     for (var i = 0; i < schemes.length; i++) {
       final s = schemes[i];
       loginAt(2, (20 - i * 2) * kDay + 30, 0);
       _at((20 - i * 2) * kDay);
-      final sectors = (s[4] as List).cast<String>();
+      final sectors = (s[5] as List).cast<String>();
       final sc = insert('schemes', {
         'scheme_name': s[0], 'scheme_code': s[1], 'scheme_type': s[2],
-        'year_of_scheme': s[3], 'is_active': 1, 'created_by': 2,
+        'area_id': s[3], 'year_of_scheme': s[4], 'is_active': 1, 'created_by': 2,
       });
       for (var j = 0; j < sectors.length; j++) {
         insert('scheme_sectors', {'scheme_id': sc['scheme_id'], 'sector_name': sectors[j], 'sort_order': j + 1, 'is_active': 1, 'created_by': 2});

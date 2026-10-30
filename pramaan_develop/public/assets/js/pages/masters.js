@@ -18,6 +18,26 @@
 
     /* ---------------- config of the generic masters ---------------- */
     const MASTERS = {
+        areas: {
+            table: 'areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: 'fa-map-location-dot', entity: 'AREA',
+            sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
+            name: function (r) { return r.area_name; }, sort: 'order',
+            fields: [
+                { name: 'area_code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.' },
+                { name: 'area_name', label: 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota' },
+                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. उत्तर कोटा' },
+                { name: 'description', label: 'Description', rules: 'max:150|text' },
+                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('areas') + 1; } }
+            ],
+            columns: [
+                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
+                ['code', 'Code', function (r) { return r.area_code; }, function (r) { return '<span class="mono">' + e(r.area_code) + '</span>'; }],
+                ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            usage: function (r) { const n = DB.count('schemes', { area_id: r.area_id, is_active: 1 }); return { n: n, text: n + ' scheme' + (n === 1 ? '' : 's') }; },
+            search: function (r) { return [r.area_code, r.area_name, r.name_hi, r.description]; }
+        },
         'plot-types': {
             table: 'plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
@@ -182,7 +202,9 @@
     function sectorRows() {
         return DB.all('sectors').map(function (s) {
             const sc = DB.find('schemes', s.scheme_id);
-            return Object.assign({}, s, { scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_active: sc.is_active,
+            const areaName = sc ? DB.areaName(sc.area_id) : '—';
+            return Object.assign({}, s, { scheme_name: sc ? sc.scheme_name : '—', scheme_code: sc ? sc.scheme_code : '—', scheme_active: sc ? sc.is_active : 0,
+                area: areaName,
                 props: DB.count('properties', { sector_id: s.sector_id, is_active: 1 }) });
         });
     }
@@ -194,7 +216,7 @@
         if (q.status === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'scheme', dir: 'asc', filters: ['scheme_id', 'status'],
-            search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code]; },
+            search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code, r.area]; },
             sortable: { scheme: function (r) { return r.scheme_name + ' ' + String(r.sort_order).padStart(3, '0'); }, name: function (r) { return r.sector_name; },
                 order: function (r) { return r.sort_order; }, props: function (r) { return r.props; } }
         });
@@ -209,12 +231,12 @@
                 '<a href="' + P.url(BASE + '/sectors/create', q.scheme_id ? { scheme_id: q.scheme_id } : null) + '" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Sector</span></a>') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
-                '<div class="card">' + P.list_toolbar(p, 'Search sector or scheme…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or area…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'name', 'Sector') +
                 P.th_sort(p, 'order', 'Order') + P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
+                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.area && r.area !== '—' ? ' · ' + e(r.area) : '') + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
                         '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
                         '<td data-label="Properties"><a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +

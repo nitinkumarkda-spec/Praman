@@ -33,6 +33,7 @@ String areaOf(Rec a) {
       return 'PROPERTY';
     case 'SCHEME':
       return 'SCHEME';
+    case 'AREA':
     case 'PLOT_TYPE':
     case 'STATUS':
     case 'SECTOR':
@@ -77,9 +78,7 @@ String _fmtVal(String k, Object? v) {
   if (v is Map) return jsonEncode(v);
   if (k == 'is_active' || k == 'is_mandatory') return toInt(v) == 1 ? 'Yes' : 'No';
   if (k == 'role_id') return str(db.find('roles', v)?['role_name'] ?? v);
-  if (k == 'zone_id') return db.zoneName(v);
-  if (k == 'ward_id') return db.wardName(v);
-  if (k == 'assembly_id') return db.assemblyName(v);
+  if (k == 'area_id') return db.areaName(v);
   if (k == 'panel') return App.panels[v] ?? str(v);
   if (RegExp(r'status|result|type$').hasMatch(k) && RegExp(r'^[A-Z_]+$').hasMatch(str(v))) return label(v);
   return str(v);

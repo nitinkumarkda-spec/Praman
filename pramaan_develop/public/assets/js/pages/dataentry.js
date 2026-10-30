@@ -12,6 +12,7 @@
             const secs = DB.Scheme.sectors(s.scheme_id).filter(function (x) { return x.is_active; });
             const maps = DB.where('scheme_users', { scheme_id: s.scheme_id, is_active: 1 });
             return Object.assign({}, s, {
+                area: DB.areaName(s.area_id),
                 sector_count: secs.length, sector_names: secs.map(function (x) { return x.sector_name; }).join(', '),
                 mapped_roles: new Set(maps.map(function (m) { return m.role_id; })).size, mapped_users: maps.length,
                 property_count: DB.count('properties', { scheme_id: s.scheme_id, is_active: 1 })
@@ -26,9 +27,10 @@
         if (q.status === 'inactive') { rows = rows.filter(function (s) { return !s.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'name', dir: 'asc', filters: ['type', 'status'],
-            search: function (s) { return [s.scheme_name, s.scheme_code]; },
+            search: function (s) { return [s.scheme_name, s.scheme_code, s.area]; },
             sortable: {
-                code: function (s) { return s.scheme_code; }, name: function (s) { return s.scheme_name; }, type: function (s) { return s.scheme_type; },
+                code: function (s) { return s.scheme_code; }, name: function (s) { return s.scheme_name; },
+                area: function (s) { return s.area; }, type: function (s) { return s.scheme_type; },
                 year: function (s) { return s.year_of_scheme; }, sectors: function (s) { return s.sector_count; },
                 properties: function (s) { return s.property_count; }
             }
@@ -39,14 +41,15 @@
             title: 'Scheme Master',
             html: (crumbs ? crumbs('Scheme Master') : '') + P.pageHeader(icon('fa-map') + ' Scheme Master', 'Schemes with their sectors and the role users who will verify properties in them.',
                 '<a href="#' + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a>') +
-                '<div class="card">' + P.list_toolbar(p, 'Search scheme name or code…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search scheme name, code or area…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'type', 'Type') +
+                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'area', 'Area') + P.th_sort(p, 'type', 'Type') +
                 P.th_sort(p, 'year', 'Year') + P.th_sort(p, 'sectors', 'Sectors') + '<th>Role mapping</th>' + P.th_sort(p, 'properties', 'Properties') +
                 '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (s) {
                     const on = s.is_active === 1;
                     return '<tr><td data-label="Code"><span class="mono">' + e(s.scheme_code) + '</span></td><td data-label="Scheme"><strong>' + e(s.scheme_name) + '</strong></td>' +
+                        '<td data-label="Area">' + e(s.area) + '</td>' +
                         '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type] || s.scheme_type) + '</td>' +
                         '<td data-label="Year">' + s.year_of_scheme + '</td><td data-label="Sectors"><span class="badge badge-info">' + s.sector_count + '</span>' +
                         '<span class="cell-sub truncate" title="' + e(s.sector_names) + '">' + e(s.sector_names || '—') + '</span></td>' +
@@ -57,7 +60,7 @@
                         '<input type="hidden" name="id" value="' + s.scheme_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form></div></td></tr>';
-                }).join('') : P.empty_state(10, p.hasFilters(), 'No schemes yet — create the first one')) +
+                }).join('') : P.empty_state(11, p.hasFilters(), 'No schemes yet — create the first one')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }
@@ -91,6 +94,8 @@
             '<div class="form-hint">' + (isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.') + '</div><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="scheme_type">Scheme type <span class="required">*</span></label>' +
             '<select id="scheme_type" name="scheme_type" class="form-select" data-rules="required" data-label="Scheme type">' + L.options(L.SCHEME_TYPES, v('scheme_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="area_id">Area <span class="required">*</span></label>' +
+            '<select id="area_id" name="area_id" class="form-select" data-rules="required" data-label="Area">' + L.options(L.AREAS, v('area_id'), 'Select area') + '</select><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="year_of_scheme">Year of scheme <span class="required">*</span></label>' +
             '<input type="number" id="year_of_scheme" name="year_of_scheme" class="form-control" min="1950" max="2100" value="' + e(v('year_of_scheme')) + '" placeholder="e.g. 2019" data-rules="required|year" data-label="Year of scheme"><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
@@ -216,6 +221,7 @@
             const tasks = round ? DB.where('tasks', { round_id: round.round_id }) : [];
             return Object.assign({}, p, {
                 scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, sector_name: se.sector_name,
+                area: sc ? DB.areaName(sc.area_id) : '—',
                 role_count: new Set(ru.map(function (x) { return x.role_id; })).size,
                 role_users: ru.map(function (x) { return x.role_name + ': ' + x.name; }).join(', '),
                 created_by_name: cu ? cu.name : '', round_no: round ? round.round_no : null,
@@ -345,8 +351,9 @@
                 (prop.current_status === 'LISTED' ? '<a href="#/data-entry/properties/' + prop.property_id + '/edit" class="btn btn-primary">' + icon('fa-pen') + ' <span>Edit</span></a>' : '')) +
                 '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
                 '<dt>Property code</dt><dd class="mono">' + e(prop.property_code) + '</dd><dt>Scheme</dt><dd>' + e(prop.scheme_name + ' (' + prop.scheme_code + ')') + '</dd>' +
+                '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' +
                 '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[prop.property_type] || prop.property_type) + '</dd>' +
-                '<dt>Area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + '</dd><dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
+                '<dt>Plot area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + '</dd><dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
                 (prop.remarks ? '<dt>Remarks</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>' +
                 '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users</h3></div><div class="card-body"><div class="chip-list">' +
                 (ru.length ? ru.map(function (x) { return '<span class="chip"><strong>' + e(x.role_name) + ':</strong> ' + e(x.name) + '</span>'; }).join('') : '<span class="text-muted">None</span>') +

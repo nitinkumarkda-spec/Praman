@@ -18,6 +18,7 @@ Map<String, String> masterMap(String table, String key, String name) {
   return {for (final r in rows) str(r[key]): str(r[name])};
 }
 
+Map<String, String> areasMap([Object? current]) => activeMap('master_areas', 'area_id', 'area_name', current);
 Map<String, String> propertyTypes() => masterMap('master_plot_types', 'code', 'name');
 Map<String, String> propertyStatuses() => masterMap('master_statuses', 'code', 'name');
 

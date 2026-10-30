@@ -6,6 +6,7 @@ namespace App\Controllers\Admin;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
+use App\Models\Area;
 use App\Models\PlotType;
 use App\Models\Property;
 use App\Models\Scheme;
@@ -24,6 +25,13 @@ final class MasterController extends Controller
     private function masters(): array
     {
         return [
+            'areas' => [Area::class, 'AREA', 'Area', static fn ($r) => $r['area_name'], [
+                'area_code'   => ['Code', 'required|code', true, true, true, false],
+                'area_name'   => ['Area name', 'required|min:2|max:60|text', true, false, false, false],
+                'name_hi'     => ['Name (Hindi)', 'max:60|text', false, false, false, false],
+                'description' => ['Description', 'max:150|text', false, false, false, false],
+                'sort_order'  => ['Display order', 'required|integer|between:0,999', false, false, false, true],
+            ]],
             'plot-types' => [PlotType::class, 'PLOT_TYPE', 'Plot type', static fn ($r) => $r['name'], [
                 'code'        => ['Code', 'required|code', true, true, true, false],
                 'name'        => ['Name', 'required|min:2|max:60|text', true, false, false, false],
@@ -131,6 +139,7 @@ final class MasterController extends Controller
     private function usage(string $key, array $r): int
     {
         return match ($key) {
+            'areas'      => Scheme::count(['area_id' => $r['area_id']]),
             'plot-types' => Property::count(['property_type' => $r['code']]),
             'statuses'   => Property::count(['current_status' => $r['code']]),
             default      => 1,
@@ -139,6 +148,12 @@ final class MasterController extends Controller
 
     private function blockDeactivate(string $key, array $r): ?string
     {
+        if ($key === 'areas') {
+            $used = Scheme::count(['area_id' => $r['area_id'], 'is_active' => 1]);
+            if ($used > 0) {
+                return 'This area has ' . $used . ' active scheme' . ($used > 1 ? 's' : '') . ' and cannot be deactivated.';
+            }
+        }
         if ($key === 'plot-types' && PlotType::count(['is_active' => 1]) <= 1) {
             return 'At least one plot type must remain active.';
         }
