@@ -114,7 +114,7 @@
     P.route('/oic/properties', PANEL, function (ctx) {
         const q = ctx.query;
         const p = P.paginate(P.filterProperties(P.propertyRows(), q), ctx, {
-            sort: 'created', dir: 'desc', filters: ['scheme_id', 'sector_id', 'assembly_id', 'type', 'status'],
+            sort: 'created', dir: 'desc', filters: ['scheme_id', 'sector_id', 'type', 'status'],
             search: P.propertySearch, sortable: P.propertySortable
         });
         const sendable = DB.Verification.SENDABLE; // bulk send; Auction Ready due for re-verification is re-sent from its detail page

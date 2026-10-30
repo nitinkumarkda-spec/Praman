@@ -253,12 +253,12 @@
         plot: function (r) { return r.plot_no; }, type: function (r) { return r.property_type; }, area: function (r) { return r.area_sqm; },
         status: function (r) { return r.current_status; }, created: function (r) { return r.property_id; }
     };
-    P.propertySearch = function (r) { return [r.plot_no, r.property_code, r.scheme_name, r.sector_name, r.ward_name, r.assembly_name]; };
+    P.propertySearch = function (r) { return [r.plot_no, r.property_code, r.scheme_name, r.sector_name, r.area]; };
 
     P.route('/data-entry/properties', PANEL, function (ctx) {
         const q = ctx.query;
         const p = P.paginate(P.filterProperties(P.propertyRows(), q), ctx, {
-            sort: 'created', dir: 'desc', filters: ['scheme_id', 'sector_id', 'assembly_id', 'type', 'status'],
+            sort: 'created', dir: 'desc', filters: ['scheme_id', 'sector_id', 'type', 'status'],
             search: P.propertySearch, sortable: P.propertySortable
         });
         return {

@@ -27,8 +27,7 @@
     function val(k, v) {
         if (v == null || v === '') { return 'Not set'; }
         if (k === 'sector_id') { const s = DB.find('sectors', v); return s ? s.sector_name : v; }
-        if (k === 'ward_id') { return DB.wardName(v); }
-        if (k === 'assembly_id') { return DB.assemblyName(v); }
+        if (k === 'area_id') { return DB.areaName(v); }
         if (k === 'property_type') { return L.PROPERTY_TYPES[v] || v; }
         if (k === 'status') { return L.PROPERTY_STATUSES[v] || v; }
         return String(v);

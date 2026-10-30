@@ -51,7 +51,7 @@ final class PropertyService
     {
         return Database::transaction(static function () use ($d, $by): array {
             $id = Property::insert([
-                'scheme_id' => $d['scheme_id'], 'sector_id' => $d['sector_id'], 'ward_id' => $d['ward_id'] ?? null, 'assembly_id' => $d['assembly_id'] ?? null,
+                'scheme_id' => $d['scheme_id'], 'sector_id' => $d['sector_id'],
                 'plot_no' => $d['plot_no'], 'property_type' => $d['property_type'], 'area_value' => $d['area_value'], 'area_unit' => $d['area_unit'],
                 'area_sqm' => $d['area_sqm'], 'remarks' => $d['remarks'] ?? null, 'current_status' => 'LISTED', 'is_active' => 1, 'created_by' => $by,
             ]);
