@@ -72,7 +72,7 @@
                 el.classList.remove('is-done', 'is-opening');
                 finishing = false;
             }, OPEN_MS);
-        }, reduce ? 0 : 350); // brief pause to show 100% / verified tick, then smooth fade out
+        }, reduce ? 0 : 200); // brief pause so 100% is visible, then smooth fade out
     }
 
     function done() {
