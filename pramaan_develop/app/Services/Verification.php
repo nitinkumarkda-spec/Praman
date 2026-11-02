@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Codes\Panel;
+use App\Codes\PropertyStatus;
+use App\Codes\RoundStatus;
+use App\Codes\TaskStatus;
 use App\Core\Clock;
 use App\Core\Database;
 use App\Models\Property;
@@ -22,7 +26,7 @@ use App\Models\User;
  */
 final class Verification
 {
-    public const SENDABLE = ['LISTED', 'NOT_READY', 'EXPIRED'];
+    public const SENDABLE = PropertyStatus::SENDABLE;
 
     public static function validityDays(): int
     {
@@ -37,7 +41,7 @@ final class Verification
 
     public static function isDue(array $p): bool
     {
-        return $p['current_status'] === 'AUCTION_READY' && !empty($p['valid_till']) && $p['valid_till'] <= self::horizon();
+        return $p['current_status'] === PropertyStatus::AUCTION_READY && !empty($p['valid_till']) && $p['valid_till'] <= self::horizon();
     }
 
     /** Can OIC start a new round now? Listed / Not Ready / Expired, or Auction Ready inside the window. */
@@ -52,10 +56,10 @@ final class Verification
         $n = 0;
         foreach (Property::readyValidTill('<', today()) as $p) {
             Database::transaction(static function () use ($p): void {
-                Property::update($p['property_id'], ['current_status' => 'EXPIRED']);
-                Audit::log('PROPERTY', $p['property_id'], 'VALIDITY_EXPIRED', ['status' => 'AUCTION_READY'],
-                    ['status' => 'EXPIRED', 'valid_till' => $p['valid_till'], 'round_id' => $p['ready_round_id']], $p['property_id'], Audit::system());
-                Notify::send(Notify::panelUsers('OIC'), [
+                Property::update($p['property_id'], ['current_status' => PropertyStatus::EXPIRED]);
+                Audit::log('PROPERTY', $p['property_id'], 'VALIDITY_EXPIRED', ['status' => PropertyStatus::AUCTION_READY],
+                    ['status' => PropertyStatus::EXPIRED, 'valid_till' => $p['valid_till'], 'round_id' => $p['ready_round_id']], $p['property_id'], Audit::system());
+                Notify::send(Notify::panelUsers(Panel::OIC), [
                     'type' => 'VERIFICATION', 'tone' => 'danger', 'icon' => 'fa-calendar-xmark', 'ref' => 'EXPIRED-' . $p['property_id'] . '-' . $p['valid_till'],
                     'title' => 'Validity expired — Plot ' . $p['plot_no'],
                     'message' => 'Auction readiness ended on ' . dmy($p['valid_till']) . '. Send it for periodic re-verification before the next auction.',
@@ -84,14 +88,14 @@ final class Verification
             if (!self::canSend($p)) {
                 return ['ok' => false, 'message' => $lbl . ': status is ' . label($p['current_status']) . ' — only Listed / Not Ready / Validity Expired (or Auction Ready due for re-verification) can be sent.'];
             }
-            if (Round::exists(['property_id' => $p['property_id'], 'round_status' => 'OPEN'])) {
+            if (Round::exists(['property_id' => $p['property_id'], 'round_status' => RoundStatus::OPEN])) {
                 return ['ok' => false, 'message' => $lbl . ': a verification round is already open.'];
             }
-            if ($p['current_status'] === 'NOT_READY' && ($reason === null || $reason === '')) {
+            if ($p['current_status'] === PropertyStatus::NOT_READY && ($reason === null || $reason === '')) {
                 return ['ok' => false, 'message' => $lbl . ': reason is required to re-send a Not Ready property.'];
             }
-            if (($reason === null || $reason === '') && $p['current_status'] !== 'LISTED') {
-                $reason = 'Periodic re-verification — validity ' . ($p['current_status'] === 'EXPIRED' ? 'expired' : 'ends') . ' on ' . dmy($p['valid_till']);
+            if (($reason === null || $reason === '') && $p['current_status'] !== PropertyStatus::LISTED) {
+                $reason = 'Periodic re-verification — validity ' . ($p['current_status'] === PropertyStatus::EXPIRED ? 'expired' : 'ends') . ' on ' . dmy($p['valid_till']);
             }
 
             // active snapshot rows; role active, user active and still in that role
@@ -99,7 +103,7 @@ final class Verification
             foreach (PropertyUser::where(['property_id' => $p['property_id'], 'is_active' => 1]) as $pru) {
                 $r = Role::find($pru['role_id']);
                 $u = User::find($pru['user_id']);
-                if (!$r || !$r['is_active'] || !$u || !$u['is_active'] || $u['panel'] !== 'ROLE_USER' || (int) $u['role_id'] !== (int) $r['role_id']) {
+                if (!$r || !$r['is_active'] || !$u || !$u['is_active'] || $u['panel'] !== Panel::ROLE_USER || (int) $u['role_id'] !== (int) $r['role_id']) {
                     continue;
                 }
                 $roles[$r['role_id']] ??= ['role' => $r, 'users' => []];
@@ -125,21 +129,21 @@ final class Verification
             $roundNo = Round::nextOrder(['property_id' => $p['property_id']], 'round_no');
             $maxSla = max(array_map(static fn ($x) => (int) $x['role']['sla_days'], $list));
             $roundId = Round::insert([
-                'property_id' => $p['property_id'], 'round_no' => $roundNo, 'round_status' => 'OPEN', 'initiated_by' => $by,
+                'property_id' => $p['property_id'], 'round_no' => $roundNo, 'round_status' => RoundStatus::OPEN, 'initiated_by' => $by,
                 'initiated_at' => Clock::now(), 'due_date' => today($maxSla),
                 'resend_reason' => $roundNo > 1 ? mb_substr((string) $reason, 0, 255) : null,
             ]);
             $tasks = [];
             foreach ($list as $x) {
                 $due = today((int) $x['role']['sla_days']);
-                $taskId = Task::insert(['round_id' => $roundId, 'role_id' => $x['role']['role_id'], 'task_status' => 'PENDING', 'sla_due_date' => $due]);
+                $taskId = Task::insert(['round_id' => $roundId, 'role_id' => $x['role']['role_id'], 'task_status' => TaskStatus::PENDING, 'sla_due_date' => $due]);
                 foreach ($x['users'] as $uid) {
                     TaskAssignee::insert(['task_id' => $taskId, 'user_id' => $uid]);
                 }
                 $tasks[] = ['task_id' => $taskId, 'role' => $x['role'], 'users' => $x['users'], 'due' => $due];
             }
             $prevStatus = $p['current_status'];
-            Property::update($p['property_id'], ['current_status' => 'UNDER_VERIFICATION', 'current_round_id' => $roundId, 'updated_by' => $by]);
+            Property::update($p['property_id'], ['current_status' => PropertyStatus::UNDER_VERIFICATION, 'current_round_id' => $roundId, 'updated_by' => $by]);
 
             foreach ($tasks as $t) {
                 Notify::send($t['users'], [
@@ -169,11 +173,11 @@ final class Verification
      */
     public static function respond(int $taskId, string $decision, ?string $remarks, int $by, array $extra = []): array
     {
-        if ($decision !== 'APPROVED' && $decision !== 'REJECTED') {
+        if (!in_array($decision, TaskStatus::DECISIONS, true)) {
             return ['ok' => false, 'message' => 'Invalid decision.'];
         }
         $remarks = $remarks === null ? null : trim($remarks);
-        if ($decision === 'REJECTED' && !$remarks) {
+        if ($decision === TaskStatus::REJECTED && !$remarks) {
             return ['ok' => false, 'message' => 'Rejection reason (remark) is mandatory.'];
         }
         return Database::transaction(static function () use ($taskId, $decision, $remarks, $by, $extra): array {
@@ -183,10 +187,10 @@ final class Verification
             }
             $round = Round::find($t['round_id']);
             $role = Role::find($t['role_id']);
-            if ($round['round_status'] !== 'OPEN') {
+            if ($round['round_status'] !== RoundStatus::OPEN) {
                 return ['ok' => false, 'message' => 'This round is already closed.'];
             }
-            if ($t['task_status'] !== 'PENDING') {
+            if ($t['task_status'] !== TaskStatus::PENDING) {
                 return ['ok' => false, 'message' => $role['role_name'] . ' has already responded (' . label($t['task_status']) . ').'];
             }
             Task::update($t['task_id'], ['task_status' => $decision, 'remarks' => $remarks ?: null, 'responded_by' => $by, 'responded_at' => Clock::now()]);
@@ -199,8 +203,8 @@ final class Verification
             }
 
             $prop = Property::find($round['property_id']);
-            if ($decision === 'REJECTED') {
-                Notify::send(Notify::panelUsers('OIC'), [
+            if ($decision === TaskStatus::REJECTED) {
+                Notify::send(Notify::panelUsers(Panel::OIC), [
                     'type' => 'VERIFICATION', 'tone' => 'danger', 'icon' => 'fa-circle-xmark', 'title' => $role['role_name'] . ' rejected Plot ' . $prop['plot_no'],
                     'message' => 'Round R' . $round['round_no'] . ': "' . $remarks . '". Property is NOT READY — re-send after correction.', 'link' => '/oic/properties/' . $prop['property_id'],
                 ]);
@@ -208,22 +212,22 @@ final class Verification
                     'type' => 'VERIFICATION', 'tone' => 'danger', 'icon' => 'fa-circle-xmark', 'title' => 'Plot ' . $prop['plot_no'] . ' is Not Ready',
                     'message' => $role['role_name'] . ': ' . $remarks, 'link' => '/data-entry/properties',
                 ]);
-                foreach (Task::where(['round_id' => $round['round_id'], 'task_status' => 'PENDING']) as $o) {
+                foreach (Task::where(['round_id' => $round['round_id'], 'task_status' => TaskStatus::PENDING]) as $o) {
                     Notify::send(array_column(TaskAssignee::where(['task_id' => $o['task_id']]), 'user_id'), [
                         'type' => 'TASK', 'icon' => 'fa-minus', 'title' => 'Response not required — Plot ' . $prop['plot_no'],
                         'message' => 'Round R' . $round['round_no'] . ' was closed because ' . $role['role_name'] . ' rejected it.', 'link' => '/role/tasks/' . $o['task_id'],
                     ]);
                 }
-            } elseif ($outcome === 'READY') {
-                Notify::send(array_merge(Notify::panelUsers('OIC'), [$prop['created_by']]), [
+            } elseif ($outcome === RoundStatus::READY) {
+                Notify::send(array_merge(Notify::panelUsers(Panel::OIC), [$prop['created_by']]), [
                     'type' => 'VERIFICATION', 'tone' => 'success', 'icon' => 'fa-gavel', 'title' => 'Plot ' . $prop['plot_no'] . ' is AUCTION READY',
                     'message' => 'All sections approved round R' . $round['round_no'] . '. Valid for ' . self::validityDays() . ' days.', 'link' => '/oic/properties/' . $prop['property_id'],
                 ]);
             }
             $msg = $role['role_name'] . ': ' . label($decision) . '.';
-            if ($outcome === 'READY') {
+            if ($outcome === RoundStatus::READY) {
                 $msg .= ' All roles approved — property is now AUCTION READY.';
-            } elseif ($outcome === 'NOT_READY') {
+            } elseif ($outcome === RoundStatus::NOT_READY) {
                 $msg .= ' Round closed as NOT READY — property is back with OIC for re-verification.';
             }
             return ['ok' => true, 'message' => $msg, 'outcome' => $outcome];
@@ -234,25 +238,25 @@ final class Verification
     public static function consolidate(int $roundId, int $propertyId, int $by): ?string
     {
         $tasks = Task::withRoles($roundId);
-        $rejected = array_filter($tasks, static fn ($t) => in_array($t['task_status'], ['REJECTED', 'NO_RESPONSE'], true));
-        $pending = array_filter($tasks, static fn ($t) => $t['task_status'] === 'PENDING');
+        $rejected = array_filter($tasks, static fn ($t) => in_array($t['task_status'], TaskStatus::BLOCKING, true));
+        $pending = array_filter($tasks, static fn ($t) => $t['task_status'] === TaskStatus::PENDING);
         if ($rejected) {
             Round::update($roundId, [
-                'round_status' => 'CLOSED', 'result' => 'NOT_READY',
+                'round_status' => RoundStatus::CLOSED, 'result' => RoundStatus::NOT_READY,
                 'result_note' => implode("\n", array_map(static fn ($t) => '• ' . $t['role_name'] . ': ' . ($t['remarks'] ?: 'No response'), $rejected)),
                 'closed_by' => $by, 'closed_at' => Clock::now(),
             ]);
-            Property::update($propertyId, ['current_status' => 'NOT_READY', 'updated_by' => $by]);
-            return 'NOT_READY';
+            Property::update($propertyId, ['current_status' => PropertyStatus::NOT_READY, 'updated_by' => $by]);
+            return RoundStatus::NOT_READY;
         }
         if (!$pending) {
             $till = today(self::validityDays());
             Round::update($roundId, [
-                'round_status' => 'CLOSED', 'result' => 'READY', 'result_note' => 'All roles approved',
+                'round_status' => RoundStatus::CLOSED, 'result' => RoundStatus::READY, 'result_note' => 'All roles approved',
                 'closed_by' => $by, 'closed_at' => Clock::now(), 'valid_from' => today(), 'valid_till' => $till,
             ]);
-            Property::update($propertyId, ['current_status' => 'AUCTION_READY', 'ready_round_id' => $roundId, 'valid_till' => $till, 'updated_by' => $by]);
-            return 'READY';
+            Property::update($propertyId, ['current_status' => PropertyStatus::AUCTION_READY, 'ready_round_id' => $roundId, 'valid_till' => $till, 'updated_by' => $by]);
+            return RoundStatus::READY;
         }
         return null;
     }

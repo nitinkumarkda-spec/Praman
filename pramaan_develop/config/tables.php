@@ -12,6 +12,8 @@ return [
     'roles'            => 'roles',
     'users'            => 'users',
     'login_attempts'   => 'login_attempts',
+    'panel_permissions' => 'panel_permissions',
+    'user_permissions' => 'user_permissions',
     // masters
     'areas'            => 'areas',
     'plot_types'       => 'plot_types',

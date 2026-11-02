@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Codes\AttachmentContext;
+use App\Codes\Panel;
+use App\Codes\PropertyStatus;
 use App\Core\Database;
 use App\Models\Attachment;
 use App\Models\Property;
@@ -20,7 +23,7 @@ use Throwable;
 final class PropertyService
 {
     /** Site plan PDF uploaded by Data Entry (latest one is current; older uploads stay as history). */
-    public const SITE_PLAN = 'SITE_PLAN';
+    public const SITE_PLAN = AttachmentContext::SITE_PLAN;
 
     /** Area in square metres, using the factor from the Unit Master. */
     public static function toSqm(float $value, string $unit): float
@@ -55,7 +58,7 @@ final class PropertyService
             $ok = false;
             foreach (SchemeUser::where(['scheme_id' => $schemeId, 'role_id' => $r['role_id'], 'is_active' => 1]) as $m) {
                 $u = User::find($m['user_id']);
-                if ($u && $u['is_active'] && $u['panel'] === 'ROLE_USER' && (int) $u['role_id'] === (int) $r['role_id']) {
+                if ($u && $u['is_active'] && $u['panel'] === Panel::ROLE_USER && (int) $u['role_id'] === (int) $r['role_id']) {
                     $ok = true;
                     break;
                 }
@@ -77,7 +80,7 @@ final class PropertyService
         $stored = [];
         try {
             return Database::transaction(static function () use ($d, $by, $sitePlan, &$stored): array {
-                $id = Property::insert($d + ['remarks' => null, 'current_status' => 'LISTED', 'is_active' => 1, 'created_by' => $by]);
+                $id = Property::insert($d + ['remarks' => null, 'current_status' => PropertyStatus::LISTED, 'is_active' => 1, 'created_by' => $by]);
                 $code = 'PRM-' . str_pad((string) $id, 6, '0', STR_PAD_LEFT);
                 Property::update($id, ['property_code' => $code]);
                 if ($sitePlan) {
@@ -88,7 +91,7 @@ final class PropertyService
                 foreach (SchemeUser::where(['scheme_id' => $d['scheme_id'], 'is_active' => 1]) as $m) {
                     $r = Role::find($m['role_id']);
                     $u = User::find($m['user_id']);
-                    if ($r && $r['is_active'] && $u && $u['is_active'] && $u['panel'] === 'ROLE_USER' && (int) $u['role_id'] === (int) $m['role_id']
+                    if ($r && $r['is_active'] && $u && $u['is_active'] && $u['panel'] === Panel::ROLE_USER && (int) $u['role_id'] === (int) $m['role_id']
                         && !PropertyUser::exists(['property_id' => $id, 'role_id' => $m['role_id'], 'user_id' => $m['user_id']])) {
                         PropertyUser::insert(['property_id' => $id, 'role_id' => $m['role_id'], 'user_id' => $m['user_id'], 'is_active' => 1, 'created_by' => $by]);
                         $snap++;
@@ -96,7 +99,7 @@ final class PropertyService
                 }
                 $p = Property::find($id);
                 $scheme = Scheme::find($d['scheme_id']);
-                Notify::send(Notify::panelUsers('OIC'), [
+                Notify::send(Notify::panelUsers(Panel::OIC), [
                     'type' => 'PROPERTY', 'icon' => 'fa-building-circle-check', 'title' => 'New property listed — Plot ' . $p['plot_no'],
                     'message' => $scheme['scheme_name'] . ' · ' . $code . ' is ready to be sent for verification.', 'link' => '/oic/properties/' . $id,
                 ]);

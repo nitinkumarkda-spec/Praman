@@ -102,7 +102,16 @@
             case 'UNLOCKED': return 'Account unlocked by Super Admin';
             case 'IMPERSONATION_STARTED': return 'Super Admin opened the panel of ' + (n.target || 'a user');
             case 'IMPERSONATION_ENDED': return 'Super Admin returned to own panel';
-            case 'ACCESS_DENIED': return 'Blocked access to ' + (n.path || 'a restricted page');
+            case 'ACCESS_DENIED': return 'Blocked access to ' + (n.path || 'a restricted page') + (n.permission ? ' (needs ' + n.permission + ')' : '');
+            case 'PERMISSIONS_OVERRIDDEN': {
+                const was = o.overrides || {}, now = n.overrides || {};
+                const parts = [];
+                Object.keys(now).forEach(function (k) { if (was[k] !== now[k]) { parts.push((now[k] === 'ALLOW' ? 'allowed ' : 'denied ') + k); } });
+                Object.keys(was).forEach(function (k) { if (!(k in now)) { parts.push(k + ' back to panel'); } });
+                return 'Personal permissions changed' + (parts.length ? ': ' + parts.join(', ') : '');
+            }
+            case 'PERMISSIONS_UPDATED': return 'Permissions of ' + (P.PANELS[n.panel] || n.panel) + ' panel changed' +
+                ((n.added || []).length ? ' — given: ' + n.added.join(', ') : '') + ((o.removed || []).length ? ' — taken away: ' + o.removed.join(', ') : '');
             case 'DATABASE_SEEDED': return 'Initial data loaded: ' + (n.roles || 0) + ' roles, ' + (n.users || 0) + ' users';
             case 'ROUND_INITIATED':
             case 'REINITIATED':
@@ -264,7 +273,7 @@
                 });
             }
         };
-    });
+    }, 'audit.view');
 
     /** "View All" popup: full table from a side card's <template data-ins-modal-body data-title data-sub data-icon>. */
     function openInsModal(tpl, opener) {
@@ -445,9 +454,9 @@
                     '<p class="ins-focus-text">' + (x.ok ? e(x.f[1]) + ' are active as expected.'
                         : e(x.f[1]) + ' are below the expected share in this period.<br><strong>Suggested direction:</strong> ' + e(x.f[2])) + '</p></div>';
             }).join('') +
-            '<form method="post" data-action="publish-direction" data-confirm="Publish directions for ' + (weak.length || 'all') + ' focus area(s)? This is recorded in the audit log." data-confirm-ok="Yes, publish">' +
+            (Auth.can('direction.publish') ? '<form method="post" data-action="publish-direction" data-confirm="Publish directions for ' + (weak.length || 'all') + ' focus area(s)? This is recorded in the audit log." data-confirm-ok="Yes, publish">' +
             '<input type="hidden" name="areas" value="' + e((weak.length ? weak : items).map(function (x) { return x.f[1]; }).join('|')) + '">' +
-            '<button type="submit" class="btn btn-primary btn-block" data-loading-text="Publishing…">' + icon('fa-bullhorn') + ' <span>Publish Direction</span></button></form>';
+            '<button type="submit" class="btn btn-primary btn-block" data-loading-text="Publishing…">' + icon('fa-bullhorn') + ' <span>Publish Direction</span></button></form>' : '');
         return sideCard('Operational Analysis', 'fa-chart-line', body, false);
     }
 

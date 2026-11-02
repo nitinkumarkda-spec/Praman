@@ -1,8 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\DataEntry;
+namespace App\Controllers;
 
+use App\Codes\PropertyStatus;
+use App\Codes\YesNo;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
@@ -21,11 +23,12 @@ final class PropertyController extends Controller
     public function save(): void
     {
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'property.edit' : 'property.create');
         $prop = $id ? Property::find($id) : null;
         if ($id && (!$prop || !$prop['is_active'])) {
             $this->fail('Property not found.');
         }
-        if ($this->request->str('confirm_location') !== 'YES') {
+        if ($this->request->str('confirm_location') !== YesNo::YES) {
             $this->fail('Please confirm the scheme and sector (answer "Yes").', 'confirm_location');
         }
         $_POST['plot_no'] = strtoupper($this->request->str('plot_no'));
@@ -84,7 +87,7 @@ final class PropertyController extends Controller
             $go = $this->request->input('save_and_new') === '1' ? '/data-entry/properties/create' : '/data-entry/properties';
             $this->done('Property plot ' . $plot . ' created (status: Listed). ' . $res['snap'] . ' role user(s) assigned from the scheme mapping.', $go);
         }
-        if ($prop['current_status'] !== 'LISTED') {
+        if ($prop['current_status'] !== PropertyStatus::LISTED) {
             $this->flash('error', 'This property was sent for verification meanwhile and can no longer be edited.');
             $this->done(null, '/data-entry/properties');
         }

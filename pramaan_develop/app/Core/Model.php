@@ -98,7 +98,7 @@ abstract class Model
         return static::where($where, $order, 1)[0] ?? null;
     }
 
-    /** One column as a list: pluck('user_id', ['panel' => 'OIC']). */
+    /** One column as a list: pluck('user_id', ['panel' => Panel::OIC]). */
     public static function pluck(string $col, array $where = [], string $order = ''): array
     {
         return array_column(static::select([$col], $where, $order), $col);

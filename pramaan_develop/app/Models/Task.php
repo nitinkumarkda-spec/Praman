@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Codes\RoundStatus;
+use App\Codes\TaskStatus;
 use App\Core\Database;
 use App\Core\Model;
 
@@ -29,8 +31,8 @@ final class Task extends Model
         return static::castAll(Database::all(
             "SELECT t.task_id, t.sla_due_date, p.plot_no FROM {task_assignees} a
              JOIN {tasks} t ON t.task_id = a.task_id JOIN {rounds} r ON r.round_id = t.round_id JOIN {properties} p ON p.property_id = r.property_id
-             WHERE a.user_id = ? AND t.task_status = 'PENDING' AND r.round_status = 'OPEN' AND t.sla_due_date < ?",
-            [$userId, $today]
+             WHERE a.user_id = ? AND t.task_status = ? AND r.round_status = ? AND t.sla_due_date < ?",
+            [$userId, TaskStatus::PENDING, RoundStatus::OPEN, $today]
         ));
     }
 }

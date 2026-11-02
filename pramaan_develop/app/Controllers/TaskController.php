@@ -1,8 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Role;
+namespace App\Controllers;
 
+use App\Codes\AttachmentContext;
+use App\Codes\RoundStatus;
+use App\Codes\Section;
+use App\Codes\SiteCode;
+use App\Codes\TaskStatus;
+use App\Codes\YesNo;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
@@ -22,13 +28,7 @@ use Throwable;
 /** Role User → give No Objection / Objection on a task (+ section checks and attachments). */
 final class TaskController extends Controller
 {
-    private const SITE_ROLE = 'ENGINEERING_CELL';
-    private const SALE_ROLE = 'SALE_CELL';
-    private const AUCTION_ROLE = 'AUCTION_CELL';
-    /** Cells with their own section; every other cell answers the General section. */
-    private const OWN_SECTION_ROLES = [self::SALE_ROLE, self::AUCTION_ROLE, self::SITE_ROLE];
     private const ENCROACH_MAX = 300;
-    private const SITE_PHOTO = 'SITE_PHOTO';
 
     public function respond(): void
     {
@@ -42,17 +42,17 @@ final class TaskController extends Controller
             $this->fail('Remark may be at most 1000 characters and may not contain < or >.', 'remarks');
         }
         $round = Round::find($t['round_id']);
-        if ($round['round_status'] !== 'OPEN' || $t['task_status'] !== 'PENDING') {
+        if ($round['round_status'] !== RoundStatus::OPEN || $t['task_status'] !== TaskStatus::PENDING) {
             $this->fail('This task is no longer pending.');
         }
         $role = Role::find($t['role_id']);
-        $site = $role['role_code'] === self::SITE_ROLE ? $this->siteCheck($round['property_id'], $me) : null;
+        $site = $role['role_code'] === Section::ENGINEERING ? $this->siteCheck($round['property_id'], $me) : null;
         $photos = $site ? $this->sitePhotos() : [];
         if ($site) {
             // Engineering gives a site report, not a decision: encroachment = Objection, otherwise No Objection
-            $decision = $site['encroachment'] === 'YES' ? 'REJECTED' : 'APPROVED';
-            if ($decision === 'REJECTED') {
-                $found = SiteInspection::ENCROACHMENT_TYPES[$site['encroachment_type']] . ' found — ' . $site['encroachment_details'];
+            $decision = $site['encroachment'] === YesNo::YES ? TaskStatus::REJECTED : TaskStatus::APPROVED;
+            if ($decision === TaskStatus::REJECTED) {
+                $found = SiteCode::ENCROACHMENT_TYPES[$site['encroachment_type']] . ' found — ' . $site['encroachment_details'];
                 $remarks = mb_substr($found . ($remarks !== '' ? ' ' . $remarks : ''), 0, 1000);
             }
             $section = null;
@@ -61,7 +61,7 @@ final class TaskController extends Controller
             $section = $this->sectionCheck($role['role_code'], $me);
             $letters = $section ? $this->letters($section) : [];
             $taken = $section && (!empty($section['is_sale_allotted']) || !empty($section['is_auctioned']) || !empty($section['is_inst_allotted']) || !empty($section['is_inst_in_process']));
-            $decision = $taken ? 'REJECTED' : 'APPROVED';
+            $decision = $taken ? TaskStatus::REJECTED : TaskStatus::APPROVED;
         }
 
         $files = $this->request->files('attachments');
@@ -76,7 +76,7 @@ final class TaskController extends Controller
                 $saved = [];
                 $ctx = ['task_id' => $t['task_id'], 'round_id' => $t['round_id'], 'property_id' => $round['property_id'], 'by' => $me];
                 foreach ($photos as $f) {
-                    $a = Uploads::store($f, $ctx + ['context' => self::SITE_PHOTO]);
+                    $a = Uploads::store($f, $ctx + ['context' => AttachmentContext::SITE_PHOTO]);
                     $stored[] = $a['path'];
                     $saved[] = $a['file_name'];
                 }
@@ -130,14 +130,14 @@ final class TaskController extends Controller
         }
 
         $enc = $this->request->str('encroachment');
-        if ($enc !== 'YES' && $enc !== 'NO') {
+        if (!in_array($enc, YesNo::ALL, true)) {
             $this->fail('Select Yes or No for encroachment.', 'encroachment');
         }
         $type = null;
         $text = '';
-        if ($enc === 'YES') {
+        if ($enc === YesNo::YES) {
             $type = $this->request->str('encroachment_type');
-            if (!isset(SiteInspection::ENCROACHMENT_TYPES[$type])) {
+            if (!isset(SiteCode::ENCROACHMENT_TYPES[$type])) {
                 $this->fail('Select partial or complete encroachment.', 'encroachment_type');
             }
             $text = preg_replace('/\s+/u', ' ', $this->request->str('encroachment_details'));
@@ -157,7 +157,7 @@ final class TaskController extends Controller
             $this->fail('Enter the road size as a whole number (1–999, no decimals).', 'road_width');
         }
         $roadUnit = $this->request->str('road_width_unit');
-        if (!isset(SiteInspection::ROAD_UNITS[$roadUnit])) {
+        if (!isset(SiteCode::ROAD_UNITS[$roadUnit])) {
             $this->fail('Select feet or meter for the road size.', 'road_width_unit');
         }
         $corner = $this->yesNo('is_corner', 'Select Yes or No for “Corner plot”.');
@@ -172,7 +172,7 @@ final class TaskController extends Controller
             'area_value' => $value, 'area_unit' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
             'recorded_value' => $p['area_value'], 'recorded_unit' => $p['area_unit'], 'difference' => abs($diff),
             'difference_pct' => $p['area_value'] ? round(abs($diff) / (float) $p['area_value'] * 100, 2) : 0,
-            'variance' => abs($diff) < 0.01 ? 'SAME' : ($diff < 0 ? 'LESS' : 'MORE'),
+            'variance' => abs($diff) < 0.01 ? SiteCode::SAME : ($diff < 0 ? SiteCode::LESS : SiteCode::MORE),
             'encroachment' => $enc, 'encroachment_type' => $type, 'encroachment_details' => $text !== '' ? $text : null,
             'road_width' => (int) $road, 'road_width_unit' => $roadUnit, 'is_corner' => $corner,
             'latitude' => $lat, 'longitude' => $lng, 'measured_by' => $by, 'measured_at' => now(),
@@ -221,20 +221,20 @@ final class TaskController extends Controller
     private function sectionCheck(string $roleCode, int $by): ?array
     {
         $out = ['checked_by' => $by, 'checked_at' => now()];
-        if ($roleCode === self::SALE_ROLE) {
+        if ($roleCode === Section::SALE) {
             $out['is_sale_allotted'] = $this->yesNo('is_sale_allotted', 'Sale: select Yes or No for “Allotted”.');
             if ($out['is_sale_allotted']) {
                 $out['allottee_name'] = $this->person('allottee_name', 'Name of allottee / mutation');
                 $out['allotment_date'] = $this->pastDate('allotment_date', 'Date of allotment / mutation');
             }
         }
-        if ($roleCode === self::AUCTION_ROLE) {
+        if ($roleCode === Section::AUCTION) {
             $out['is_auctioned'] = $this->yesNo('is_auctioned', 'Auction: select Yes or No for “Auctioned”.');
             if ($out['is_auctioned']) {
                 $out['auction_date'] = $this->pastDate('auction_date', 'Date of auction');
             }
         }
-        if (!in_array($roleCode, self::OWN_SECTION_ROLES, true)) {
+        if (!in_array($roleCode, Section::OWN_FORM, true)) {
             $out['is_inst_allotted'] = $this->yesNo('is_inst_allotted', 'General: select Yes or No for “Allotment to an organisation / institution”.');
             // "Yes" = occupied: allotted, or allotment in progress (no exact date yet)
             $out['is_inst_in_process'] = $out['is_inst_allotted'] && $this->request->input('is_inst_in_process') === '1' ? 1 : 0;
@@ -265,16 +265,16 @@ final class TaskController extends Controller
         if (is_string($checked)) {
             $this->fail($checked, 'allotment_letter');
         }
-        return ['ALLOTMENT_LETTER' => $checked];
+        return [AttachmentContext::ALLOTMENT_LETTER => $checked];
     }
 
     private function yesNo(string $field, string $message): int
     {
         $v = $this->request->str($field);
-        if ($v !== 'YES' && $v !== 'NO') {
+        if (!in_array($v, YesNo::ALL, true)) {
             $this->fail($message, $field);
         }
-        return $v === 'YES' ? 1 : 0;
+        return $v === YesNo::YES ? 1 : 0;
     }
 
     /** Name of a person: letters and spaces only. */

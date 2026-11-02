@@ -1,81 +1,329 @@
 # =====================================================================
-# PRAMAN — root .htaccess
-# Only /public is reachable. Source code, config, database scripts,
-# storage (sessions, logs, uploads) and dot-files are never served.
+# PRAMAAN — the ONLY .htaccess of the application (Apache 2.4+)
+#
+# How a request is served:
+#   /assets/<file>.<css|js|font|image>  -> public/assets/<file>   (static, never runs as a script)
+#   anything else                       -> public/index.php       (pages + JSON API)
+# Nothing else is ever served directly: app/, config/, database/, storage/,
+# dot-files, SQL dumps, logs, README … are refused or never reached.
+#
+# Some protections can only be set in the server config (httpd.conf / vhost),
+# not here — see "SERVER CONFIG" at the end of this file.
 # =====================================================================
 
-Options -Indexes -MultiViews -Includes -ExecCGI
-ServerSignature Off
-DirectoryIndex disabled
-AddDefaultCharset UTF-8
-FileETag None
 
-# ---- block dot-files (.git, .env, .htaccess …) and sensitive extensions everywhere
-<FilesMatch "^\.">
+# ---------------------------------------------------------------------
+# 1. REWRITE ENGINE  (the app cannot run safely without it)
+# ---------------------------------------------------------------------
+<IfModule !mod_rewrite.c>
     Require all denied
-</FilesMatch>
-<FilesMatch "\.(?i:sql|log|ini|env|md|json|lock|yml|yaml|xml|bak|old|orig|swp|dist|sh|ps1|bat|cmd|phar|inc|tpl|twig|cache|txt|sess)$">
-    Require all denied
-</FilesMatch>
-<FilesMatch "^(?i:composer\.(json|lock)|package(-lock)?\.json|README.*|LICENSE.*|web\.config)$">
-    Require all denied
-</FilesMatch>
+</IfModule>
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    RewriteOptions IgnoreInherit
 
-    # ---- HTTPS (enable on the live server)
+    # -----------------------------------------------------------------
+    # 9. FORCE HTTPS  (uncomment when SSL is configured; also turn on
+    #    APP_FORCE_HTTPS in .env and HSTS in section 3)
+    # -----------------------------------------------------------------
     # RewriteCond %{HTTPS} !=on
-    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+    # RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    # RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
 
-    # ---- only GET / POST / HEAD
+    # -----------------------------------------------------------------
+    # 10. FORCE WWW or NON-WWW  (optional — uncomment ONE of the two)
+    # -----------------------------------------------------------------
+    # --- non-www -> www
+    # RewriteCond %{HTTP_HOST} !^www\. [NC]
+    # RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$ [NC]
+    # RewriteRule ^ %{REQUEST_SCHEME}://www.%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+    # --- www -> non-www
+    # RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    # RewriteRule ^ %{REQUEST_SCHEME}://%1%{REQUEST_URI} [R=301,L]
+
+    # -----------------------------------------------------------------
+    # 2. BLOCK DANGEROUS / UNNECESSARY HTTP METHODS
+    #    The app only uses GET + POST (HEAD comes with GET).
+    #    PUT, DELETE, PATCH, OPTIONS, CONNECT, PROPFIND, TRACE, TRACK … -> 405
+    # -----------------------------------------------------------------
     RewriteCond %{REQUEST_METHOD} !^(GET|POST|HEAD)$
+    RewriteRule ^ - [R=405,L]
+
+    # -----------------------------------------------------------------
+    # 18. DISABLE HTTP TRACE / TRACK (proxy / cache level too)
+    #     Also refuse proxy-style requests ("GET http://other-site/ …")
+    #     and Max-Forwards probing. TRACE itself must also be switched off
+    #     in httpd.conf: Apache answers it before reading .htaccess.
+    # -----------------------------------------------------------------
+    RewriteCond %{THE_REQUEST} ^(TRACE|TRACK|DEBUG)\s [NC,OR]
+    RewriteCond %{THE_REQUEST} ^\S+\s+[a-z][a-z0-9+.-]*:// [NC,OR]
+    RewriteCond %{HTTP:Max-Forwards} .
     RewriteRule ^ - [F,L]
 
-    # ---- block TRACE/TRACK and obvious attack strings
-    RewriteCond %{QUERY_STRING} (\.\./|%2e%2e|<script|%3Cscript|union[^a-z]+select|base64_encode|GLOBALS=|_REQUEST=|proc/self/environ) [NC]
+    # -----------------------------------------------------------------
+    # 7. PREVENT PHP INJECTION / MALICIOUS QUERY STRING & URL ATTACKS
+    # -----------------------------------------------------------------
+    # path traversal, NUL bytes, encoded slashes in the request line
+    RewriteCond %{THE_REQUEST} (\.\./|\.\.\\|%2e%2e|%252e|%00|%2500|\\x00) [NC]
+    RewriteRule ^ - [F,L]
+    # script / SQL / PHP / file inclusion in the query string
+    RewriteCond %{QUERY_STRING} (\.\./|%2e%2e|%00|<\s*script|%3c\s*script|javascript:|vbscript:|data:text/html) [NC,OR]
+    RewriteCond %{QUERY_STRING} (union[^a-z]+(all[^a-z]+)?select|select[^a-z]+.+[^a-z]from[^a-z]|insert[^a-z]+into|drop[^a-z]+table|information_schema|sleep\(|benchmark\(|load_file\(|into[^a-z]+(out|dump)file) [NC,OR]
+    RewriteCond %{QUERY_STRING} (base64_(en|de)code|eval\(|assert\(|system\(|passthru\(|shell_exec\(|exec\(|popen\(|proc_open\(|phpinfo) [NC,OR]
+    RewriteCond %{QUERY_STRING} (GLOBALS(=|\[|%5B)|_REQUEST(=|\[|%5B)|_SERVER(=|\[|%5B)|_ENV(=|\[|%5B)|proc/self/environ|/etc/passwd|boot\.ini|win\.ini) [NC,OR]
+    RewriteCond %{QUERY_STRING} (php|data|expect|zip|phar|file|glob|ftp)://  [NC,OR]
+    RewriteCond %{QUERY_STRING} ^.{2048,}
+    RewriteRule ^ - [F,L]
+    # known attack / scanner tools
+    RewriteCond %{HTTP_USER_AGENT} (sqlmap|nikto|acunetix|nessus|openvas|masscan|zgrab|nmap|w3af|dirbuster|gobuster|wpscan|havij|fimap|jaascois|netsparker|commix|joomscan) [NC]
     RewriteRule ^ - [F,L]
 
-    # ---- source folders are never public
-    RewriteRule ^(app|config|database|storage|vendor|node_modules)(/|$) - [F,L]
+    # -----------------------------------------------------------------
+    # 5. PROTECT SENSITIVE DIRECTORIES
+    #    (source, settings, SQL, sessions, logs, uploads, tooling)
+    # -----------------------------------------------------------------
+    RewriteRule ^(app|config|database|storage|vendor|node_modules|tests?|scratch|\.git|\.svn|\.idea|\.vscode)(/|$) - [F,L,NC]
+    # /public/... is an internal folder: the address bar never uses it
+    RewriteRule ^public(/|$) - [F,L,NC]
 
-    # ---- everything else is served from /public
-    RewriteCond %{REQUEST_URI} !/public/
-    RewriteRule ^(.*)$ public/$1 [L]
+    # -----------------------------------------------------------------
+    # 6. STATIC ASSETS — only these file types are served, straight from
+    #    public/assets. Anything else under /assets (e.g. a .php) never
+    #    reaches the disk: it goes to index.php and gets the app's 404.
+    # -----------------------------------------------------------------
+    RewriteRule ^assets/(.+\.(?:css|js|woff2?|ttf|otf|eot|png|jpe?g|gif|webp|avif|svg|ico))$ public/assets/$1 [NC,END]
+
+    # -----------------------------------------------------------------
+    # Front controller: every page and /api/* request
+    # -----------------------------------------------------------------
+    RewriteRule ^ public/index.php [QSA,END]
 </IfModule>
 
-<IfModule !mod_rewrite.c>
-    # Without mod_rewrite the app cannot run safely.
+
+# ---------------------------------------------------------------------
+# 4. DISABLE SERVER SIGNATURE / DIRECTORY LISTING / SERVER INFO
+# ---------------------------------------------------------------------
+ServerSignature Off
+Options -Indexes -MultiViews -Includes -ExecCGI +FollowSymLinks
+DirectoryIndex disabled
+FileETag None
+
+
+# ---------------------------------------------------------------------
+# 5. PROTECT SENSITIVE FILES  (everywhere, also if rewriting is bypassed)
+# ---------------------------------------------------------------------
+# dot-files: .env .git .htaccess .htpasswd .user.ini …
+<FilesMatch "^\.">
     Require all denied
-</IfModule>
+</FilesMatch>
+# config / data / backup / log / script source extensions
+<FilesMatch "\.(?i:sql|sqlite3?|db|log|ini|env|conf|cnf|config|md|markdown|txt|json|lock|ya?ml|xml|csv|bak|backup|old|orig|save|swp|swo|tmp|temp|dist|sh|bash|ps1|psm1|bat|cmd|exe|dll|phar|inc|tpl|twig|cache|sess|pem|key|crt|p12|pfx|zip|tar|gz|tgz|rar|7z)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(?i:composer\.(json|lock)|package(-lock)?\.json|yarn\.lock|README.*|LICENSE.*|CHANGELOG.*|web\.config|phpunit\.xml.*|Dockerfile|docker-compose.*|Makefile|error_log|php_errors?\.log)$">
+    Require all denied
+</FilesMatch>
 
+
+# ---------------------------------------------------------------------
+# 6. PREVENT EXECUTION OF PHP IN UPLOAD / ASSET DIRECTORIES
+#    public/index.php is the only PHP file that may ever run.
+#    (uploads live in storage/uploads, which is refused above.)
+# ---------------------------------------------------------------------
+<FilesMatch "\.(?i:php\d?|phtml|pht|phps|phar|pl|py|cgi|rb|asp|aspx|jsp|shtml)$">
+    Require all denied
+</FilesMatch>
+<Files "index.php">
+    Require all granted
+</Files>
+<If "%{REQUEST_FILENAME} =~ m#/public/assets/#i">
+    # static files only: no handler, no script engine
+    SetHandler None
+    <FilesMatch "\.(?i:php\d?|phtml|pht|phps|phar|pl|py|cgi|rb|asp|aspx|jsp|shtml|htaccess|htpasswd)$">
+        Require all denied
+    </FilesMatch>
+</If>
+
+
+# ---------------------------------------------------------------------
+# 3. SECURITY HEADERS
+#    index.php sends the same headers itself (app/Core/Response.php);
+#    each one is added here only when the response does not have it yet,
+#    so static files and Apache error pages get them and nothing is doubled.
+# ---------------------------------------------------------------------
 <IfModule mod_headers.c>
     Header always unset X-Powered-By
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "DENY"
-    Header always set Referrer-Policy "strict-origin-when-cross-origin"
-    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
-    Header always set Cross-Origin-Opener-Policy "same-origin"
-    Header always set X-Permitted-Cross-Domain-Policies "none"
-    # HSTS — enable only on HTTPS:
-    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" env=HTTPS
+    Header unset X-Powered-By
+    Header always set X-Content-Type-Options "nosniff" "expr=-z resp('X-Content-Type-Options')"
+    Header always set X-Frame-Options "DENY" "expr=-z resp('X-Frame-Options')"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin" "expr=-z resp('Referrer-Policy')"
+    Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()" "expr=-z resp('Permissions-Policy')"
+    Header always set Cross-Origin-Opener-Policy "same-origin" "expr=-z resp('Cross-Origin-Opener-Policy')"
+    Header always set Cross-Origin-Resource-Policy "same-origin" "expr=-z resp('Cross-Origin-Resource-Policy')"
+    Header always set X-Permitted-Cross-Domain-Policies "none" "expr=-z resp('X-Permitted-Cross-Domain-Policies')"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "expr=-z resp('Content-Security-Policy')"
+    # old XSS filter is itself exploitable — modern advice is to switch it off; CSP above protects instead
+    Header always set X-XSS-Protection "0"
+    # HSTS — enable only after HTTPS works (section 9):
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
 </IfModule>
 
-# ---- PHP hardening (mod_php; ignored by PHP-FPM — set these in php.ini there)
-<IfModule mod_php.c>
-    php_flag  display_errors        Off
-    php_flag  display_startup_errors Off
-    php_flag  session.use_strict_mode On
-    php_flag  session.cookie_httponly On
-    php_flag  session.use_only_cookies On
-    php_value session.cookie_samesite Strict
-    php_value upload_max_filesize   6M
-    php_value post_max_size         60M
-    php_value max_file_uploads      10
-    php_value max_input_vars        3000
-    php_value max_execution_time    60
-    php_value memory_limit          256M
-</IfModule>
 
-# ---- request limits (slow / huge uploads)
+# ---------------------------------------------------------------------
+# 8. LIMIT REQUEST BODY SIZE  (prevent large payload attacks)
+#    60 MB = up to 10 photos of 5 MB + form fields (app/Services/Uploads.php).
+#    Keep in step with post_max_size in section 17.
+# ---------------------------------------------------------------------
 LimitRequestBody 62914560
+
+
+# ---------------------------------------------------------------------
+# 11. CUSTOM ERROR PAGES
+#     Pages and /api/* errors are drawn by the app itself (App::renderError).
+#     These short texts cover errors Apache answers on its own (blocked
+#     request, missing static file) without revealing anything.
+# ---------------------------------------------------------------------
+ErrorDocument 400 "400 - Bad request."
+ErrorDocument 401 "401 - Please login to continue."
+ErrorDocument 403 "403 - Access denied."
+ErrorDocument 404 "404 - Page not found."
+ErrorDocument 405 "405 - Method not allowed."
+ErrorDocument 413 "413 - The upload is too large."
+ErrorDocument 500 "500 - Server error. Please try again later."
+ErrorDocument 503 "503 - Service temporarily unavailable."
+
+
+# ---------------------------------------------------------------------
+# 16. CHARSET
+# ---------------------------------------------------------------------
+AddDefaultCharset UTF-8
+<IfModule mod_mime.c>
+    AddCharset UTF-8 .css .js .json .svg .txt
+    AddType application/javascript .js
+    AddType image/svg+xml .svg
+    AddType image/webp .webp
+    AddType image/avif .avif
+    AddType font/woff2 .woff2
+    AddType font/woff .woff
+    AddType font/ttf .ttf
+    AddType font/otf .otf
+    AddType application/vnd.ms-fontobject .eot
+</IfModule>
+
+
+# ---------------------------------------------------------------------
+# 12. BROWSER CACHING (static assets) — mod_expires
+#     CSS / JS / images are linked with ?v=<file time>, so a changed file
+#     gets a new URL and long caching is safe.
+# ---------------------------------------------------------------------
+<IfModule mod_expires.c>
+    # only the types below; pages + JSON keep the no-store headers index.php sends
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 year"
+    ExpiresByType application/javascript "access plus 1 year"
+    ExpiresByType text/javascript "access plus 1 year"
+    ExpiresByType font/woff2 "access plus 1 year"
+    ExpiresByType font/woff "access plus 1 year"
+    ExpiresByType font/ttf "access plus 1 year"
+    ExpiresByType font/otf "access plus 1 year"
+    ExpiresByType application/vnd.ms-fontobject "access plus 1 year"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/jpeg "access plus 30 days"
+    ExpiresByType image/gif "access plus 30 days"
+    ExpiresByType image/webp "access plus 30 days"
+    ExpiresByType image/avif "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+    ExpiresByType image/x-icon "access plus 30 days"
+    ExpiresByType image/vnd.microsoft.icon "access plus 30 days"
+</IfModule>
+
+
+# ---------------------------------------------------------------------
+# 13. CACHE-CONTROL HEADERS (static assets) — works without mod_expires
+# ---------------------------------------------------------------------
+<IfModule mod_headers.c>
+    <FilesMatch "\.(?i:css|js|woff2?|ttf|otf|eot)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(?i:png|jpe?g|gif|webp|avif|svg|ico)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+    # compressed and plain copies are cached separately
+    <FilesMatch "\.(?i:css|js|svg|json)$">
+        Header append Vary "Accept-Encoding"
+    </FilesMatch>
+</IfModule>
+
+
+# ---------------------------------------------------------------------
+# 14. GZIP / BROTLI / DEFLATE COMPRESSION (fast rendering)
+#     Text assets only; images and woff2 are already compressed.
+#     index.php compresses its own output (app/Core/Response.php).
+# ---------------------------------------------------------------------
+<IfModule mod_brotli.c>
+    AddOutputFilterByType BROTLI_COMPRESS text/css application/javascript text/javascript image/svg+xml font/ttf font/otf application/vnd.ms-fontobject
+</IfModule>
+<IfModule mod_deflate.c>
+    <IfModule mod_filter.c>
+        AddOutputFilterByType DEFLATE text/css application/javascript text/javascript image/svg+xml font/ttf font/otf application/vnd.ms-fontobject
+    </IfModule>
+    # old proxies / browsers that mishandle compressed responses
+    <IfModule mod_setenvif.c>
+        BrowserMatch \bMSIE\s[1-6] no-gzip
+    </IfModule>
+</IfModule>
+
+
+# ---------------------------------------------------------------------
+# 15. KEEP-ALIVE (faster connections)
+#     KeepAlive is a server setting — it cannot be switched on from .htaccess,
+#     and a hand-made "Connection: keep-alive" header breaks HTTP/2.
+#     Set it in httpd.conf (see SERVER CONFIG below). XAMPP has it on by default.
+# ---------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------
+# 17. PHP SETTINGS — DISABLE DISPLAY ERRORS (production safety)
+#     Works with mod_php (XAMPP). With PHP-FPM / CGI put the same values
+#     in php.ini or .user.ini. The app also logs errors instead of showing them.
+# ---------------------------------------------------------------------
+<IfModule php_module>
+    php_flag  display_errors            Off
+    php_flag  display_startup_errors    Off
+    php_flag  html_errors               Off
+    php_flag  log_errors                On
+    php_flag  allow_url_include         Off
+    php_flag  session.use_strict_mode   On
+    php_flag  session.use_only_cookies  On
+    php_flag  session.use_trans_sid     Off
+    php_flag  session.cookie_httponly   On
+    php_value session.cookie_samesite   Strict
+    php_value upload_max_filesize       6M
+    php_value post_max_size             60M
+    php_value max_file_uploads          10
+    php_value max_input_vars            3000
+    php_value max_input_time            60
+    php_value max_execution_time        60
+    php_value memory_limit              256M
+</IfModule>
+
+
+# =====================================================================
+# SERVER CONFIG — cannot be set in .htaccess; add to httpd.conf (or the
+# vhost) on the live server, then restart Apache:
+#
+#   TraceEnable Off               # 18: Apache answers TRACE before .htaccess
+#   ServerTokens Prod             #  4: "Server: Apache" without version / PHP / OpenSSL
+#   ServerSignature Off
+#   KeepAlive On                  # 15
+#   MaxKeepAliveRequests 100
+#   KeepAliveTimeout 5
+#   LimitRequestLine 8190         #  8: request line / header limits
+#   LimitRequestFields 50
+#   RequestReadTimeout header=20-40,MinRate=500 body=20,MinRate=500   # slow uploads
+#   LoadModule expires_module modules/mod_expires.so    # 12 (off in XAMPP by default)
+#   LoadModule deflate_module modules/mod_deflate.so    # 14 (off in XAMPP by default)
+#
+# and in php.ini:   expose_php = Off   (removes "X-Powered-By: PHP/…")
+# =====================================================================

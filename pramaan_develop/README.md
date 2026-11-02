@@ -39,21 +39,40 @@ Values live in the `settings` and `slides` tables; code lists (panels, scheme ty
 come from `app/Core/Lookups.php` so the screens and the server validation always use the same list.
 Every form is validated twice: in the browser (same rule names) and again on the server before anything is saved.
 
+## Permissions (what each panel may do)
+The four panels stay fixed; what each one may see and do is dynamic. Super Admin → **System → Permissions** shows a
+checkbox matrix (permission × panel). Every action is checked on the server (`can:` middleware on the route, `authorize()`
+in the controller for create vs edit), and the menu, screens and buttons follow the same permissions in the browser.
+The permission codes are listed once in `app/Core/Permissions.php`; the grants live in the `panel_permissions` table
+(the installer / `database\migrate.php` give every panel all of its permissions the first time). Super Admin always keeps
+the Permissions screen itself, so nobody can be locked out. To add a new action: add its code to `Permissions::MODULES`,
+put `can:<code>` on its route and `P.Auth.can('<code>')` around its button; `database\migrate.php` gives a new code to its panels once
+(the codes already seen are kept in the `permission_codes_seen` setting), after that Super Admin decides.
+
+**One user's exceptions** — User Master → <i>shield</i> button (or Edit user → Permissions): for each permission of the user's panel choose
+**Panel** (inherit), **Allow** (extra for this user only) or **Deny** (taken away from this user only). What the user can finally do =
+panel permissions + Allow − Deny, shown live on the screen. Stored in `user_permissions`; removed when the user's panel changes.
+User Master can filter "With personal permissions"; every change is in the audit log.
+
 ## 3. Structure (MVC)
 ```
 pramaan_develop/
-├── .htaccess              only /public is reachable; source, config, database, storage → 403
+├── .htaccess              the ONLY .htaccess: routes, security headers, caching, compression, limits
 ├── app/
 │   ├── Core/              App, Router, Request, Response, Session, Csrf, Auth, Database, Model,
 │   │                      Controller, Validator, Password, View, Config, Clock, Logger, helpers
-│   ├── Middleware/        Auth, Guest, Csrf, Panel (role-based access)
+│   ├── Middleware/        Auth, Guest, Csrf, Can (permission-based access: "can:user.create")
 │   ├── Controllers/       Auth, Home (page + /api/state), Scheme, Notification, Attachment, System,
-│   │                      Admin/{Role,User,Master,Insight}, DataEntry/Property, Oic/Verification, Role/Task
+│   │                      Role, User, Master, Insight, Settings, Property, Verification, Task (flat, like Models/)
 │   ├── Models/            one class per table (column whitelist, prepared statements)
+│   ├── Codes/             every fixed code the logic checks, written once: Panel, PropertyStatus, TaskStatus,
+│   │                      RoundStatus, PermissionEffect, YesNo, SiteCode, Section, AttachmentContext
+│   │                      (code compares with Panel::SUPER_ADMIN …, never with a 'SUPER_ADMIN' string)
 │   ├── Services/          Verification engine, PropertyService, StateService, Audit, Notify, Uploads,
 │   │                      Housekeeping (daily validity expiry), Seeder
 │   ├── Views/             layouts/app.php (application page), errors/error.php
-│   └── routes.php         every POST: CSRF; every action: panel check
+│   └── routes.php         every POST: CSRF; every action: permission check ("can:…");
+│                          handlers by name — 'Role@save' = Controllers/RoleController::save(), no imports
 ├── config/                config.php, database.php
 ├── database/              schema.sql, install.php
 ├── public/                index.php (front controller) + assets/{css,js,img,fonts,webfonts}
@@ -67,7 +86,7 @@ notifications, and answers with fresh data. `GET /api/state` is polled every min
 ## 4. Database `pramaan_db` (23 tables)
 | Area | Tables |
 |---|---|
-| Access | `roles`, `users`, `login_attempts` |
+| Access | `roles`, `users`, `login_attempts`, `panel_permissions` (what each panel may do), `user_permissions` (one user's Allow / Deny exceptions) |
 | Masters | `zones`, `wards`, `assemblies`, `plot_types`, `statuses` |
 | Schemes | `schemes`, `sectors`, `scheme_users` (role users mapped to a scheme) |
 | Properties | `properties`, `property_users` (snapshot of the scheme's role users) |
@@ -80,22 +99,23 @@ Foreign keys, unique keys (codes, names, plot no. per sector, one task per role 
 ## 5. Security
 | Area | Implementation |
 |---|---|
-| Exposure | Root `.htaccess` routes to `/public`, denies `app/ config/ database/ storage/`, dot-files and `.sql .log .env .ini .md …`; only GET/POST; `Options -Indexes`; obvious attack query strings blocked. `public/assets` cannot run scripts. |
+| Exposure | One root `.htaccess` (the only one, sections 1–18) routes to `/public`, denies `app/ config/ database/ storage/`, dot-files and `.sql .log .env .ini .md …`; only GET/POST; `Options -Indexes`; obvious attack query strings blocked. `public/assets` cannot run scripts. |
 | Headers | CSP `'self'` only (no inline script or style), X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy, COOP/CORP, `no-store` on pages and API. HSTS + HTTPS redirect ready (uncomment). |
 | Sessions | Strict mode, HttpOnly, SameSite=Strict, Secure on HTTPS, new ID on login / logout / password change / "login as", 30-min idle + 8-h absolute timeout, bound to the browser. |
 | CSRF | Per-session token in the `X-CSRF-Token` header on every POST + Origin / Sec-Fetch-Site check. |
 | Passwords | Argon2id, policy enforced on the server (10+ chars, upper, lower, digit, special, not the username, not the current one); never sent to the browser. |
 | Brute force | 5 failures → account lock, 20 failures per IP in 15 min → blocked, generic error message, same timing for unknown users, Super Admin alerted. |
-| Access control | `panel:` middleware on every action; each panel only receives the rows it needs (role users: only properties assigned to them; no password hashes, no other users' contact details). |
+| Access control | `can:` permission middleware on every action (permissions per panel, Super Admin → Permissions); denials are audited; each panel only receives the rows it needs (role users: only properties assigned to them; no password hashes, no other users' contact details). |
 | SQL | PDO real prepared statements, column whitelists, no user input in identifiers. |
 | XSS | All output escaped (`e()` in PHP views, `P.e()` in JS); `<` `>` rejected in text fields; JSON embedded with `JSON_HEX_*`. |
 | Uploads | PDF/JPG/PNG only, checked by extension + MIME + magic bytes, 5 MB / 10 files, random file names outside the web root, served only to users who may see the property. |
 | Audit | `audit_logs`: who, what, when, IP, user agent, old → new values (secrets masked); "login as" recorded with the admin's name. |
 | Errors | `display_errors` off; details in `storage/logs`, users see a friendly message. |
 
-Production: set `app.force_https = true`, uncomment the HTTPS / HSTS lines in both
-`.htaccess` files, use a least-privilege DB user (see the end of `schema.sql`), and in `php.ini` set
-`expose_php = Off`, `session.cookie_secure = 1`; in `httpd.conf` set `ServerTokens Prod`.
+Production: set `app.force_https = true`, uncomment the HTTPS / HSTS lines in
+`.htaccess` (sections 9 and 3), use a least-privilege DB user (see the end of `schema.sql`), and in `php.ini` set
+`expose_php = Off`, `session.cookie_secure = 1`; in `httpd.conf` set `ServerTokens Prod` and `TraceEnable Off`
+(the full list is at the end of `.htaccess`).
 
 ## 6. Local assets (no CDN)
 Everything the browser loads comes from this server; the CSP allows only `'self'`.

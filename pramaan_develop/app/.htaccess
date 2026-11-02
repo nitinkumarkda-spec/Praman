@@ -1,3 +1,0 @@
-# Never served over HTTP.
-Require all denied
-Options -Indexes

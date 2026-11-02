@@ -2,76 +2,65 @@
 declare(strict_types=1);
 
 /**
- * Route table. Every POST goes through "csrf"; panel access through "panel:…".
+ * Route table. Every POST goes through "csrf"; actions through "can:…" — the permissions
+ * Super Admin gives each panel (app/Core/Permissions.php, Super Admin → Permissions).
+ * Save routes list both create and edit; the controller checks the one that applies.
  * The screen URLs themselves (/admin/users …) all serve the same page and are drawn
  * in the browser — the server decides what data and which actions each panel gets.
+ * Handlers are names: "Role@save" = App\Controllers\RoleController::save() (found by the Router).
  *
  * @var App\Core\Router $router
  */
 
-use App\Controllers\Admin\InsightController;
-use App\Controllers\Admin\MasterController;
-use App\Controllers\Admin\RoleController;
-use App\Controllers\Admin\SettingsController;
-use App\Controllers\Admin\UserController;
-use App\Controllers\AttachmentController;
-use App\Controllers\AuthController;
-use App\Controllers\DataEntry\PropertyController;
-use App\Controllers\HomeController;
-use App\Controllers\NotificationController;
-use App\Controllers\Oic\VerificationController;
-use App\Controllers\Role\TaskController;
-use App\Controllers\SchemeController;
-use App\Controllers\SystemController;
-
-$router->get('/', [HomeController::class, 'index']);
-$router->get('/api/state', [HomeController::class, 'state']);
-$router->pages(['admin', 'data-entry', 'oic', 'role', 'notifications', 'change-password', 'login'], [HomeController::class, 'index']);
+$router->get('/', 'Home@index');
+$router->get('/api/state', 'Home@state');
+$router->pages(['admin', 'data-entry', 'oic', 'role', 'notifications', 'change-password', 'login'], 'Home@index');
 
 $router->group(['csrf'], static function ($r): void {
-    $r->post('/api/login', [AuthController::class, 'login'], ['guest']);
+    $r->post('/api/login', 'Auth@login', ['guest']);
 
     $r->group(['auth'], static function ($r): void {
-        $r->post('/api/logout', [AuthController::class, 'logout']);
-        $r->post('/api/change-password', [AuthController::class, 'changePassword']);
-        $r->post('/api/impersonate-stop', [UserController::class, 'stopImpersonation']);
-        $r->post('/api/access-denied', [SystemController::class, 'accessDenied']);
+        $r->post('/api/logout', 'Auth@logout');
+        $r->post('/api/change-password', 'Auth@changePassword');
+        $r->post('/api/impersonate-stop', 'User@stopImpersonation');
+        $r->post('/api/access-denied', 'System@accessDenied');
 
-        $r->post('/api/notif-read', [NotificationController::class, 'read']);
-        $r->post('/api/notif-read-all', [NotificationController::class, 'readAll']);
-        $r->post('/api/notif-delete', [NotificationController::class, 'delete']);
-        $r->post('/api/notif-delete-read', [NotificationController::class, 'deleteRead']);
+        $r->post('/api/notif-read', 'Notification@read');
+        $r->post('/api/notif-read-all', 'Notification@readAll');
+        $r->post('/api/notif-delete', 'Notification@delete');
+        $r->post('/api/notif-delete-read', 'Notification@deleteRead');
 
-        // Super Admin
-        $r->group(['panel:SUPER_ADMIN'], static function ($r): void {
-            $r->post('/api/role-save', [RoleController::class, 'save']);
-            $r->post('/api/role-toggle', [RoleController::class, 'toggle']);
-            $r->post('/api/user-save', [UserController::class, 'save']);
-            $r->post('/api/user-toggle', [UserController::class, 'toggle']);
-            $r->post('/api/user-unlock', [UserController::class, 'unlock']);
-            $r->post('/api/user-reset-password', [UserController::class, 'resetPassword']);
-            $r->post('/api/impersonate', [UserController::class, 'impersonate']);
-            $r->post('/api/master-save', [MasterController::class, 'save']);
-            $r->post('/api/master-toggle', [MasterController::class, 'toggle']);
-            $r->post('/api/master-delete', [MasterController::class, 'delete']);
-            $r->post('/api/sector-save', [MasterController::class, 'sectorSave']);
-            $r->post('/api/sector-toggle', [MasterController::class, 'sectorToggle']);
-            $r->post('/api/sector-delete', [MasterController::class, 'sectorDelete']);
-            $r->post('/api/publish-direction', [InsightController::class, 'publishDirection']);
-            $r->post('/api/settings-save', [SettingsController::class, 'save']);
-            $r->post('/api/slides-save', [SettingsController::class, 'slidesSave']);
-            $r->post('/api/slide-add', [SettingsController::class, 'slideAdd']);
-            $r->post('/api/slide-delete', [SettingsController::class, 'slideDelete']);
-        });
+        $r->post('/api/role-save', 'Role@save', ['can:role.create,role.edit']);
+        $r->post('/api/role-toggle', 'Role@toggle', ['can:role.toggle']);
 
-        // Scheme Master: Data Entry + Super Admin
-        $r->post('/api/scheme-save', [SchemeController::class, 'save'], ['panel:DATA_ENTRY,SUPER_ADMIN']);
-        $r->post('/api/scheme-toggle', [SchemeController::class, 'toggle'], ['panel:DATA_ENTRY,SUPER_ADMIN']);
+        $r->post('/api/user-save', 'User@save', ['can:user.create,user.edit']);
+        $r->post('/api/user-toggle', 'User@toggle', ['can:user.toggle']);
+        $r->post('/api/user-unlock', 'User@unlock', ['can:user.unlock']);
+        $r->post('/api/user-reset-password', 'User@resetPassword', ['can:user.reset_password']);
+        $r->post('/api/impersonate', 'User@impersonate', ['can:user.impersonate']);
+        $r->post('/api/user-permission-save', 'Permission@userSave', ['can:user.permissions']);
 
-        $r->post('/api/property-save', [PropertyController::class, 'save'], ['panel:DATA_ENTRY']);
-        $r->post('/api/oic-send', [VerificationController::class, 'send'], ['panel:OIC']);
-        $r->post('/api/task-respond', [TaskController::class, 'respond'], ['panel:ROLE_USER']);
+        $r->post('/api/master-save', 'Master@save', ['can:master.create,master.edit']);
+        $r->post('/api/master-toggle', 'Master@toggle', ['can:master.toggle']);
+        $r->post('/api/master-delete', 'Master@delete', ['can:master.delete']);
+        $r->post('/api/sector-save', 'Master@sectorSave', ['can:master.create,master.edit']);
+        $r->post('/api/sector-toggle', 'Master@sectorToggle', ['can:master.toggle']);
+        $r->post('/api/sector-delete', 'Master@sectorDelete', ['can:master.delete']);
+
+        $r->post('/api/scheme-save', 'Scheme@save', ['can:scheme.create,scheme.edit']);
+        $r->post('/api/scheme-toggle', 'Scheme@toggle', ['can:scheme.toggle']);
+
+        $r->post('/api/publish-direction', 'Insight@publishDirection', ['can:direction.publish']);
+        $r->post('/api/settings-save', 'Settings@save', ['can:settings.edit']);
+        $r->post('/api/slides-save', 'Settings@slidesSave', ['can:settings.edit']);
+        $r->post('/api/slide-add', 'Settings@slideAdd', ['can:settings.edit']);
+        $r->post('/api/slide-delete', 'Settings@slideDelete', ['can:settings.edit']);
+        $r->post('/api/permission-save', 'Permission@save', ['can:permission.edit']);
+
+        $r->post('/api/property-save', 'Property@save', ['can:property.create,property.edit']);
+        $r->post('/api/oic-send', 'Verification@send', ['can:verification.send']);
+        $r->post('/api/task-respond', 'Task@respond', ['can:task.respond']);
     });
 });
 
-$router->get('/api/attachments/{id}', [AttachmentController::class, 'show'], ['auth']);
+$router->get('/api/attachments/{id}', 'Attachment@show', ['auth']);

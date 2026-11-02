@@ -127,7 +127,7 @@
         return {
             title: m.title,
             html: crumbs(m.title) + P.pageHeader(icon(m.icon) + ' ' + m.title, m.sub,
-                '<a href="' + P.BASE + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>') +
+                Auth.can('master.create') ? '<a href="' + P.BASE + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>' : '') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search ' + m.one.toLowerCase() + '…', filters) +
@@ -138,13 +138,13 @@
                     return '<tr>' + m.columns.map(function (c) { return '<td data-label="' + e(c[1]) + '">' + c[3](r) + '</td>'; }).join('') +
                         '<td data-label="Used in"><span class="badge ' + (r._usage.n ? 'badge-info' : 'badge-muted') + '">' + r._usage.n + '</span><span class="cell-sub">' + e(r._usage.text) + '</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
-                        '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' +
-                        (locked ? '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
+                        (Auth.can('master.edit') ? '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' : '') +
+                        (!Auth.can('master.toggle') ? '' : locked ?'<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
                             '<form method="post" data-action="master-toggle" data-confirm="' + e(on ? 'Deactivate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"? It will be hidden from new entries; existing records keep it.' : 'Activate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                             '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="id" value="' + id + '">' +
                             (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                                 : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>') +
-                        (!locked && !r._usage.n ? '<form method="post" data-action="master-delete" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
+                        (!locked && !r._usage.n && Auth.can('master.delete') ? '<form method="post" data-action="master-delete" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
                             '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="id" value="' + id + '">' +
                             '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
@@ -216,12 +216,12 @@
     }
 
     Object.keys(MASTERS).forEach(function (key) {
-        P.route(BASE + '/' + key, PANEL, function (ctx) { return listPage(key, ctx); });
-        P.route(BASE + '/' + key + '/create', PANEL, function () { return formPage(key, null); });
+        P.route(BASE + '/' + key, PANEL, function (ctx) { return listPage(key, ctx); }, 'master.view');
+        P.route(BASE + '/' + key + '/create', PANEL, function () { return formPage(key, null); }, 'master.create');
         P.route(BASE + '/' + key + '/{id}/edit', PANEL, function (ctx) {
             const r = DB.find(MASTERS[key].table, ctx.params.id);
             return r ? formPage(key, r) : P.notFound(MASTERS[key].one + ' not found.');
-        });
+        }, 'master.edit');
     });
 
 
@@ -255,7 +255,7 @@
         return {
             title: 'Sector Master',
             html: crumbs('Sector Master') + P.pageHeader(icon('fa-table-cells') + ' Sector Master', 'Sectors of all schemes. Properties are registered inside an active sector.',
-                '<a href="' + P.url(BASE + '/sectors/create', q.scheme_id ? { scheme_id: q.scheme_id } : null) + '" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Sector</span></a>') +
+                Auth.can('master.create') ? '<a href="' + P.url(BASE + '/sectors/create', q.scheme_id ? { scheme_id: q.scheme_id } : null) + '" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Sector</span></a>' : '') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or area…', filters) +
@@ -265,18 +265,19 @@
                     const on = r.is_active === 1;
                     return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.area && r.area !== '—' ? ' · ' + e(r.area) : '') + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
                         '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
-                        '<td data-label="Properties"><a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a></td>' +
+                        '<td data-label="Properties">' + (Auth.can('master.edit') ? '<a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a>'
+                            : '<span class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</span>') + '</td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
-                        '<a href="' + P.BASE + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' +
-                        '<form method="post" data-action="sector-toggle" data-confirm="' + e(on ? 'Deactivate sector "' + r.sector_name + '"? Existing properties stay; no new property can be added in it.' : 'Activate sector "' + r.sector_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                        (Auth.can('master.edit') ? '<a href="' + P.BASE + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' : '') +
+                        (Auth.can('master.toggle') ? '<form method="post" data-action="sector-toggle" data-confirm="' + e(on ? 'Deactivate sector "' + r.sector_name + '"? Existing properties stay; no new property can be added in it.' : 'Activate sector "' + r.sector_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                         '<input type="hidden" name="id" value="' + r.sector_id + '">' + (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
-                            : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' +
-                        (!r.props ? '<form method="post" data-action="sector-delete" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
+                            : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' : '') +
+                        (!r.props && Auth.can('master.delete') ? '<form method="post" data-action="sector-delete" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
                             '<input type="hidden" name="id" value="' + r.sector_id + '"><button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
                 }).join('') : P.empty_state(6, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
-    });
+    }, 'master.view');
     function sectorForm(row, ctx) {
         const isEdit = !!row;
         const schemes = {};
@@ -304,11 +305,11 @@
                 '<a href="' + P.BASE + BASE + '/sectors" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };
     }
-    P.route(BASE + '/sectors/create', PANEL, function (ctx) { return sectorForm(null, ctx); });
+    P.route(BASE + '/sectors/create', PANEL, function (ctx) { return sectorForm(null, ctx); }, 'master.create');
     P.route(BASE + '/sectors/{id}/edit', PANEL, function (ctx) {
         const r = DB.find('sectors', ctx.params.id);
         return r ? sectorForm(r, ctx) : P.notFound('Sector not found.');
-    });
+    }, 'master.edit');
 
     /* ================= Scheme Master for Super Admin (same screens as Data Entry) ================= */
     if (P.registerSchemeScreens) { P.registerSchemeScreens(BASE + '/schemes', PANEL, crumbs); }

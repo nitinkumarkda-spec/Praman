@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
@@ -14,6 +14,7 @@ final class RoleController extends Controller
     public function save(): void
     {
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'role.edit' : 'role.create');
         $old = $id ? Role::find($id) : null;
         if ($id && !$old) {
             $this->fail('Role not found.');

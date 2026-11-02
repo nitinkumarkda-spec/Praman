@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Codes\AttachmentContext;
 use App\Models\Attachment;
 use finfo;
 
@@ -99,7 +100,7 @@ final class Uploads
         @chmod($path, 0600);
         $id = Attachment::insert([
             'task_id' => $ctx['task_id'] ?? null, 'round_id' => $ctx['round_id'] ?? null, 'property_id' => $ctx['property_id'],
-            'context' => $ctx['context'] ?? 'TASK_RESPONSE', 'file_name' => $f['name'], 'stored_name' => $stored, 'mime' => $f['mime'],
+            'context' => $ctx['context'] ?? AttachmentContext::TASK_RESPONSE, 'file_name' => $f['name'], 'stored_name' => $stored, 'mime' => $f['mime'],
             'size' => $f['size'], 'sha256' => hash_file('sha256', $path), 'uploaded_by' => $ctx['by'],
         ]);
         return ['attachment_id' => $id, 'file_name' => $f['name'], 'path' => $path];
@@ -117,7 +118,7 @@ final class Uploads
         file_put_contents(self::dir() . '/' . $stored, $bytes);
         return Attachment::insert([
             'task_id' => $ctx['task_id'] ?? null, 'round_id' => $ctx['round_id'] ?? null, 'property_id' => $ctx['property_id'],
-            'context' => 'TASK_RESPONSE', 'file_name' => $name, 'stored_name' => $stored, 'mime' => $mime, 'size' => strlen($bytes),
+            'context' => AttachmentContext::TASK_RESPONSE, 'file_name' => $name, 'stored_name' => $stored, 'mime' => $mime, 'size' => strlen($bytes),
             'sha256' => hash('sha256', $bytes), 'uploaded_by' => $ctx['by'], 'created_at' => $ctx['at'] ?? now(),
         ]);
     }

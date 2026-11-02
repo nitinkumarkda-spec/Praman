@@ -8,17 +8,16 @@ use App\Core\HttpException;
 use App\Core\Request;
 use App\Services\Audit;
 
-/** Role-based access: "panel:SUPER_ADMIN,DATA_ENTRY". Denials are audited. */
-final class PanelMiddleware
+/** Permission-based access: "can:user.create,user.edit" (any one is enough). Denials are audited. */
+final class CanMiddleware
 {
     public function handle(Request $request, array $args): void
     {
-        $panel = Auth::panel();
-        if ($panel === null) {
+        if (!Auth::check()) {
             throw new HttpException(401, 'Please login to continue.');
         }
-        if (!in_array($panel, $args, true)) {
-            Audit::log('ROUTE', null, 'ACCESS_DENIED', null, ['path' => $request->path()]);
+        if (!Auth::can(...$args)) {
+            Audit::log('ROUTE', null, 'ACCESS_DENIED', null, ['path' => $request->path(), 'permission' => implode(',', $args)]);
             throw new HttpException(403, 'You do not have permission to do this.');
         }
     }

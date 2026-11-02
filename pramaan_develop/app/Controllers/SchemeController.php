@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
@@ -24,6 +25,7 @@ final class SchemeController extends Controller
     public function save(): void
     {
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'scheme.edit' : 'scheme.create');
         $scheme = $id ? Scheme::find($id) : null;
         if ($id && !$scheme) {
             $this->fail('Scheme not found.');
@@ -91,7 +93,7 @@ final class SchemeController extends Controller
         // role-user mapping: every mandatory active role needs at least one valid user
         $map = [];
         foreach (Role::where(['is_active' => 1], 'sort_order') as $r) {
-            $valid = array_column(User::where(['is_active' => 1, 'panel' => 'ROLE_USER', 'role_id' => $r['role_id']]), 'user_id');
+            $valid = array_column(User::where(['is_active' => 1, 'panel' => Panel::ROLE_USER, 'role_id' => $r['role_id']]), 'user_id');
             $ids = array_values(array_unique(array_map('intval', $this->request->list('role_users_' . $r['role_id']))));
             if (array_diff($ids, $valid)) {
                 $this->fail('Only active users of "' . $r['role_name'] . '" can be mapped to it.');
@@ -136,7 +138,7 @@ final class SchemeController extends Controller
         });
 
         $back = in_array($this->request->str('back'), self::BACKS, true) ? $this->request->str('back')
-            : (Auth::panel() === 'SUPER_ADMIN' ? '/admin/masters/schemes' : '/data-entry/schemes');
+            : (Auth::panel() === Panel::SUPER_ADMIN ? '/admin/masters/schemes' : '/data-entry/schemes');
         if (!$id) {
             Audit::log('SCHEME', $sid, 'CREATED', null, $data + ['sectors' => $fresh, 'mapping' => $map]);
             $this->done('Scheme "' . $data['scheme_name'] . '" created with ' . count($fresh) . ' sector(s).', $back);

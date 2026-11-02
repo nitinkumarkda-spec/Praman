@@ -40,7 +40,7 @@
         return {
             title: 'Scheme Master',
             html: (crumbs ? crumbs('Scheme Master') : '') + P.pageHeader(icon('fa-map') + ' Scheme Master', 'Schemes with their sectors and the role users who will verify properties in them.',
-                '<a href="' + P.BASE + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a>') +
+                Auth.can('scheme.create') ? '<a href="' + P.BASE + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a>' : '') +
                 '<div class="card">' + P.list_toolbar(p, 'Search scheme name, code or area…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
                 P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'area', 'Area') + P.th_sort(p, 'type', 'Type') +
@@ -55,11 +55,11 @@
                         '<span class="cell-sub truncate" title="' + e(s.sector_names) + '">' + e(s.sector_names || '—') + '</span></td>' +
                         '<td data-label="Role mapping">' + s.mapped_roles + ' roles<span class="cell-sub">' + s.mapped_users + ' users</span></td>' +
                         '<td data-label="Properties">' + s.property_count + '</td><td data-label="Status">' + P.active_badge(s.is_active) + '</td>' +
-                        '<td class="actions"><div class="btn-group"><a href="' + P.BASE + base + '/' + s.scheme_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit scheme" aria-label="Edit scheme">' + icon('fa-pen') + '</a>' +
-                        '<form method="post" data-action="scheme-toggle" data-confirm="' + e(on ? 'Deactivate scheme "' + s.scheme_name + '"? No new property can be added in it.' : 'Activate scheme "' + s.scheme_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                        '<td class="actions"><div class="btn-group">' + (Auth.can('scheme.edit') ? '<a href="' + P.BASE + base + '/' + s.scheme_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit scheme" aria-label="Edit scheme">' + icon('fa-pen') + '</a>' : '') +
+                        (Auth.can('scheme.toggle') ? '<form method="post" data-action="scheme-toggle" data-confirm="' + e(on ? 'Deactivate scheme "' + s.scheme_name + '"? No new property can be added in it.' : 'Activate scheme "' + s.scheme_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                         '<input type="hidden" name="id" value="' + s.scheme_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
-                            : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form></div></td></tr>';
+                            : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' : '') + '</div></td></tr>';
                 }).join('') : P.empty_state(11, p.hasFilters(), 'No schemes yet — create the first one')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
@@ -200,12 +200,12 @@
     }
     /** Scheme list + create + edit screens under any base path (Data Entry and Super Admin masters). */
     P.registerSchemeScreens = function (base, panel, crumbs) {
-        P.route(base, panel, function (ctx) { return schemeListPage(ctx, base, crumbs); });
-        P.route(base + '/create', panel, function () { return schemeForm(null, base, crumbs); });
+        P.route(base, panel, function (ctx) { return schemeListPage(ctx, base, crumbs); }, 'scheme.view');
+        P.route(base + '/create', panel, function () { return schemeForm(null, base, crumbs); }, 'scheme.create');
         P.route(base + '/{id}/edit', panel, function (ctx) {
             const s = DB.find('schemes', ctx.params.id);
             return s ? schemeForm(s, base, crumbs) : P.notFound('Scheme not found.');
-        });
+        }, 'scheme.edit');
     };
     P.registerSchemeScreens('/data-entry/schemes', PANEL, null);
 
@@ -264,7 +264,7 @@
         return {
             title: 'Property Register',
             html: P.pageHeader(icon('fa-building') + ' Property Register', 'Vacant properties. Editable only while status is <strong>Listed</strong>.',
-                '<a href="' + P.BASE + '/data-entry/properties/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Property</span></a>') +
+                Auth.can('property.create') ? '<a href="' + P.BASE + '/data-entry/properties/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Property</span></a>' : '') +
                 '<div class="card">' + P.list_toolbar(p, 'Search plot no., property code, scheme, sector…', P.propertyFilters(q)) +
                 '<div class="table-wrap"><table class="table table-stack"><thead><tr>' +
                 P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'sector', 'Sector') + P.th_sort(p, 'plot', 'Plot no.') +
@@ -280,12 +280,12 @@
                         '<td data-label="Status">' + P.status_badge(r.current_status) + '</td>' +
                         '<td data-label="Created">' + e(P.fmt_date(r.created_at)) + '<span class="cell-sub">' + e(r.created_by_name) + '</span></td><td class="actions">' +
                         '<div class="btn-group"><a href="' + P.BASE + '/data-entry/properties/' + r.property_id + '" class="btn btn-light btn-sm btn-icon-only" title="View details &amp; timeline" aria-label="View details and timeline">' + icon('fa-timeline') + '</a>' +
-                        (r.current_status === 'LISTED' ? '<a href="' + P.BASE + '/data-entry/properties/' + r.property_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit" aria-label="Edit">' + icon('fa-pen') + '</a>'
+                        (!Auth.can('property.edit') ? '' : r.current_status === 'LISTED' ? '<a href="' + P.BASE + '/data-entry/properties/' + r.property_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit" aria-label="Edit">' + icon('fa-pen') + '</a>'
                             : '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="Locked — only Listed properties can be edited">' + icon('fa-lock') + '</span>') + '</div></td></tr>';
                 }).join('') : P.empty_state(10, p.hasFilters(), 'No properties yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
-    });
+    }, 'property.view');
 
     /* Reserve price + site plan (entered by Data Entry), shown on the detail pages */
     P.propertyDoc = function (propertyId, context) {
@@ -358,7 +358,7 @@
             after: null
         };
     }
-    P.route('/data-entry/properties/create', PANEL, function () { return propertyForm(null); });
+    P.route('/data-entry/properties/create', PANEL, function () { return propertyForm(null); }, 'property.create');
     P.route('/data-entry/properties/{id}', PANEL, function (ctx) {
         const prop = P.propertyRows().find(function (r) { return r.property_id === ctx.params.id; });
         if (!prop) { return P.notFound('Property not found.'); }
@@ -367,7 +367,7 @@
             title: 'Property ' + prop.plot_no,
             html: P.pageHeader(icon('fa-building') + ' Plot ' + e(prop.plot_no) + ' ' + P.status_badge(prop.current_status), e(prop.property_code + ' · ' + prop.scheme_name + ' · ' + prop.sector_name),
                 '<a href="' + P.BASE + '/data-entry/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>' +
-                (prop.current_status === 'LISTED' ? '<a href="' + P.BASE + '/data-entry/properties/' + prop.property_id + '/edit" class="btn btn-primary">' + icon('fa-pen') + ' <span>Edit</span></a>' : '')) +
+                (prop.current_status === 'LISTED' && Auth.can('property.edit') ? '<a href="' + P.BASE + '/data-entry/properties/' + prop.property_id + '/edit" class="btn btn-primary">' + icon('fa-pen') + ' <span>Edit</span></a>' : '')) +
                 '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
                 '<dt>Property code</dt><dd class="mono">' + e(prop.property_code) + '</dd><dt>Scheme</dt><dd>' + e(prop.scheme_name + ' (' + prop.scheme_code + ')') + '</dd>' +
                 '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' +
@@ -378,7 +378,7 @@
                 (ru.length ? ru.map(function (x) { return '<span class="chip"><strong>' + e(x.role_name) + ':</strong> ' + e(x.name) + '</span>'; }).join('') : '<span class="text-muted">None</span>') +
                 '</div></div></div></div>' + P.propertyTimeline(prop.property_id)
         };
-    });
+    }, 'property.view');
     P.route('/data-entry/properties/{id}/edit', PANEL, function (ctx) {
         const p = DB.find('properties', ctx.params.id);
         if (!p || !p.is_active) { return P.notFound('Property not found.'); }
@@ -388,6 +388,6 @@
             return false;
         }
         return propertyForm(p);
-    });
+    }, 'property.edit');
 
 })(window);

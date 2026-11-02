@@ -48,6 +48,19 @@ final class Auth
         return self::user()['panel'] ?? null;
     }
 
+    /** Permission codes of the signed-in user: the panel's + the user's own overrides (Super Admin → Permissions). */
+    public static function permissions(): array
+    {
+        $panel = self::panel();
+        return $panel === null ? [] : Permissions::forUser((int) self::id(), $panel);
+    }
+
+    /** True when the user has any one of $codes. */
+    public static function can(string ...$codes): bool
+    {
+        return (bool) array_intersect($codes, self::permissions());
+    }
+
     /** The Super Admin who opened this panel via "Login as", or null. */
     public static function impersonator(): ?array
     {

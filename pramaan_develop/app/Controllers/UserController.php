@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers;
 
-use App\Models\LoginAttempt;
-use App\Controllers\AuthController;
+use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Password;
+use App\Models\LoginAttempt;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Audit;
@@ -20,6 +20,7 @@ final class UserController extends Controller
     public function save(): void
     {
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'user.edit' : 'user.create');
         $old = $id ? User::find($id) : null;
         if ($id && !$old) {
             $this->fail('User not found.');
@@ -35,7 +36,7 @@ final class UserController extends Controller
             'emp_code'    => ['Employee code', 'required|ucode'],
             'mobile'      => ['Mobile', 'required|mobile'],
             'email'       => ['Email', 'required|max:150|email'],
-            'panel'       => ['Panel type', 'required|in:' . \App\Core\Lookups::keys(\App\Core\Lookups::PANELS)],
+            'panel'       => ['Panel type', 'required|in:' . \App\Core\Lookups::keys(Panel::LABELS)],
         ];
         if (!$id) {
             $rules['password'] = ['Password', 'required|password'];
@@ -46,7 +47,7 @@ final class UserController extends Controller
         }
         $panel = $isSelf ? $old['panel'] : $d['panel'];
         $roleId = null;
-        if ($panel === 'ROLE_USER') {
+        if ($panel === Panel::ROLE_USER) {
             $roleId = $this->id('role_id');
             $role = $roleId ? Role::find($roleId) : null;
             if (!$role || (!$role['is_active'] && (int) ($old['role_id'] ?? 0) !== $roleId)) {
@@ -64,7 +65,7 @@ final class UserController extends Controller
                 $this->fail($msg, $col);
             }
         }
-        if ($id && $old['panel'] === 'SUPER_ADMIN' && ($data['panel'] !== 'SUPER_ADMIN' || !$data['is_active']) && $this->activeAdmins($id) === 0) {
+        if ($id && $old['panel'] === Panel::SUPER_ADMIN && ($data['panel'] !== Panel::SUPER_ADMIN || !$data['is_active']) && $this->activeAdmins($id) === 0) {
             $this->fail('At least one active Super Admin must remain.');
         }
         if (!$id) {
@@ -78,7 +79,9 @@ final class UserController extends Controller
         }
         User::update($id, $data + ['updated_by' => Auth::id()]);
         Audit::log('USER', $id, 'UPDATED', ['name' => $old['name'], 'panel' => $old['panel'], 'role_id' => $old['role_id'], 'is_active' => $old['is_active']], $data);
-        $this->done('User "' . $data['name'] . '" updated successfully.', '/admin/users');
+        // personal permission exceptions belong to the old panel
+        $cleared = $old['panel'] !== $data['panel'] ? \App\Models\UserPermission::deleteWhere(['user_id' => $id]) : 0;
+        $this->done('User "' . $data['name'] . '" updated successfully.' . ($cleared ? ' The ' . $cleared . ' personal permission exception(s) of the old panel were removed.' : ''), '/admin/users');
     }
 
     public function toggle(): void
@@ -91,7 +94,7 @@ final class UserController extends Controller
             $this->fail('You cannot deactivate your own account.');
         }
         $active = $u['is_active'] ? 0 : 1;
-        if (!$active && $u['panel'] === 'SUPER_ADMIN' && $this->activeAdmins($u['user_id']) === 0) {
+        if (!$active && $u['panel'] === Panel::SUPER_ADMIN && $this->activeAdmins($u['user_id']) === 0) {
             $this->fail('At least one active Super Admin must remain.');
         }
         User::update($u['user_id'], ['is_active' => $active, 'updated_by' => Auth::id()]);
@@ -137,14 +140,14 @@ final class UserController extends Controller
     {
         $u = User::find($this->id());
         $admin = Auth::user();
-        if (!$u || !$u['is_active'] || $u['panel'] === 'SUPER_ADMIN' || Auth::impersonator()) {
+        if (!$u || !$u['is_active'] || $u['panel'] === Panel::SUPER_ADMIN || Auth::impersonator()) {
             $this->fail('You cannot login as this user.');
         }
         Audit::log('USER', $u['user_id'], 'IMPERSONATION_STARTED', null, ['target' => $u['username']]);
         Auth::impersonate($u, $admin);
         $role = $u['role_id'] ? Role::find($u['role_id']) : null;
-        $this->done('You are now logged in as ' . $u['name'] . ' (' . \App\Core\Lookups::PANELS[$u['panel']] . ($role ? ' · ' . $role['role_name'] : '') . '). Use "Back to Admin" to return.',
-            AuthController::HOME[$u['panel']], 'info');
+        $this->done('You are now logged in as ' . $u['name'] . ' (' . Panel::LABELS[$u['panel']] . ($role ? ' · ' . $role['role_name'] : '') . '). Use "Back to Admin" to return.',
+            Panel::HOME[$u['panel']], 'info');
     }
 
     /** Any panel: return from "Login as" to the Super Admin's own panel. */
@@ -162,6 +165,6 @@ final class UserController extends Controller
 
     private function activeAdmins(int $exceptId): int
     {
-        return User::count(['panel' => 'SUPER_ADMIN', 'is_active' => 1, 'user_id <>' => $exceptId]);
+        return User::count(['panel' => Panel::SUPER_ADMIN, 'is_active' => 1, 'user_id <>' => $exceptId]);
     }
 }

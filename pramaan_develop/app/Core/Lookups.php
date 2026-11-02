@@ -3,13 +3,15 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Codes\Panel;
+
 /**
  * Fixed code lists (they match ENUM columns in database/schema.sql).
  * The UI receives them in the state, so screens and server validation use one list.
  */
 final class Lookups
 {
-    public const PANELS = ['SUPER_ADMIN' => 'Super Admin', 'DATA_ENTRY' => 'Data Entry', 'OIC' => 'OIC Auction', 'ROLE_USER' => 'Role User'];
+    public const PANELS = Panel::LABELS;
     public const SCHEME_TYPES = ['RESIDENTIAL' => 'Residential', 'COMMERCIAL' => 'Commercial', 'INDUSTRIAL' => 'Industrial', 'MIXED' => 'Mixed', 'FARMHOUSE' => 'Farmhouse'];
     public const STATUS_COLORS = ['info' => 'Blue', 'warning' => 'Amber', 'success' => 'Green', 'danger' => 'Red', 'primary' => 'Navy', 'gold' => 'Gold', 'dark' => 'Dark', 'muted' => 'Grey'];
     public const STATUS_ICONS = ['fa-list' => 'List', 'fa-hourglass-half' => 'Hourglass', 'fa-circle-check' => 'Check', 'fa-circle-xmark' => 'Cross', 'fa-gavel' => 'Gavel',

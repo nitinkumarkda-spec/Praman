@@ -1071,6 +1071,125 @@ body.sidebar-collapsed .sidebar-nav::-webkit-scrollbar { width: 0; }
 .yn-choice .yn-opt span { min-width: 170px; }
 .upload-zone.is-invalid { border-color: var(--red-600); background: var(--red-100); }
 
+/* Super Admin → Permissions matrix */
+.perm-table .perm-module th { background: var(--navy-50); color: var(--navy-800); font-size: 13px; text-align: left; }
+.perm-table .perm-check { justify-content: center; }
+.perm-table .perm-check input:disabled { cursor: not-allowed; }
+
+/* Searchable dropdown (combo): closed box + panel with search and grouped options */
+.combo { position: relative; max-width: 560px; }
+.combo-trigger { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); color: var(--text); font: inherit; }
+.combo-trigger:hover { border-color: var(--navy-600); }
+.combo-trigger:focus-visible, .combo.is-open .combo-trigger { outline: none; box-shadow: var(--focus); border-color: var(--navy-600); }
+.combo-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.combo-value strong { color: var(--navy-800); }
+.combo-value small { color: var(--text-muted); font-size: 12.5px; }
+.combo-value.is-placeholder { color: var(--text-muted); }
+.combo-caret { font-size: 12px; color: var(--slate-600); transition: transform .18s; }
+.combo.is-open .combo-caret { transform: rotate(180deg); }
+.combo-panel { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); overflow: hidden; }
+.combo-panel[hidden] { display: none; }
+.combo-search { position: relative; padding: 10px; border-bottom: 1px solid var(--border); }
+.combo-search > i { position: absolute; left: 22px; top: 50%; transform: translateY(-50%); color: var(--slate-600); font-size: 13px; }
+.combo-search .form-control { padding-left: 34px; }
+.combo-list { list-style: none; margin: 0; padding: 6px; max-height: 340px; overflow-y: auto; }
+.combo-group { padding: 8px 10px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.combo-group[hidden], .combo-option[hidden], .combo-empty[hidden] { display: none; }
+.combo-option { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer; }
+.combo-option.is-active { background: var(--navy-50); }
+.combo-option.is-selected { background: var(--navy-100); }
+.combo-icon { width: 18px; text-align: center; color: var(--navy-700); }
+.combo-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.combo-text strong { color: var(--navy-800); font-weight: 600; }
+.combo-text small { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.combo-tick { color: var(--green-600); }
+.combo-empty { padding: 14px 10px; color: var(--text-muted); text-align: center; }
+
+/* Permission Manager: tabs, role facts, module cards */
+.perm-tabs { display: flex; gap: 6px; margin: 0 0 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.perm-tab { display: inline-flex; align-items: center; gap: 7px; padding: 10px 14px; margin-bottom: -1px; border-bottom: 2px solid transparent;
+    color: var(--text-muted); font-weight: 600; text-decoration: none; }
+.perm-tab:hover { color: var(--navy-800); }
+.perm-tab.active { color: var(--navy-800); border-bottom-color: var(--gold-500); }
+.perm-picker .card-body { overflow: visible; }
+.perm-picker, .perm-picker .card-body { position: relative; z-index: 5; }
+/* role card: dropdown on the left, facts as chips on the right (stacked on small screens) */
+.perm-picker-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px 24px; }
+.perm-picker-field { flex: 1 1 360px; max-width: 560px; }
+.perm-picker-field .form-label { margin-bottom: 6px; }
+.perm-picker-field .combo { max-width: none; }
+.perm-role-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.perm-fact { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--navy-50); color: var(--text-muted); font-size: 13px; line-height: 1.2; text-decoration: none; white-space: nowrap; }
+.perm-fact i { color: var(--gold-500); }
+.perm-fact strong { color: var(--navy-800); font-size: 15px; }
+a.perm-fact:hover { border-color: var(--navy-600); color: var(--navy-800); }
+
+/* toolbar: search | All · Given · Not given | Give all · Remove all — one row */
+.perm-seg { display: inline-flex; flex: 0 0 auto; padding: 3px; gap: 3px; background: var(--slate-100); border: 1px solid var(--border-strong); border-radius: 999px; }
+.perm-seg-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 14px; border: 0; border-radius: 999px; background: transparent;
+    color: var(--text-muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.perm-seg-btn:hover { color: var(--navy-800); }
+.perm-seg-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.perm-seg-btn.is-active { background: var(--navy-700); color: #fff; box-shadow: var(--shadow-sm); }
+.perm-seg-count { min-width: 22px; padding: 1px 6px; border-radius: 999px; background: var(--surface); color: var(--navy-800); font-size: 11.5px; text-align: center; }
+.perm-seg-btn.is-active .perm-seg-count { background: rgba(255, 255, 255, .2); color: #fff; }
+.perm-bulk { flex: 0 0 auto; }
+.perm-bulk .btn { min-height: 36px; white-space: nowrap; }
+.perm-modules { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.perm-mod { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.perm-mod[hidden] { display: none; }
+.perm-mod-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--navy-50); border-bottom: 1px solid var(--border); }
+.perm-mod-head h3 { flex: 1; margin: 0; font-size: 14px; color: var(--navy-800); }
+.perm-mod-all { margin: 0; font-size: 13px; }
+.perm-items { list-style: none; margin: 0; padding: 6px 14px 10px; }
+.perm-items li { padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.perm-items li:last-child { border-bottom: 0; }
+.perm-items li[hidden] { display: none; }
+.perm-items .check > span { display: flex; flex-direction: column; gap: 2px; }
+.perm-items small { color: var(--text-muted); font-size: 11.5px; }
+.perm-items li.perm-dirty { box-shadow: inset 3px 0 0 var(--gold-500); padding-left: 8px; }
+.perm-none { grid-column: 1 / -1; margin: 6px 0; text-align: center; }
+.perm-dirty-note { display: inline-flex; align-items: center; gap: 6px; color: var(--gold-600); font-weight: 600; }
+.perm-dirty-note[hidden] { display: none; }
+.perm-table tbody[hidden], .perm-table tr[hidden] { display: none; }
+@media (max-width: 991.98px) {
+    .perm-role-facts { margin-left: 0; }
+}
+@media (max-width: 575.98px) {
+    .perm-modules { grid-template-columns: 1fr; }
+    .combo { max-width: none; }
+    .perm-picker-field { flex-basis: 100%; }
+    .perm-role-facts { width: 100%; }
+    .perm-fact { flex: 1 1 auto; min-height: 40px; justify-content: center; }
+    .perm-seg { display: flex; width: 100%; }
+    .perm-seg-btn { flex: 1 1 0; justify-content: center; padding: 4px 6px; }
+    .perm-bulk { width: 100%; }
+    .perm-bulk .btn { flex: 1 1 0; justify-content: center; }
+    /* save bar: Save + Discard side by side, so the list keeps the screen */
+    form[data-perm-form] .sticky-actions { flex-wrap: nowrap; padding: 8px 0; }
+    form[data-perm-form] .sticky-actions .btn { flex: 1 1 auto; min-height: 42px; padding: 8px 10px; font-size: 14px; }
+    form[data-perm-form] .sticky-actions [data-perm-discard] { flex: 0 0 auto; }
+    form[data-perm-form] .sticky-actions [data-perm-discard] span { display: none; }
+    form[data-perm-form] .perm-dirty-note { display: none; }
+}
+
+/* Super Admin → User Master → one user's permissions (Panel / Allow / Deny) */
+.perm-ov .yn-opt span { min-width: 82px; min-height: 32px; padding: 4px 12px; font-size: 13px; }
+.yn-allow input:checked + span { background: var(--green-600); color: #fff; box-shadow: var(--shadow-sm); }
+.yn-deny input:checked + span { background: var(--red-600); color: #fff; box-shadow: var(--shadow-sm); }
+.perm-table tr.perm-dirty > td:first-child { box-shadow: inset 3px 0 0 var(--gold-500); }
+.perm-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.perm-toolbar .toolbar-search { flex: 1 1 260px; }
+form.is-dirty .sticky-actions { box-shadow: 0 -2px 0 var(--gold-500); }
+@media (max-width: 575.98px) {
+    .perm-ov { display: flex; width: 100%; }
+    .perm-ov .yn-opt { flex: 1 1 0; }
+    .perm-ov .yn-opt span { min-width: 0; width: 100%; padding: 4px 6px; }
+}
+
 @media (max-width: 767.98px) {
     .dim-row { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
     .dim-row > .form-group:last-child { grid-column: 1 / -1; }

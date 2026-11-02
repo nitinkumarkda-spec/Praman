@@ -31,7 +31,7 @@ final class Seeder
     private const DAY = 1440;
 
     private const TABLES = ['site_inspections', 'section_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'users', 'roles'];
+        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'user_permissions', 'users', 'roles', 'panel_permissions'];
 
     public static function run(): void
     {
@@ -71,6 +71,7 @@ final class Seeder
     {
         Settings::seed();
         \App\Models\Unit::seedDefaults();
+        \App\Models\PanelPermission::seedDefaults();
         if (\App\Models\Slide::count() === 0) {
             foreach ([
                 ['kishore_sagar.jpg', 'Kishore Sagar, Kota', 'Photo: Kushagra140, CC BY-SA 4.0, via Wikimedia Commons'],

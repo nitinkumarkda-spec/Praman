@@ -3,13 +3,14 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Codes\SiteCode;
 use App\Core\Model;
 
 /** Engineering Cell physical site check: length × width, encroachment, road, corner, geo location. */
 final class SiteInspection extends Model
 {
-    public const ENCROACHMENT_TYPES = ['PARTIAL' => 'Partial encroachment', 'COMPLETE' => 'Complete encroachment'];
-    public const ROAD_UNITS = ['FT' => 'Feet', 'M' => 'Meter'];
+    public const ENCROACHMENT_TYPES = SiteCode::ENCROACHMENT_TYPES;
+    public const ROAD_UNITS = SiteCode::ROAD_UNITS;
 
     protected static string $table = 'site_inspections';
     protected static string $pk = 'inspection_id';

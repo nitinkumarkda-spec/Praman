@@ -3,19 +3,21 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Clock;
 use App\Core\Csrf;
-use App\Core\Model;
 use App\Core\Lookups;
+use App\Core\Model;
+use App\Core\Permissions;
 use App\Core\Session;
-use App\Models\Slide;
 use App\Models\Attachment;
 use App\Models\Notification;
 use App\Models\Property;
 use App\Models\PropertyUser;
 use App\Models\Role;
 use App\Models\Round;
+use App\Models\Slide;
 use App\Models\Task;
 use App\Models\TaskAssignee;
 use App\Models\User;
@@ -52,13 +54,13 @@ final class StateService
         }
         $uid = (int) $u['user_id'];
         $panel = $u['panel'];
-        if ($panel === 'ROLE_USER') {
+        if ($panel === Panel::ROLE_USER) {
             Verification::overdueReminders($uid);
-        } elseif ($panel === 'OIC') {
+        } elseif ($panel === Panel::OIC) {
             Verification::reverifyReminders($uid);
         }
         $imp = Auth::impersonator();
-        $state['session'] = ['user_id' => $uid, 'impersonator_id' => $imp ? (int) $imp['user_id'] : null];
+        $state['session'] = ['user_id' => $uid, 'impersonator_id' => $imp ? (int) $imp['user_id'] : null, 'permissions' => Auth::permissions()];
 
         $t = &$state['tables'];
         $t['roles'] = Role::where([], 'sort_order');
@@ -66,9 +68,9 @@ final class StateService
                  'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }
-        $t['users'] = self::users($panel === 'SUPER_ADMIN', $uid, $imp ? (int) $imp['user_id'] : null);
+        $t['users'] = self::users($panel === Panel::SUPER_ADMIN, $uid, $imp ? (int) $imp['user_id'] : null);
 
-        if ($panel === 'ROLE_USER') {
+        if ($panel === Panel::ROLE_USER) {
             $propertyIds = TaskAssignee::propertyIdsFor($uid);
             $t['scheme_users'] = [];
         } else {
@@ -85,8 +87,8 @@ final class StateService
         $t['task_assignees'] = $propertyIds === null ? TaskAssignee::where() : TaskAssignee::where(['task_id' => $taskIds]);
         $t['attachments'] = array_map(static fn ($a) => array_diff_key($a, ['stored_name' => 1, 'sha256' => 1]),
             $propertyIds === null ? Attachment::where() : Attachment::where(['property_id' => $propertyIds]));
-        $t['audit_logs'] = self::auditLogs($panel === 'SUPER_ADMIN', $uid, $propertyIds);
-        $t['login_attempts'] = $panel === 'SUPER_ADMIN' ? self::loginAttempts() : [];
+        $t['audit_logs'] = self::auditLogs($panel === Panel::SUPER_ADMIN, $uid, $propertyIds);
+        $t['login_attempts'] = $panel === Panel::SUPER_ADMIN ? self::loginAttempts() : [];
         $t['notifications'] = Notification::latestFor($uid, (int) config('state.notification_limit', 300));
         return $state;
     }
@@ -94,7 +96,7 @@ final class StateService
     /** Settings, landing slides and code lists for the screens. */
     private static function app(?array $u): array
     {
-        $admin = $u && $u['panel'] === 'SUPER_ADMIN';
+        $admin = $u && $u['panel'] === Panel::SUPER_ADMIN;
         $app = [
             'settings' => Settings::typed(!$admin),
             'lookups'  => Lookups::all(),
@@ -103,6 +105,10 @@ final class StateService
         if ($admin) {
             $app['settings_meta'] = Settings::meta();
             $app['settings_groups'] = Settings::GROUPS;
+        }
+        if ($u && Auth::can('permission.view', 'user.permissions')) {
+            $app['permissions'] = ['modules' => Permissions::catalog(), 'grants' => Permissions::matrix(), 'locked' => Permissions::LOCKED,
+                'overrides' => \App\Models\UserPermission::select(['user_id', 'permission', 'effect'], [], 'user_id')];
         }
         return $app;
     }

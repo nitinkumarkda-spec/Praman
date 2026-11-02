@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers;
 
+use App\Codes\Panel;
 use App\Core\Controller;
 use App\Services\Audit;
 use App\Services\Notify;
@@ -18,7 +19,7 @@ final class InsightController extends Controller
             $this->fail('No focus area selected.');
         }
         Audit::log('SYSTEM', null, 'DIRECTION_PUBLISHED', null, ['areas' => $areas]);
-        Notify::send(array_merge(Notify::panelUsers('DATA_ENTRY'), Notify::panelUsers('OIC')), [
+        Notify::send(array_merge(Notify::panelUsers(Panel::DATA_ENTRY), Notify::panelUsers(Panel::OIC)), [
             'type' => 'SYSTEM', 'tone' => 'warning', 'icon' => 'fa-bullhorn',
             'title' => 'New direction from Super Admin', 'message' => 'Focus areas: ' . implode(', ', $areas) . '.', 'link' => '/notifications',
         ]);

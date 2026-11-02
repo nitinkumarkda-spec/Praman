@@ -56,6 +56,15 @@ abstract class Controller
         return $v->clean();
     }
 
+    /** Stop with 403 unless the user has $code (for routes that need a different one per case, e.g. create vs edit). */
+    protected function authorize(string $code): void
+    {
+        if (!Auth::can($code)) {
+            \App\Services\Audit::log('ROUTE', null, 'ACCESS_DENIED', null, ['path' => $this->request->path(), 'permission' => $code]);
+            throw new HttpException(403, 'You do not have permission to do this.');
+        }
+    }
+
     protected function id(string $key = 'id'): int
     {
         $id = filter_var($this->request->input($key), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

@@ -171,6 +171,12 @@
         id: function () { const u = Auth.user(); return u ? u.user_id : null; },
         check: function () { return !!Auth.user(); },
         impersonator: function () { const s = DB.session(); return s && s.impersonator_id ? DB.find('users', s.impersonator_id) : null; },
+        /** Has the panel been given any one of these permissions (Super Admin → Permissions)? can('a.b', 'c.d') */
+        can: function () {
+            const s = DB.session();
+            const mine = (s && s.permissions) || [];
+            return Array.prototype.some.call(arguments, function (c) { return mine.indexOf(c) !== -1; });
+        },
         home: function () { const u = Auth.user(); return u ? HOME[u.panel] : '/login'; }
     };
 
@@ -408,20 +414,33 @@
     }
 
     /* ---------------- Layout ---------------- */
+    // [label, icon, path, permission] — an item shows only when the panel has that permission
     const MENUS = {
         SUPER_ADMIN: [['Dashboard', 'fa-gauge-high', '/admin/dashboard'], { section: 'Masters' },
-            ['Role Master', 'fa-sitemap', '/admin/roles'], ['User Master', 'fa-users', '/admin/users'], { section: 'Property Masters' },
-            ['Area', 'fa-map-location-dot', '/admin/masters/areas'],
-            ['Scheme', 'fa-map', '/admin/masters/schemes'], ['Sector', 'fa-table-cells', '/admin/masters/sectors'],
-            ['Plot Type', 'fa-shapes', '/admin/masters/plot-types'], ['Unit', 'fa-ruler-combined', '/admin/masters/units'], ['Status', 'fa-flag', '/admin/masters/statuses'], { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs'],
-            { section: 'System' }, ['App Settings', 'fa-sliders', '/admin/settings']],
-        DATA_ENTRY: [['Dashboard', 'fa-gauge-high', '/data-entry/dashboard'], { section: 'Masters' }, ['Scheme Master', 'fa-map', '/data-entry/schemes'],
-            { section: 'Property' }, ['Property Register', 'fa-building', '/data-entry/properties'], ['Add Property', 'fa-circle-plus', '/data-entry/properties/create']],
-        OIC: [['Dashboard', 'fa-gauge-high', '/oic/dashboard'], { section: 'Verification' }, ['Properties', 'fa-list-check', '/oic/properties']],
-        ROLE_USER: [['Dashboard', 'fa-gauge-high', '/role/dashboard'], { section: 'Verification' }, ['My Tasks', 'fa-clipboard-list', '/role/tasks']]
+            ['Area', 'fa-map-location-dot', '/admin/masters/areas', 'master.view'],
+            ['Scheme', 'fa-map', '/admin/masters/schemes', 'scheme.view'], ['Sector', 'fa-table-cells', '/admin/masters/sectors', 'master.view'],
+            ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'], ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'], ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
+            { section: 'Administrators' },
+            ['Role Master', 'fa-sitemap', '/admin/roles', 'role.view'], ['User Master', 'fa-users', '/admin/users', 'user.view'],
+            ['Permissions', 'fa-user-shield', '/admin/permissions', 'permission.view'], ['App Settings', 'fa-sliders', '/admin/settings', 'settings.view'],
+            { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs', 'audit.view']],
+        DATA_ENTRY: [['Dashboard', 'fa-gauge-high', '/data-entry/dashboard'], { section: 'Masters' }, ['Scheme Master', 'fa-map', '/data-entry/schemes', 'scheme.view'],
+            { section: 'Property' }, ['Property Register', 'fa-building', '/data-entry/properties', 'property.view'], ['Add Property', 'fa-circle-plus', '/data-entry/properties/create', 'property.create']],
+        OIC: [['Dashboard', 'fa-gauge-high', '/oic/dashboard'], { section: 'Verification' }, ['Properties', 'fa-list-check', '/oic/properties', 'verification.view']],
+        ROLE_USER: [['Dashboard', 'fa-gauge-high', '/role/dashboard'], { section: 'Verification' }, ['My Tasks', 'fa-clipboard-list', '/role/tasks', 'task.view']]
     };
+    /** Menu of the panel without the items it has no permission for (and sections left empty). */
+    function menuFor(panel) {
+        const out = [];
+        (MENUS[panel] || []).forEach(function (it) {
+            if (it.section) { out.push(it); return; }
+            if (it[3] && !Auth.can(it[3])) { return; }
+            out.push(it);
+        });
+        return out.filter(function (it, i) { return !it.section || (out[i + 1] && !out[i + 1].section); });
+    }
     function sidebar(user, current) {
-        const items = MENUS[user.panel] || [];
+        const items = menuFor(user.panel);
         let active = '';
         items.forEach(function (it) {
             if (it[2] && (current === it[2] || current.indexOf(it[2] + '/') === 0) && it[2].length > active.length) { active = it[2]; }
@@ -466,10 +485,11 @@
 
     /* ---------------- Router ---------------- */
     const routes = [];
-    function route(path, panel, view) {
+    /** perm: permission code (or list, any one is enough) the panel needs to open the screen. */
+    function route(path, panel, view, perm) {
         const keys = [];
         const re = new RegExp('^' + path.replace(/\{(\w+)\}/g, function (m, k) { keys.push(k); return '(\\d+)'; }) + '$');
-        routes.push({ re: re, keys: keys, panel: panel, view: view });
+        routes.push({ re: re, keys: keys, panel: panel, view: view, perm: perm ? [].concat(perm) : null });
     }
     /** App path + query of the address bar (the app may live in a sub-folder: BASE). */
     function parseUrl() {
@@ -535,7 +555,7 @@
             const m = ctx.path.match(r.re);
             if (!m) { continue; }
             matched = true;
-            if (r.panel && r.panel !== user.panel) {
+            if ((r.panel && [].concat(r.panel).indexOf(user.panel) === -1) || (r.perm && !Auth.can.apply(null, r.perm))) {
                 Praman.api('access-denied', { path: ctx.path });
                 page = errorPage(403, 'Access denied', 'You do not have permission to open this page.');
                 break;

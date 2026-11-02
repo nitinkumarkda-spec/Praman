@@ -208,6 +208,34 @@ INSERT INTO `notifications` VALUES (1,1,'ACCOUNT','Welcome to PRAMAAN','Your Sup
 UNLOCK TABLES;
 
 --
+-- Table structure for table `panel_permissions`
+--
+
+DROP TABLE IF EXISTS `panel_permissions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `panel_permissions` (
+  `grant_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `panel` enum('SUPER_ADMIN','DATA_ENTRY','OIC','ROLE_USER') NOT NULL,
+  `permission` varchar(60) NOT NULL,
+  `created_by` int(10) unsigned DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`grant_id`),
+  UNIQUE KEY `uq_panel_permissions` (`panel`,`permission`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `panel_permissions`
+--
+
+LOCK TABLES `panel_permissions` WRITE;
+/*!40000 ALTER TABLE `panel_permissions` DISABLE KEYS */;
+INSERT INTO `panel_permissions` VALUES (34,'OIC','verification.view',NULL,'2026-11-02 16:17:08'),(35,'OIC','verification.send',NULL,'2026-11-02 16:17:08'),(36,'ROLE_USER','task.view',NULL,'2026-11-02 16:17:08'),(37,'ROLE_USER','task.respond',NULL,'2026-11-02 16:17:08'),(90,'SUPER_ADMIN','audit.view',NULL,'2026-11-02 16:44:03'),(91,'SUPER_ADMIN','direction.publish',NULL,'2026-11-02 16:44:03'),(92,'SUPER_ADMIN','master.create',NULL,'2026-11-02 16:44:03'),(93,'SUPER_ADMIN','master.delete',NULL,'2026-11-02 16:44:03'),(94,'SUPER_ADMIN','master.edit',NULL,'2026-11-02 16:44:03'),(95,'SUPER_ADMIN','master.toggle',NULL,'2026-11-02 16:44:03'),(96,'SUPER_ADMIN','master.view',NULL,'2026-11-02 16:44:03'),(97,'SUPER_ADMIN','permission.edit',NULL,'2026-11-02 16:44:03'),(98,'SUPER_ADMIN','permission.view',NULL,'2026-11-02 16:44:03'),(99,'SUPER_ADMIN','role.create',NULL,'2026-11-02 16:44:03'),(100,'SUPER_ADMIN','role.edit',NULL,'2026-11-02 16:44:03'),(101,'SUPER_ADMIN','role.toggle',NULL,'2026-11-02 16:44:03'),(102,'SUPER_ADMIN','role.view',NULL,'2026-11-02 16:44:03'),(103,'SUPER_ADMIN','scheme.create',NULL,'2026-11-02 16:44:03'),(104,'SUPER_ADMIN','scheme.edit',NULL,'2026-11-02 16:44:03'),(105,'SUPER_ADMIN','scheme.toggle',NULL,'2026-11-02 16:44:03'),(106,'SUPER_ADMIN','scheme.view',NULL,'2026-11-02 16:44:03'),(107,'SUPER_ADMIN','settings.edit',NULL,'2026-11-02 16:44:03'),(108,'SUPER_ADMIN','settings.view',NULL,'2026-11-02 16:44:03'),(109,'SUPER_ADMIN','user.create',NULL,'2026-11-02 16:44:03'),(110,'SUPER_ADMIN','user.edit',NULL,'2026-11-02 16:44:03'),(111,'SUPER_ADMIN','user.impersonate',NULL,'2026-11-02 16:44:03'),(112,'SUPER_ADMIN','user.reset_password',NULL,'2026-11-02 16:44:03'),(113,'SUPER_ADMIN','user.toggle',NULL,'2026-11-02 16:44:03'),(114,'SUPER_ADMIN','user.unlock',NULL,'2026-11-02 16:44:03'),(115,'SUPER_ADMIN','user.view',NULL,'2026-11-02 16:44:03'),(116,'SUPER_ADMIN','user.permissions',NULL,'2026-11-02 16:44:03'),(136,'DATA_ENTRY','property.create',1,'2026-11-02 16:44:31'),(137,'DATA_ENTRY','property.edit',1,'2026-11-02 16:44:31'),(138,'DATA_ENTRY','property.view',1,'2026-11-02 16:44:31'),(139,'DATA_ENTRY','scheme.create',1,'2026-11-02 16:44:31'),(140,'DATA_ENTRY','scheme.edit',1,'2026-11-02 16:44:31'),(141,'DATA_ENTRY','scheme.toggle',1,'2026-11-02 16:44:31'),(142,'DATA_ENTRY','scheme.view',1,'2026-11-02 16:44:31');
+/*!40000 ALTER TABLE `panel_permissions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `plot_types`
 --
 
@@ -825,6 +853,35 @@ LOCK TABLES `units` WRITE;
 /*!40000 ALTER TABLE `units` DISABLE KEYS */;
 INSERT INTO `units` VALUES (1,'SQM','Square Meter','वर्ग मीटर','sq m',1.00000000,'Base unit — every area is also stored in sq m',1,1,1,NULL,'2026-10-30 17:15:43',NULL,NULL),(2,'SQFT','Square Feet','वर्ग फुट','sq ft',0.09290304,'1 sq ft = 0.09290304 sq m',2,1,0,NULL,'2026-10-30 17:15:43',NULL,NULL),(3,'SQYD','Square Yard','वर्ग गज','sq yd',0.83612736,'1 sq yd (gaj) = 0.83612736 sq m = 9 sq ft',3,1,0,NULL,'2026-10-30 17:15:43',NULL,NULL);
 /*!40000 ALTER TABLE `units` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `user_permissions`
+--
+
+DROP TABLE IF EXISTS `user_permissions`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `user_permissions` (
+  `override_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL,
+  `permission` varchar(60) NOT NULL,
+  `effect` enum('ALLOW','DENY') NOT NULL,
+  `created_by` int(10) unsigned DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`override_id`),
+  UNIQUE KEY `uq_user_permissions` (`user_id`,`permission`),
+  CONSTRAINT `fk_user_permissions_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user_permissions`
+--
+
+LOCK TABLES `user_permissions` WRITE;
+/*!40000 ALTER TABLE `user_permissions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `user_permissions` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --

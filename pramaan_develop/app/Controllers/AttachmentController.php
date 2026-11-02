@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\HttpException;
@@ -38,7 +39,7 @@ final class AttachmentController extends Controller
         if (!$u) {
             return false;
         }
-        if ($u['panel'] !== 'ROLE_USER') {
+        if ($u['panel'] !== Panel::ROLE_USER) {
             return true;
         }
         // role users: only properties they have (had) a task on

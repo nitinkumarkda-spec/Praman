@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Controllers\Admin;
+namespace App\Controllers;
 
 use App\Core\Auth;
 use App\Core\Controller;
@@ -76,6 +76,7 @@ final class MasterController extends Controller
     {
         [$key, $model, $entity, $one, $name, $fields] = $this->master();
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'master.edit' : 'master.create');
         $old = $id ? $model::find($id) : null;
         if ($id && !$old) {
             $this->fail($one . ' not found.');
@@ -192,6 +193,7 @@ final class MasterController extends Controller
     public function sectorSave(): void
     {
         $id = $this->id() ?: null;
+        $this->authorize($id ? 'master.edit' : 'master.create');
         if ($id) {
             $r = Sector::find($id);
             if (!$r) {

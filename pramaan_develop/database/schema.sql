@@ -84,6 +84,30 @@ CREATE TABLE login_attempts (
     KEY ix_login_time (attempted_at)                       -- 90-day prune + Super Admin insights
 ) ENGINE=InnoDB;
 
+-- what each panel may do (Super Admin → Permissions); codes are listed in app/Core/Permissions.php
+CREATE TABLE panel_permissions (
+    grant_id    INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    panel       ENUM('SUPER_ADMIN','DATA_ENTRY','OIC','ROLE_USER') NOT NULL,
+    permission  VARCHAR(60)  NOT NULL,
+    created_by  INT UNSIGNED NULL,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (grant_id),
+    UNIQUE KEY uq_panel_permissions (panel, permission)
+) ENGINE=InnoDB;
+
+-- one user's own exceptions to the permissions of the panel (Super Admin → User Master → Permissions)
+CREATE TABLE user_permissions (
+    override_id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id     INT UNSIGNED NOT NULL,
+    permission  VARCHAR(60)  NOT NULL,
+    effect      ENUM('ALLOW','DENY') NOT NULL,
+    created_by  INT UNSIGNED NULL,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (override_id),
+    UNIQUE KEY uq_user_permissions (user_id, permission),
+    CONSTRAINT fk_user_permissions_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------
 -- 2. Masters (Super Admin)
 -- ---------------------------------------------------------------------

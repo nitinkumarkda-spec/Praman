@@ -118,8 +118,9 @@
             search: P.propertySearch, sortable: P.propertySortable
         });
         const sendable = DB.Verification.SENDABLE; // bulk send; Auction Ready due for re-verification is re-sent from its detail page
+        const canSend = Auth.can('verification.send');
         const rows = p.items.map(function (r, i) {
-            const can = sendable.indexOf(r.current_status) !== -1;
+            const can = canSend && sendable.indexOf(r.current_status) !== -1;
             const due = DB.Verification.isDue(r);
             const cls = due ? 'row-warning' : r.current_status === 'AUCTION_READY' ? 'row-success' : (['NOT_READY', 'EXPIRED'].indexOf(r.current_status) !== -1 ? 'row-danger' : '');
             return '<tr class="' + cls + '"><td class="cell-check" data-label="Select">' +
@@ -140,12 +141,12 @@
                         e(P.fmt_date(r.valid_till)) + (due ? ' (' + P.dueText(r.valid_till) + ')' : '') + '</span>' : '') + '</td>' +
                 '<td class="actions"><div class="btn-group btn-group-icons"><a href="' + P.BASE + '/oic/properties/' + r.property_id + '" class="btn btn-light btn-sm btn-icon-only" title="View status" aria-label="View status">' + icon('fa-eye') + '</a>' +
                 '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
-                (r.current_status === 'LISTED' ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
+                (!canSend ? '' : r.current_status === 'LISTED' ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
                     : r.current_status === 'NOT_READY' ? '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-send for verification" aria-label="Re-send for verification">' + icon('fa-rotate') + '</a>'
                     : r.current_status === 'EXPIRED' || due ? '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-verify (periodic)" aria-label="Re-verify">' + icon('fa-calendar-check') + '</a>' : '') +
                 '</div></td></tr>';
         }).join('');
-        const single = p.items.filter(function (r) { return r.current_status === 'LISTED'; }).map(function (r) {
+        const single = p.items.filter(function (r) { return canSend && r.current_status === 'LISTED'; }).map(function (r) {
             return '<form method="post" data-action="oic-send" id="send-' + r.property_id + '" hidden data-confirm="' +
                 e('Send plot ' + r.plot_no + ' (' + r.scheme_name + ' / ' + r.sector_name + ') for verification to ' + r.role_count + ' role(s)?') + '" data-confirm-ok="Yes, send">' +
                 '<input type="hidden" name="ids[]" value="' + r.property_id + '"></form>';
@@ -156,16 +157,16 @@
                 'Send <strong>Listed</strong> properties for verification to all mapped role users. <strong>Not Ready</strong> ones can be re-sent (new round) with a reason; <strong>Validity Expired</strong> ones go for periodic re-verification.') +
                 '<div class="card">' + P.list_toolbar(p, 'Search plot no., code, scheme, sector…', P.propertyFilters(q, { REVERIFY_DUE: '⚠ Re-verification due' })) +
                 '<form method="post" data-action="oic-send" id="bulk-send-form" data-confirm="Send the selected properties for verification? A new round will be created for each and all mapped role users will get a task." data-confirm-ok="Yes, send" data-bulk-form data-validate novalidate>' +
-                '<div class="bulk-bar"><span class="bulk-count">' + icon('fa-square-check') + ' <strong data-bulk-count="ids[]">0</strong> selected</span>' +
+                (canSend ? '<div class="bulk-bar"><span class="bulk-count">' + icon('fa-square-check') + ' <strong data-bulk-count="ids[]">0</strong> selected</span>' +
                 '<input type="text" name="reason" class="form-control form-control-sm bulk-reason" maxlength="255" placeholder="Re-verification reason (required for Not Ready, optional for Validity Expired)" aria-label="Re-verification reason" data-rules="max:255|text" data-label="Re-verification reason" data-bulk-reason>' +
-                '<button type="submit" class="btn btn-primary btn-sm" data-bulk-requires="ids[]" disabled data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send selected for verification</span></button></div>' +
+                '<button type="submit" class="btn btn-primary btn-sm" data-bulk-requires="ids[]" disabled data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send selected for verification</span></button></div>' : '') +
                 '<div class="table-wrap"><table class="table table-stack"><thead><tr><th class="cell-check"><input type="checkbox" data-check-all="ids[]" aria-label="Select all sendable properties"></th>' +
                 '<th class="cell-no">S.No</th>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'sector', 'Sector') + P.th_sort(p, 'plot', 'Plot') + P.th_sort(p, 'type', 'Type') +
                 P.th_sort(p, 'area', 'Area') + '<th>Assigned role users</th><th class="cell-vf">Verification</th>' + P.th_sort(p, 'status', 'Status') + '<th class="text-right">Actions</th></tr></thead><tbody>' +
                 (rows || P.empty_state(11, p.hasFilters(), 'No properties yet — Data Entry adds them')) +
                 '</tbody></table></div></form>' + single + P.pagination(p) + '</div>'
         };
-    });
+    }, 'verification.view');
 
 
     /* ================= Property status / rounds ================= */
@@ -187,10 +188,11 @@
         });
         const current = rounds[0] || null;
         const st = prop.current_status;
+        const canSend = Auth.can('verification.send');
         let html = P.pageHeader(icon('fa-clipboard-check') + ' Plot ' + e(prop.plot_no) + ' ' + P.status_badge(st),
             e(prop.property_code + ' · ' + prop.scheme_name + ' · ' + prop.sector_name),
             '<a href="' + P.BASE + '/oic/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>' +
-            (st === 'LISTED' ? '<form method="post" data-action="oic-send" data-confirm="Send this property for verification to all mapped role users?" data-confirm-ok="Yes, send">' +
+            (st === 'LISTED' && canSend ? '<form method="post" data-action="oic-send" data-confirm="Send this property for verification to all mapped role users?" data-confirm-ok="Yes, send">' +
                 '<input type="hidden" name="ids[]" value="' + prop.property_id + '"><button type="submit" class="btn btn-primary" data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send for verification</span></button></form>' : ''));
 
         const due = DB.Verification.isDue(prop);
@@ -225,7 +227,7 @@
                     '<td data-label="User">' + e(ru.name) + (ru.user_active ? '' : ' <span class="badge badge-danger">inactive</span>') + '</td><td data-label="Designation">' + e(ru.designation) + '</td></tr>';
             }).join('') : P.empty_state(3, false, 'No role users assigned')) + '</tbody></table></div></div></div></div>';
 
-        if (st !== 'LISTED' && DB.Verification.canSend(prop)) {
+        if (st !== 'LISTED' && canSend && DB.Verification.canSend(prop)) {
             const need = st === 'NOT_READY';
             const nextNo = (current ? current.round_no : 0) + 1;
             html += '<div class="card" id="resend"><div class="card-header"><h3 class="card-title">' + icon('fa-rotate') + ' ' + (need ? 'Send again for verification' : 'Periodic re-verification') + ' (new round R' + nextNo + ')</h3>' +
@@ -266,5 +268,5 @@
         });
         html += P.propertyTimeline(prop.property_id);
         return { title: 'Property ' + prop.plot_no, html: html };
-    });
+    }, 'verification.view');
 })(window);

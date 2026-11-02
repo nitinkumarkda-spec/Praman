@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Password;
@@ -16,10 +17,7 @@ use App\Services\Notify;
  */
 final class AuthController extends Controller
 {
-    public const HOME = [
-        'SUPER_ADMIN' => '/admin/dashboard', 'DATA_ENTRY' => '/data-entry/dashboard',
-        'OIC' => '/oic/dashboard', 'ROLE_USER' => '/role/dashboard',
-    ];
+    public const HOME = Panel::HOME;
 
     public function login(): void
     {
@@ -121,13 +119,13 @@ final class AuthController extends Controller
         if ($f >= $max) {
             User::update($u['user_id'], ['failed_attempts' => 0, 'locked_until' => now($lock)]);
             Audit::log('USER', $u['user_id'], 'ACCOUNT_LOCKED', null, ['minutes' => $lock], null, $actor);
-            Notify::send(Notify::panelUsers('SUPER_ADMIN'), [
+            Notify::send(Notify::panelUsers(Panel::SUPER_ADMIN), [
                 'type' => 'ACCOUNT', 'tone' => 'danger', 'icon' => 'fa-user-lock', 'title' => 'Account locked — ' . $u['username'],
                 'message' => $u['name'] . ' was locked for ' . $lock . ' minutes after ' . $max . ' failed logins.', 'link' => '/admin/users?status=locked',
             ]);
         } else {
             User::update($u['user_id'], ['failed_attempts' => $f]);
-            Notify::send(Notify::panelUsers('SUPER_ADMIN'), [
+            Notify::send(Notify::panelUsers(Panel::SUPER_ADMIN), [
                 'type' => 'ACCOUNT', 'tone' => 'warning', 'icon' => 'fa-user-shield', 'title' => 'Failed login attempt — ' . $u['username'],
                 'message' => 'A wrong password was entered for ' . $u['username'] . '. The account locks after ' . $max . ' failed attempts.',
                 'link' => '/admin/audit-logs?area=AUTH&quick=area:AUTH', 'ref' => 'FAILED-' . $u['user_id'] . '-' . today(),

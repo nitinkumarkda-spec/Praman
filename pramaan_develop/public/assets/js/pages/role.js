@@ -363,12 +363,12 @@
                         (late ? ' <span class="badge badge-danger">' + icon('fa-stopwatch') + ' Overdue</span>' : '') + '</td>' +
                         '<td data-label="Status">' + P.status_badge(t.view_status) +
                         (!pending && t.responded_at ? '<span class="cell-sub">' + e((t.responded_by_name || '') + ' · ' + P.fmt_date(t.responded_at)) + '</span>' : '') + '</td>' +
-                        '<td class="actions">' + (pending ? '<a href="' + P.BASE + '/role/tasks/' + t.task_id + '" class="btn btn-primary btn-sm">' + icon('fa-clipboard-check') + ' <span>Verify</span></a>'
+                        '<td class="actions">' + (pending && Auth.can('task.respond') ? '<a href="' + P.BASE + '/role/tasks/' + t.task_id + '" class="btn btn-primary btn-sm">' + icon('fa-clipboard-check') + ' <span>Verify</span></a>'
                             : '<a href="' + P.BASE + '/role/tasks/' + t.task_id + '" class="btn btn-light btn-sm">' + icon('fa-eye') + ' <span>View</span></a>') + '</td></tr>';
                 }).join('') : P.empty_state(9, p.hasFilters(), 'No task assigned to you yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
-    });
+    }, 'task.view');
 
     /* ================= Task detail + decision ================= */
     P.route('/role/tasks/{id}', PANEL, function (ctx) {
@@ -386,7 +386,7 @@
         task.assignees = DB.where('task_assignees', { task_id: task.task_id }).map(function (a) {
             const u = DB.find('users', a.user_id); return u.name + ' (' + u.designation + ')';
         }).sort().join(', ');
-        const canRespond = task.view_status === 'PENDING';
+        const canRespond = task.view_status === 'PENDING' && Auth.can('task.respond');
         const late = canRespond && task.sla_due_date < DB.today();
         const history = DB.where('rounds', function (r) { return r.property_id === task.property_id && r.round_id !== task.round_id; })
             .sort(function (a, b) { return b.round_no - a.round_no; })
@@ -455,6 +455,6 @@
                 }
             }
         };
-    });
+    }, 'task.view');
 
 })(window);

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Codes\PropertyStatus;
 use App\Core\Model;
 
 /** Vacant property in the register. */
@@ -18,6 +19,6 @@ final class Property extends Model
     /** Active Auction Ready properties whose validity compares with $date ($op: '<' expired, '<=' due). */
     public static function readyValidTill(string $op, string $date): array
     {
-        return static::where(['is_active' => 1, 'current_status' => 'AUCTION_READY', 'valid_till !=' => null, 'valid_till ' . $op => $date]);
+        return static::where(['is_active' => 1, 'current_status' => PropertyStatus::AUCTION_READY, 'valid_till !=' => null, 'valid_till ' . $op => $date]);
     }
 }

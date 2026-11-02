@@ -3,7 +3,7 @@
 (function (window) {
     'use strict';
     const P = window.Praman;
-    const e = P.e, icon = P.icon, DB = P.DB, L = P.Lookups, C = P.COLORS;
+    const e = P.e, icon = P.icon, DB = P.DB, L = P.Lookups, C = P.COLORS, can = P.Auth.can;
 
     function statusParts(counts, onlyNonZero) {
         const keys = Object.keys(counts).filter(function (k) { return !onlyNonZero || counts[k] > 0; });
@@ -74,8 +74,8 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'System overview — users, roles, schemes, properties, verification and activity.',
-                '<a href="' + P.BASE + '/admin/audit-logs" class="btn btn-light">' + icon('fa-chart-line') + ' <span>Activity &amp; Audit</span></a>' +
-                '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>') +
+                (can('audit.view') ? '<a href="' + P.BASE + '/admin/audit-logs" class="btn btn-light">' + icon('fa-chart-line') + ' <span>Activity &amp; Audit</span></a>' : '') +
+                (can('user.create') ? '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('navy', 'fa-users', c.users_total, 'Users', P.fmt_num(c.users_active) + ' active', P.BASE + '/admin/users') +
                 P.statCard('gold', 'fa-sitemap', c.roles_total, 'Roles / Sections', P.fmt_num(c.roles_active) + ' active', P.BASE + '/admin/roles') +
@@ -107,8 +107,8 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'Scheme, sector and property register.',
-                '<a href="' + P.BASE + '/data-entry/schemes/create" class="btn btn-light">' + icon('fa-map') + ' <span>Create Scheme</span></a>' +
-                '<a href="' + P.BASE + '/data-entry/properties/create" class="btn btn-primary">' + icon('fa-circle-plus') + ' <span>Add Property</span></a>') +
+                (can('scheme.create') ? '<a href="' + P.BASE + '/data-entry/schemes/create" class="btn btn-light">' + icon('fa-map') + ' <span>Create Scheme</span></a>' : '') +
+                (can('property.create') ? '<a href="' + P.BASE + '/data-entry/properties/create" class="btn btn-primary">' + icon('fa-circle-plus') + ' <span>Add Property</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('navy', 'fa-map', DB.count('schemes', { is_active: 1 }), 'Active schemes', P.fmt_num(DB.count('schemes')) + ' in register', P.url('/data-entry/schemes', { status: 'active' })) +
                 P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', 'in active schemes', P.BASE + '/data-entry/schemes') +
@@ -158,8 +158,8 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'Verification rounds and auction readiness.',
-                '<a href="' + P.url('/oic/properties', { status: 'LISTED' }) + '" class="btn btn-primary">' + icon('fa-paper-plane') + ' <span>Send for verification</span></a>' +
-                '<a href="' + P.url('/oic/properties', { status: 'NOT_READY' }) + '" class="btn btn-light">' + icon('fa-rotate') + ' <span>Not ready properties</span></a>') +
+                (can('verification.send') ? '<a href="' + P.url('/oic/properties', { status: 'LISTED' }) + '" class="btn btn-primary">' + icon('fa-paper-plane') + ' <span>Send for verification</span></a>' : '') +
+                (can('verification.view') ? '<a href="' + P.url('/oic/properties', { status: 'NOT_READY' }) + '" class="btn btn-light">' + icon('fa-rotate') + ' <span>Not ready properties</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('blue', 'fa-list', sc.LISTED, 'Listed (to send)', 'ready to verify', P.url('/oic/properties', { status: 'LISTED' })) +
                 P.statCard('gold', 'fa-hourglass-half', sc.UNDER_VERIFICATION, 'Under verification', P.fmt_num(pending) + ' pending role tasks', P.url('/oic/properties', { status: 'UNDER_VERIFICATION' })) +
@@ -228,7 +228,7 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), e((ctx.user.role_name || '') + ' · ' + ctx.user.designation) + ' — properties sent to you for verification.',
-                '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>') +
+                (can('task.view') ? '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', 'awaiting your response', P.url('/role/tasks', { status: 'pending' })) +
                 P.statCard('red', 'fa-stopwatch' + (c.overdue > 0 ? ' fa-shake' : ''), c.overdue, 'Overdue (SLA)', c.overdue > 0 ? 'action required now' : 'all SLA on track', P.url('/role/tasks', { status: 'overdue' })) +
