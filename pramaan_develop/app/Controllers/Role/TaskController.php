@@ -29,7 +29,6 @@ final class TaskController extends Controller
     private const OWN_SECTION_ROLES = [self::SALE_ROLE, self::AUCTION_ROLE, self::SITE_ROLE];
     private const ENCROACH_MAX = 300;
     private const SITE_PHOTO = 'SITE_PHOTO';
-    private const NOT_AVAILABLE_MSG = 'A property that is allotted, auctioned or with an organisation / institution cannot get “No Objection” — choose “Objection”.';
 
     public function respond(): void
     {
@@ -56,17 +55,14 @@ final class TaskController extends Controller
                 $found = SiteInspection::ENCROACHMENT_TYPES[$site['encroachment_type']] . ' found — ' . $site['encroachment_details'];
                 $remarks = mb_substr($found . ($remarks !== '' ? ' ' . $remarks : ''), 0, 1000);
             }
+            $section = null;
+            $letters = [];
         } else {
-            $decision = $this->request->str('decision');
-            if ($decision !== 'APPROVED' && $decision !== 'REJECTED') {
-                $this->fail('Choose No Objection or Objection.', 'decision');
-            }
-            if ($decision === 'REJECTED' && mb_strlen($remarks) < 5) {
-                $this->fail('Objection reason is mandatory (at least 5 characters).', 'remarks');
-            }
+            $section = $this->sectionCheck($role['role_code'], $me);
+            $letters = $section ? $this->letters($section) : [];
+            $taken = $section && (!empty($section['is_sale_allotted']) || !empty($section['is_auctioned']) || !empty($section['is_inst_allotted']) || !empty($section['is_inst_in_process']));
+            $decision = $taken ? 'REJECTED' : 'APPROVED';
         }
-        $section = $this->sectionCheck($role['role_code'], $decision, $me);
-        $letters = $section ? $this->letters($section) : [];
 
         $files = $this->request->files('attachments');
         $checked = Uploads::check($files);
@@ -222,7 +218,7 @@ final class TaskController extends Controller
      * except Engineering, which has its site inspection). null when the cell has no section.
      * Any "Yes" means the property is not available: only Objection is allowed.
      */
-    private function sectionCheck(string $roleCode, string $decision, int $by): ?array
+    private function sectionCheck(string $roleCode, int $by): ?array
     {
         $out = ['checked_by' => $by, 'checked_at' => now()];
         if ($roleCode === self::SALE_ROLE) {
@@ -251,10 +247,6 @@ final class TaskController extends Controller
         }
         if (count($out) === 2) {
             return null; // Engineering: site inspection only
-        }
-        $taken = !empty($out['is_sale_allotted']) || !empty($out['is_auctioned']) || !empty($out['is_inst_allotted']) || !empty($out['is_inst_in_process']);
-        if ($taken && $decision !== 'REJECTED') {
-            $this->fail(self::NOT_AVAILABLE_MSG, 'decision');
         }
         return $out;
     }

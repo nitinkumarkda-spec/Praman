@@ -191,11 +191,9 @@
     }
 
     /* ================= Department-wise section: Sale (Sale Cell), Auction (Auction Cell), General (every other cell) =================
-       Engineering has its site inspection instead. Any "Yes" means the property is not available:
-       Objection is selected and a remark is filled in. */
+       Engineering has its site inspection instead. Any "Yes" means the property is not available (auto-recorded as Objection). */
     const SALE_ROLE = 'SALE_CELL', AUCTION_ROLE = 'AUCTION_CELL';
     const OWN_SECTION_ROLES = [SALE_ROLE, AUCTION_ROLE, SITE_ROLE]; // every other cell answers the General section
-    const NOT_AVAILABLE_MSG = 'A property that is allotted, auctioned or with an organisation / institution cannot get “No Objection” — choose “Objection”.';
     function stepHtml(n, ic, title, sub) {
         return '<p class="site-step"><span class="step-no">' + n + '</span> ' + icon(ic) + ' ' + title + (sub ? ' <small class="text-muted step-sub">' + sub + '</small>' : '') + '</p>';
     }
@@ -237,8 +235,7 @@
                 '<div class="reveal-box reveal-plain" data-reveal="is_inst_in_process!=1">' +
                 P.dateField({ id: 'inst_allotment_date', name: 'inst_allotment_date', label: 'Date of allotment', required: true, max: today }) + '</div></div></div>';
         }
-        h += '<div class="sale-result" data-section-result role="status" aria-live="polite" hidden></div>' +
-            stepHtml(++n, 'fa-scale-balanced', 'Decision') + '</div>';
+        h += '<div class="sale-result" data-section-result role="status" aria-live="polite" hidden></div></div>';
         return h;
     }
     /** What the answers say, as one sentence (auto remark + OIC summary). get(key) reads an answer. */
@@ -272,12 +269,8 @@
             const answered = Array.prototype.every.call(box.querySelectorAll('.yn'), function (g) { return g.querySelector('input:disabled') || g.querySelector('input:checked'); });
             result.hidden = !t && !answered;
             result.className = 'sale-result ' + (t ? 'is-allotted' : 'is-ready');
-            result.innerHTML = t ? icon('fa-circle-xmark') + ' <span><strong>Not available</strong> — “Objection” is selected below and the remark is filled in from your answers.</span>'
-                : icon('fa-circle-check') + ' <span><strong>No allotment / auction found</strong> by your section. Give your decision below.</span>';
-            if (t && fromUser) {
-                const r = form.querySelector('input[name="decision"][value="REJECTED"]');
-                if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
-            }
+            result.innerHTML = t ? icon('fa-circle-xmark') + ' <span><strong>Not available</strong> — recorded as Objection.</span>'
+                : icon('fa-circle-check') + ' <span><strong>No allotment / auction found</strong> by your section (No Objection).</span>';
             const cur = remark.value.trim(), text = sectionText(get);
             if (text && (!cur || cur === autoText)) { remark.value = autoText = text; }
             else if (!text && cur && cur === autoText) { remark.value = autoText = ''; }
@@ -349,7 +342,7 @@
             (cur ? '<input type="hidden" name="status" value="' + e(cur) + '">' : '');
         return {
             title: 'My Tasks',
-            html: P.pageHeader(icon('fa-clipboard-list') + ' My Tasks', 'Properties assigned to you for verification. Open a task to give No Objection or Objection.') +
+            html: P.pageHeader(icon('fa-clipboard-list') + ' My Tasks', 'Properties assigned to you for verification. Open a task to review records and submit your report.') +
                 '<nav class="tabs" aria-label="Task status">' + TABS.map(function (t) {
                     return '<a href="' + P.url('/role/tasks', { status: t[0], scheme_id: q.scheme_id || '' }) + '" class="tab' + (cur === t[0] ? ' active' : '') + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' +
                         icon(t[2]) + ' ' + t[1] + '</a>';
@@ -435,19 +428,14 @@
             const isSite = task.role_code === SITE_ROLE, isSale = task.role_code === SALE_ROLE, isAuction = task.role_code === AUCTION_ROLE;
             html += '<div class="card response-card" id="respond"><div class="card-header"><h3 class="card-title">' +
                 (isSite ? icon('fa-ruler-combined') + ' Site inspection'
-                    : isSale ? icon('fa-file-signature') + ' Sale check &amp; decision' : isAuction ? icon('fa-gavel') + ' Auction check &amp; decision' : icon('fa-building-columns') + ' General check &amp; decision') +
+                    : isSale ? icon('fa-file-signature') + ' Sale check' : isAuction ? icon('fa-gavel') + ' Auction check' : icon('fa-building-columns') + ' General check') +
                 '</h3><span class="text-muted small">Once submitted, the response cannot be changed.</span></div><div class="card-body">' +
-                '<form method="post" data-action="task-respond" novalidate data-validate data-response-form data-confirm="' + (isSite ? 'Submit the site report? It cannot be changed afterwards.' : 'Submit your decision? It cannot be changed afterwards.') + '" data-confirm-ok="Yes, submit">' +
+                '<form method="post" data-action="task-respond" novalidate data-validate data-response-form data-confirm="' + (isSite ? 'Submit the site report? It cannot be changed afterwards.' : 'Submit your report? It cannot be changed afterwards.') + '" data-confirm-ok="Yes, submit">' +
                 '<input type="hidden" name="id" value="' + task.task_id + '">' + (isSite ? siteCheckHtml(task) : '') + sectionChecksHtml(task, 0) +
-                (isSite ? '' : '<div class="form-group"><p class="form-label">Does the ' + e(task.role_name) + ' clear this property? <span class="required">*</span></p>' +
-                '<div class="decision-row"><label class="decision decision-approve"><input type="radio" name="decision" value="APPROVED" data-rules="required" data-label="No Objection or Objection">' +
-                '<span>' + icon('fa-circle-check') + ' <strong>No Objection</strong><small>Record is clear</small></span></label>' +
-                '<label class="decision decision-reject"><input type="radio" name="decision" value="REJECTED"><span>' + icon('fa-circle-xmark') + ' <strong>Objection</strong><small>Issue found — reason required</small></span></label></div>' +
-                '<div class="invalid-feedback"></div></div>') +
-                '<div class="form-group"><label class="form-label" for="remarks">Remark ' + (isSite ? '<small class="text-muted">(optional)</small>' : '<span class="required" data-remark-required hidden>* (reason for objection)</span>') + '</label>' +
-                '<textarea id="remarks" name="remarks" class="form-control" rows="3" maxlength="1000" placeholder="e.g. Encroachment — temporary tin shed 8 sq m on the front side / Record clear, file no. 123" data-rules="max:1000|text" data-label="Remark"></textarea><div class="invalid-feedback"></div></div>' +
+                '<div class="form-group"><label class="form-label" for="remarks">Remark <small class="text-muted">(optional)</small></label>' +
+                '<textarea id="remarks" name="remarks" class="form-control" rows="3" maxlength="1000" placeholder="Optional remark — e.g. Record clear, file no. 123" data-rules="max:1000|text" data-label="Remark"></textarea><div class="invalid-feedback"></div></div>' +
                 P.uploaderHtml('Supporting documents / photos') +
-                '<button type="submit" class="btn btn-primary btn-lg" data-loading-text="Submitting…">' + icon('fa-paper-plane') + ' <span>' + (isSite ? 'Submit site report' : 'Submit decision') + '</span></button></form></div></div>';
+                '<button type="submit" class="btn btn-primary btn-lg" data-loading-text="Submitting…">' + icon('fa-paper-plane') + ' <span>' + (isSite ? 'Submit site report' : 'Submit report') + '</span></button></form></div></div>';
         }
         html += '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-clock-rotate-left') + ' ' + e(task.role_name) + ' — earlier rounds of this property</h3></div>' +
             '<div class="table-wrap"><table class="table table-stack"><thead><tr><th>Round</th><th>Response</th><th>Remark</th><th>By / Date</th><th>Round result</th></tr></thead><tbody>' +
