@@ -97,14 +97,14 @@
             m.classList.remove('is-open');
             document.body.classList.remove('modal-open');
             document.removeEventListener('keydown', onKey);
-            window.removeEventListener('hashchange', close);
+            window.removeEventListener('praman:navigate', close);
             window.setTimeout(function () { m.remove(); }, 180);
             if (opener && opener.isConnected) { opener.focus(); }
         }
         function onKey(ev) { if (ev.key === 'Escape') { close(); } }
         m.addEventListener('click', function (ev) { if (ev.target === m || ev.target.closest('[data-ru-close]')) { close(); } });
         document.addEventListener('keydown', onKey);
-        window.addEventListener('hashchange', close);
+        window.addEventListener('praman:navigate', close);
     }
     document.addEventListener('click', function (ev) {
         const b = ev.target.closest('[data-role-users]');
@@ -128,8 +128,8 @@
                 '<td data-label="S.No" class="cell-no">' + (p.from() + i) + '</td>' +
                 '<td data-label="Scheme">' + e(r.scheme_name) + '</td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
                 '<td data-label="Plot"><strong>' + e(r.plot_no) + '</strong></td><td data-label="Type">' + e(L.PROPERTY_TYPES[r.property_type]) + '</td>' +
-                '<td data-label="Area"' + (r.area_unit === 'SQFT' ? ' title="= ' + P.fmt_num(r.area_sqm, 2) + ' sq m"' : '') + '>' +
-                P.fmt_num(r.area_value, 2) + ' ' + (r.area_unit === 'SQFT' ? 'sq&nbsp;ft' : 'sq&nbsp;m') + '</td>' +
+                '<td data-label="Area"' + (r.area_unit !== L.BASE_UNIT ? ' title="= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '"' : '') + '>' +
+                P.fmt_num(r.area_value, 2) + ' ' + e(L.unitSymbol(r.area_unit)).replace(/ /g, '&nbsp;') + '</td>' +
                 '<td data-label="Role users"><button type="button" class="badge badge-muted ru-trigger" data-role-users="' + r.property_id + '" aria-haspopup="dialog" title="View assigned role users">' +
                 icon('fa-user-tie') + ' ' + r.role_count + ' roles ' + icon('fa-chevron-down', 'ru-caret') + '</button></td>' +
                 '<td data-label="Verification" class="cell-vf">' + verificationCell(r) + '</td>' +
@@ -138,11 +138,11 @@
                 (r.current_status === 'AUCTION_READY' || r.current_status === 'EXPIRED'
                     ? '<span class="cell-sub' + (due || r.current_status === 'EXPIRED' ? ' text-danger' : '') + '">' + (r.current_status === 'EXPIRED' ? 'Expired ' : 'Valid till ') +
                         e(P.fmt_date(r.valid_till)) + (due ? ' (' + P.dueText(r.valid_till) + ')' : '') + '</span>' : '') + '</td>' +
-                '<td class="actions"><div class="btn-group btn-group-icons"><a href="#/oic/properties/' + r.property_id + '" class="btn btn-light btn-sm btn-icon-only" title="View status" aria-label="View status">' + icon('fa-eye') + '</a>' +
-                '<a href="#/oic/properties/' + r.property_id + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
+                '<td class="actions"><div class="btn-group btn-group-icons"><a href="' + P.BASE + '/oic/properties/' + r.property_id + '" class="btn btn-light btn-sm btn-icon-only" title="View status" aria-label="View status">' + icon('fa-eye') + '</a>' +
+                '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
                 (r.current_status === 'LISTED' ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
-                    : r.current_status === 'NOT_READY' ? '<a href="#/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-send for verification" aria-label="Re-send for verification">' + icon('fa-rotate') + '</a>'
-                    : r.current_status === 'EXPIRED' || due ? '<a href="#/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-verify (periodic)" aria-label="Re-verify">' + icon('fa-calendar-check') + '</a>' : '') +
+                    : r.current_status === 'NOT_READY' ? '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-send for verification" aria-label="Re-send for verification">' + icon('fa-rotate') + '</a>'
+                    : r.current_status === 'EXPIRED' || due ? '<a href="' + P.BASE + '/oic/properties/' + r.property_id + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-verify (periodic)" aria-label="Re-verify">' + icon('fa-calendar-check') + '</a>' : '') +
                 '</div></td></tr>';
         }).join('');
         const single = p.items.filter(function (r) { return r.current_status === 'LISTED'; }).map(function (r) {
@@ -189,7 +189,7 @@
         const st = prop.current_status;
         let html = P.pageHeader(icon('fa-clipboard-check') + ' Plot ' + e(prop.plot_no) + ' ' + P.status_badge(st),
             e(prop.property_code + ' · ' + prop.scheme_name + ' · ' + prop.sector_name),
-            '<a href="#/oic/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>' +
+            '<a href="' + P.BASE + '/oic/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>' +
             (st === 'LISTED' ? '<form method="post" data-action="oic-send" data-confirm="Send this property for verification to all mapped role users?" data-confirm-ok="Yes, send">' +
                 '<input type="hidden" name="ids[]" value="' + prop.property_id + '"><button type="submit" class="btn btn-primary" data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send for verification</span></button></form>' : ''));
 
@@ -197,12 +197,12 @@
         const till = prop.valid_till;
         if (due && current) {
             html += '<div class="alert alert-warning">' + icon('fa-calendar-day', 'fa-shake') + '<span><strong>Re-verification due.</strong> Approved in round R' + current.round_no +
-                ', but the validity ends ' + e(P.fmt_date(till)) + ' (' + P.dueText(till) + '). Auction it before that date, or <a href="#/oic/properties/' + prop.property_id + '#resend">start re-verification</a> now.</span></div>';
+                ', but the validity ends ' + e(P.fmt_date(till)) + ' (' + P.dueText(till) + '). Auction it before that date, or <a href="' + P.BASE + '/oic/properties/' + prop.property_id + '#resend">start re-verification</a> now.</span></div>';
         } else if (st === 'AUCTION_READY' && current) {
             html += '<div class="alert alert-success">' + icon('fa-circle-check') + '<span><strong>Ready for Auction.</strong> All roles approved in round R' + current.round_no + '. Valid till ' + e(P.fmt_date(till)) + ' (' + P.dueText(till) + ').</span></div>';
         } else if (st === 'EXPIRED') {
             html += '<div class="alert alert-error">' + icon('fa-calendar-xmark') + '<span><strong>Validity expired on ' + e(P.fmt_date(till)) + '.</strong> The approval of round R' + (current ? current.round_no : '—') +
-                ' can no longer be used for an auction. <a href="#/oic/properties/' + prop.property_id + '#resend">Send it for re-verification</a> (new round).</span></div>';
+                ' can no longer be used for an auction. <a href="' + P.BASE + '/oic/properties/' + prop.property_id + '#resend">Send it for re-verification</a> (new round).</span></div>';
         } else if (st === 'NOT_READY' && current) {
             const rej = current.tasks.filter(function (t) { return t.task_status === 'REJECTED' || t.task_status === 'NO_RESPONSE'; });
             html += '<div class="alert alert-error">' + icon('fa-circle-xmark', 'fa-beat') + '<span><strong>Not Ready — round R' + current.round_no + ' rejected.</strong> Reasons:<ul class="reason-list">' +
@@ -214,7 +214,8 @@
             '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' +
             '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot no.</dt><dd>' + e(prop.plot_no) + '</dd>' +
             '<dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[prop.property_type]) + '</dd>' +
-            '<dt>Plot area</dt><dd>' + P.fmt_num(prop.area_value, 2) + ' ' + e(L.AREA_UNITS[prop.area_unit]) + (prop.area_unit === 'SQFT' ? ' <span class="text-muted">(= ' + P.fmt_num(prop.area_sqm, 2) + ' sq m)</span>' : '') + '</dd>' +
+            '<dt>Plot area</dt><dd>' + e(L.area(prop.area_value, prop.area_unit, prop.area_sqm)) + '</dd>' +
+            P.propertyPriceRows(prop) +
             '<dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
             (prop.remarks ? '<dt>Remarks</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users</h3><span class="text-muted small">Snapshot taken when the property was created</span></div>' +
@@ -255,7 +256,8 @@
                         '<td data-label="Role"><strong>' + e(t.role_name) + '</strong>' + (t.is_mandatory ? '' : ' <span class="badge badge-muted">optional</span>') + '</td>' +
                         '<td data-label="Assigned">' + e(t.assignees || '—') + '</td><td data-label="Status">' +
                         (pendingClosed ? '<span class="badge badge-muted">' + icon('fa-minus') + ' Not required (round closed)</span>' : P.status_badge(t.task_status)) + '</td>' +
-                        '<td data-label="Remark">' + e(t.remarks || '—') + '</td><td data-label="Attachments">' + (P.attachmentChips(P.attachmentsFor({ task_id: t.task_id })) || '—') + '</td><td data-label="Date">' +
+                        '<td data-label="Remark">' + e(t.remarks || '—') +
+                        (t.section_check ? '<span class="cell-sub">' + icon('fa-file-signature') + ' ' + e(P.sectionCheckText(t.section_check)) + '</span>' : '') + '</td><td data-label="Attachments">' + (P.attachmentChips(P.attachmentsFor({ task_id: t.task_id })) || '—') + '</td><td data-label="Date">' +
                         (t.responded_at ? e(P.fmt_datetime(t.responded_at)) + '<span class="cell-sub">' + e(t.responded_by_name || '') + '</span>' : '<span class="text-muted">SLA ' + e(P.fmt_date(t.sla_due_date)) + '</span>') + '</td></tr>';
                 }).join('') + '</tbody></table></div>' +
                 (round.result === 'NOT_READY' && round.result_note ? '<div class="card-footer"><strong>Result:</strong> ' + e(round.result_note).replace(/\n/g, '<br>') + '</div>'

@@ -35,7 +35,6 @@
     const Lookups = {
         get AREAS() { return masterMap('areas', 'area_id', 'area_name', false); },
         get SCHEME_TYPES() { return DB.lookup('scheme_types'); },
-        get ALLOTMENT_MODES() { return DB.lookup('allotment_modes'); },
         get STATUS_COLORS() { return DB.lookup('status_colors'); },
         get STATUS_ICONS() { return DB.lookup('status_icons'); },
         get PROPERTY_TYPES() { return masterMap('plot_types', 'code', 'name', false); },
@@ -47,9 +46,20 @@
                 .forEach(function (r) { if (r.is_active || String(r[key]) === String(current)) { m[r[key]] = r[name] + (r.is_active ? '' : ' (inactive)'); } });
             return m;
         },
-        get AREA_UNITS() { return DB.lookup('area_units'); },
-        SQFT_TO_SQM: 0.092903,
-        toSqm: function (v, unit) { return Math.round((unit === 'SQFT' ? v * 0.092903 : v) * 10000) / 10000; },
+        /* Unit Master (sq m, sq ft, sq yard …) — code => name; sq m is the base unit */
+        BASE_UNIT: 'SQM',
+        get AREA_UNITS() { return masterMap('units', 'code', 'name', false); },
+        unit: function (code) { return DB.first('units', { code: code }); },
+        unitSymbol: function (code) { const u = Lookups.unit(code); return u ? u.symbol : (code || ''); },
+        unitName: function (code) { const u = Lookups.unit(code); return u ? u.name : (code || ''); },
+        /** Square metres in 1 unit. */
+        unitFactor: function (code) { const u = Lookups.unit(code); return u ? Number(u.to_sqm) : 1; },
+        toSqm: function (v, unit) { return Math.round(v * Lookups.unitFactor(unit) * 10000) / 10000; },
+        convert: function (v, from, to) { return from === to ? v : v * Lookups.unitFactor(from) / Lookups.unitFactor(to); },
+        /** "150.00 sq ft" (+ "= 13.94 sq m" when not in sq m and withSqm is set). */
+        area: function (value, code, sqm) {
+            return fmt_num(value, 2) + ' ' + Lookups.unitSymbol(code) + (sqm != null && code !== Lookups.BASE_UNIT ? ' (= ' + fmt_num(sqm, 2) + ' ' + Lookups.unitSymbol(Lookups.BASE_UNIT) + ')' : '');
+        },
         options: function (map, selected, placeholder) {
             let html = placeholder ? '<option value="">' + e(placeholder) + '</option>' : '';
             Object.keys(map).forEach(function (k) {
@@ -72,7 +82,7 @@
         });
     }
     function url(path, query) {
-        let u = '#' + path;
+        let u = BASE + path;
         if (query) {
             const qs = Object.keys(query).filter(function (k) { return query[k] !== '' && query[k] != null; })
                 .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(query[k]); }).join('&');
@@ -403,7 +413,7 @@
             ['Role Master', 'fa-sitemap', '/admin/roles'], ['User Master', 'fa-users', '/admin/users'], { section: 'Property Masters' },
             ['Area', 'fa-map-location-dot', '/admin/masters/areas'],
             ['Scheme', 'fa-map', '/admin/masters/schemes'], ['Sector', 'fa-table-cells', '/admin/masters/sectors'],
-            ['Plot Type', 'fa-shapes', '/admin/masters/plot-types'], ['Status', 'fa-flag', '/admin/masters/statuses'], { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs'],
+            ['Plot Type', 'fa-shapes', '/admin/masters/plot-types'], ['Unit', 'fa-ruler-combined', '/admin/masters/units'], ['Status', 'fa-flag', '/admin/masters/statuses'], { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs'],
             { section: 'System' }, ['App Settings', 'fa-sliders', '/admin/settings']],
         DATA_ENTRY: [['Dashboard', 'fa-gauge-high', '/data-entry/dashboard'], { section: 'Masters' }, ['Scheme Master', 'fa-map', '/data-entry/schemes'],
             { section: 'Property' }, ['Property Register', 'fa-building', '/data-entry/properties'], ['Add Property', 'fa-circle-plus', '/data-entry/properties/create']],
@@ -423,7 +433,7 @@
                 icon(it[1] + ' nav-icon') + '<span>' + e(it[0]) + '</span></a>';
         }).join('');
         nav += '<div class="nav-section">Account</div>' +
-            '<a class="nav-link' + (current === '/change-password' ? ' active' : '') + '" href="#/change-password" title="Change Password">' + icon('fa-key nav-icon') + '<span>Change Password</span></a>' +
+            '<a class="nav-link' + (current === '/change-password' ? ' active' : '') + '" href="' + BASE + '/change-password" title="Change Password">' + icon('fa-key nav-icon') + '<span>Change Password</span></a>' +
             '<form method="post" data-action="logout" class="nav-form"><button type="submit" class="nav-link nav-button" title="Logout">' + icon('fa-right-from-bracket nav-icon') + '<span>Logout</span></button></form>';
         return '<aside class="sidebar" id="sidebar" aria-label="Main navigation"><div class="sidebar-brand">' +
             // KDA emblem — the same embedded image as the favicon (<link id="app-icon"> in <head>)
@@ -444,7 +454,7 @@
             '<span class="avatar" aria-hidden="true">' + e(initials(user.name)) + '</span><span class="user-meta"><strong>' + e(user.name) + '</strong><small>' + e(user.designation) + '</small></span>' +
             icon('fa-chevron-down user-caret') + '</button><div class="dropdown-menu" role="menu"><div class="dropdown-header"><strong>' + e(user.username) + '</strong>' +
             '<small>Emp. Code: ' + e(user.emp_code) + '</small><small>Last login: ' + e(fmt_datetime(user.last_login_at)) + '</small></div>' +
-            '<a class="dropdown-item" role="menuitem" href="#/change-password">' + icon('fa-key') + ' Change Password</a>' +
+            '<a class="dropdown-item" role="menuitem" href="' + BASE + '/change-password">' + icon('fa-key') + ' Change Password</a>' +
             '<form method="post" data-action="logout"><button type="submit" class="dropdown-item text-danger" role="menuitem">' + icon('fa-right-from-bracket') + ' Logout</button></form>' +
             '</div></div></div></header>';
     }
@@ -461,24 +471,32 @@
         const re = new RegExp('^' + path.replace(/\{(\w+)\}/g, function (m, k) { keys.push(k); return '(\\d+)'; }) + '$');
         routes.push({ re: re, keys: keys, panel: panel, view: view });
     }
-    function parseHash() {
-        const h = window.location.hash.replace(/^#/, '').split('#')[0] || '/';
-        const i = h.indexOf('?');
-        const path = (i === -1 ? h : h.slice(0, i)) || '/';
+    /** App path + query of the address bar (the app may live in a sub-folder: BASE). */
+    function parseUrl() {
+        let path = window.location.pathname;
+        if (BASE && path.indexOf(BASE) === 0) { path = path.slice(BASE.length); }
+        path = path.replace(/\/+$/, '') || '/';
         const query = {};
-        if (i !== -1) {
-            h.slice(i + 1).split('&').forEach(function (pair) {
-                if (!pair) { return; }
-                const kv = pair.split('=');
-                query[decodeURIComponent(kv[0])] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' '));
-            });
-        }
+        window.location.search.slice(1).split('&').forEach(function (pair) {
+            if (!pair) { return; }
+            const kv = pair.split('=');
+            query[decodeURIComponent(kv[0])] = decodeURIComponent((kv[1] || '').replace(/\+/g, ' '));
+        });
         return { path: path, query: query };
+    }
+    Praman.currentPath = function () { return parseUrl().path; };
+    function pageKey() { return window.location.pathname + window.location.search; }
+    let shownKey = null; // the page on screen: moving only to an #anchor must not redraw it
+    /** The address changed: every screen listener (and render) hears 'praman:navigate'. */
+    function navigated() { window.dispatchEvent(new Event('praman:navigate')); }
+    function pushUrl(target) {
+        window.history.pushState(null, '', target);
+        window.setTimeout(navigated, 0); // like a hash change: never inside the current render
     }
     function go(path, query) {
         const target = url(path, query);
-        if (window.location.hash === target) { render(); }
-        else { window.location.hash = target; }
+        if (pageKey() === target) { render(); }
+        else { pushUrl(target); }
     }
     function errorPage(status, title, message) {
         const icons = { 403: 'fa-hand', 404: 'fa-map-location-dot', 500: 'fa-triangle-exclamation' };
@@ -492,7 +510,7 @@
     Praman.notFound = function (msg) { return errorPage(404, 'Page not found', msg || 'The page or record you are looking for does not exist.'); };
 
     function render() {
-        const ctx = parseHash();
+        const ctx = parseUrl();
         const root = document.getElementById('app-root');
         const user = Auth.user();
 
@@ -581,10 +599,11 @@
         if (Praman.initPage) { Praman.initPage(root); }
         if (Praman.initForms) { Praman.initForms(root); }
         if (page && page.after) { page.after(root); }
-        const hashAnchor = (window.location.hash.split('#')[2] || '');
+        shownKey = pageKey();
+        const hashAnchor = window.location.hash.slice(1);
         if (hashAnchor) {
             const el = document.getElementById(hashAnchor);
-            if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            if (el) { window.setTimeout(function () { el.scrollIntoView({ behavior: 'smooth' }); }, 100); } // after the page has settled
         }
     }
 
@@ -646,7 +665,9 @@
         }
         const fd = new FormData(form);
         if (submitter && submitter.name) { fd.append(submitter.name, submitter.value); }
-        (form._files || []).forEach(function (f) { fd.append('attachments[]', f, f.name); });
+        // files of the upload widgets (files.js): each widget is sent as <name>[]
+        const uploads = form._uploads || { attachments: form._files || [] };
+        Object.keys(uploads).forEach(function (n) { uploads[n].forEach(function (f) { fd.append(n + '[]', f, f.name); }); });
         Praman.api(name, fd).then(function (res) {
             if (res.status === 401) { unlock(form); flash('warning', res.message || 'Please login to continue.'); return go('/login'); }
             if (!res.ok) { return fail(form, res.field, res.message || 'The request could not be completed.'); }
@@ -675,8 +696,25 @@
         go(form.getAttribute('data-path'), q);
     };
 
-    window.addEventListener('hashchange', render);
+    window.addEventListener('praman:navigate', render);
+    window.addEventListener('popstate', function () { if (pageKey() !== shownKey) { navigated(); } });
+    /* Links inside the app change the page without a reload (the server serves the same app for these paths).
+       On window, so handlers that stop a link (confirm, sign-in popup) run first. */
+    window.addEventListener('click', function (ev) {
+        if (ev.defaultPrevented || ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) { return; }
+        const a = ev.target.closest ? ev.target.closest('a[href]') : null;
+        if (!a || a.target || a.hasAttribute('download')) { return; }
+        const to = new URL(a.href);
+        const inApp = to.origin === window.location.origin && (to.pathname === BASE + '/' || to.pathname.indexOf(BASE + '/') === 0) &&
+            to.pathname.indexOf(BASE + '/assets/') !== 0 && to.pathname.indexOf(BASE + '/api/') !== 0;
+        if (!inApp) { return; }
+        if (to.pathname + to.search === pageKey()) { return; } // same page: the browser only jumps to the #anchor
+        ev.preventDefault();
+        pushUrl(to.pathname + to.search + to.hash);
+    });
     document.addEventListener('DOMContentLoaded', function () {
+        // old bookmarks: /#/admin/dashboard -> /admin/dashboard
+        if (window.location.hash.indexOf('#/') === 0) { window.history.replaceState(null, '', BASE + window.location.hash.slice(1)); }
         document.getElementById('modal-root').innerHTML = CONFIRM_MODAL;
         (DB.initialFlashes || []).forEach(function (f) { flash(f.type, f.message); });
         render();

@@ -23,6 +23,25 @@
             el.value = el.value.toUpperCase();
             try { el.setSelectionRange(pos, pos); } catch (err) { /* number inputs */ }
         }
+        // names of persons: letters and single spaces only; data-digits-only: whole numbers;
+        // data-decimals="n": digits with at most n decimals (data-signed allows a leading minus) — anything else is dropped as typed
+        const filter = !el.matches ? null
+            : el.matches('input[data-letters-only]') ? function (v) { return v.replace(/[^\p{L}\p{M} ]/gu, '').replace(/ {2,}/g, ' ').replace(/^ /, ''); }
+            : el.matches('input[data-digits-only]') ? function (v) { return v.split(/[.,]/)[0].replace(/\D/g, ''); } // "40.5" -> "40", never "405"
+            : el.matches('input[data-decimals]') ? function (v) {
+                const n = Number(el.getAttribute('data-decimals'));
+                const neg = el.hasAttribute('data-signed') && /^\s*-/.test(v);
+                const parts = v.replace(/[^\d.]/g, '').split('.');
+                return (neg ? '-' : '') + parts[0] + (parts.length > 1 ? '.' + parts.slice(1).join('').slice(0, n) : '');
+            } : null;
+        if (filter) {
+            const clean = filter(el.value);
+            if (clean !== el.value) {
+                const pos = Math.max(0, el.selectionStart - (el.value.length - clean.length));
+                el.value = clean;
+                try { el.setSelectionRange(pos, pos); } catch (err) { /* ignore */ }
+            }
+        }
     });
 
     /* ---------- User Master: role only for ROLE_USER ---------- */
@@ -202,10 +221,15 @@
         function updateArea() {
             if (!preview) { return; }
             const v = parseFloat(area.value);
-            if (isNaN(v) || v <= 0) { preview.textContent = '1 sq ft = 0.092903 sq m'; return; }
-            preview.textContent = unit.value === 'SQFT'
-                ? '= ' + (v * 0.092903).toFixed(2) + ' sq m (stored)'
-                : '= ' + (v / 0.092903).toFixed(2) + ' sq ft';
+            const L = Praman.Lookups, base = L.BASE_UNIT;
+            if (isNaN(v) || v <= 0) {
+                const u = unit.value && unit.value !== base ? unit.value : null;
+                preview.textContent = u ? '1 ' + L.unitSymbol(u) + ' = ' + L.unitFactor(u) + ' ' + L.unitSymbol(base) : 'Every area is also stored in ' + L.unitSymbol(base) + '.';
+                return;
+            }
+            preview.textContent = unit.value && unit.value !== base
+                ? '= ' + L.toSqm(v, unit.value).toFixed(2) + ' ' + L.unitSymbol(base) + ' (stored)'
+                : Object.keys(L.AREA_UNITS).filter(function (c) { return c !== base; }).map(function (c) { return '= ' + L.convert(v, base, c).toFixed(2) + ' ' + L.unitSymbol(c); }).join(' · ');
         }
 
         if (scheme && scheme.tagName === 'SELECT') {
@@ -304,8 +328,101 @@
         });
     }
 
+    /* ---------- Yes / No segmented radio ---------- */
+    /** o: {name, label, value ('YES'|'NO'|''), yes, no, required} */
+    Praman.yesNoField = function (o) {
+        const esc = Praman.e;
+        const opt = function (val, text, ic) {
+            return '<label class="yn-opt yn-' + val.toLowerCase() + '"><input type="radio" name="' + esc(o.name) + '" value="' + val + '"' + (o.value === val ? ' checked' : '') +
+                (val === 'YES' ? ' data-rules="required" data-label="' + esc('Yes or No for “' + o.label + '”') + '"' : '') + '>' +
+                '<span><i class="fa-solid ' + ic + '" aria-hidden="true"></i> ' + esc(text) + '</span></label>';
+        };
+        return '<div class="form-group yn-group"><p class="form-label" id="' + esc(o.name) + '_lbl">' + esc(o.label) + ' <span class="required">*</span></p>' +
+            '<div class="yn" role="radiogroup" aria-labelledby="' + esc(o.name) + '_lbl">' + opt('YES', o.yes || 'Yes', 'fa-check') + opt('NO', o.no || 'No', 'fa-xmark') + '</div>' +
+            '<div class="invalid-feedback"></div></div>';
+    };
+
+    /* ---------- conditional blocks:  <div data-reveal="field=VALUE">,  "field!=VALUE"  or  "field=*" (any value) ----------
+       Shown only while that radio / checkbox value is (not) checked, and every outer block is shown;
+       fields of a hidden block are disabled, so they are neither validated nor sent. */
+    function syncReveal(form) {
+        form.querySelectorAll('[data-reveal]').forEach(function (box) { // document order: outer blocks first
+            const m = /^([^!=]+)(!?=)(.*)$/.exec(box.getAttribute('data-reveal'));
+            const c = form.querySelector('[name="' + CSS.escape(m[1]) + '"]:checked:not(:disabled)');
+            const match = !!c && (m[3] === '*' || c.value === m[3]); // "field=*": any value chosen
+            const on = (m[2] === '=' ? match : !match) && !(box.parentElement && box.parentElement.closest('[data-reveal][hidden]'));
+            if (on && box.hidden) { box.classList.remove('anim-fade-up'); void box.offsetWidth; box.classList.add('anim-fade-up'); }
+            box.hidden = !on;
+        });
+        form.querySelectorAll('[data-reveal] input, [data-reveal] select, [data-reveal] textarea').forEach(function (el) {
+            const off = !!el.closest('[data-reveal][hidden]');
+            if (off && !el.disabled && V()) { V().setError(el, null); }
+            el.disabled = off;
+        });
+    }
+    function initReveal(form) {
+        if (!form.querySelector('[data-reveal]')) { return; }
+        form.addEventListener('change', function () { syncReveal(form); });
+        syncReveal(form);
+    }
+
+    /* ---------- dd/mm/yyyy date with a calendar button ---------- */
+    /** o: {id, name, label, value (Y-m-d), required, max (Y-m-d)} */
+    Praman.dateField = function (o) {
+        const esc = Praman.e;
+        const v = o.value ? String(o.value).slice(0, 10).split('-').reverse().join('/') : '';
+        return '<div class="form-group"><label class="form-label" for="' + esc(o.id) + '">' + esc(o.label) + (o.required ? ' <span class="required">*</span>' : '') + '</label>' +
+            '<div class="date-field" data-date-field><input type="text" id="' + esc(o.id) + '" name="' + esc(o.name) + '" class="form-control" value="' + esc(v) + '" placeholder="dd/mm/yyyy" ' +
+            'inputmode="numeric" maxlength="10" autocomplete="off" data-rules="' + (o.required ? 'required|' : '') + 'dmy' + (o.max ? '|notfuture' : '') + '" data-label="' + esc(o.label) + '" data-date-text>' +
+            '<button type="button" class="date-btn" data-date-open aria-label="' + esc('Open calendar for ' + o.label) + '" title="Pick a date"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i></button>' +
+            '<input type="date" class="date-native" tabindex="-1" aria-hidden="true" min="1950-01-01"' + (o.max ? ' max="' + esc(o.max) + '"' : '') + ' data-date-native></div>' +
+            '<div class="form-hint">Format dd/mm/yyyy — type it or use the calendar.</div><div class="invalid-feedback"></div></div>';
+    };
+    function toIso(dmy) {
+        const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dmy || '');
+        return m ? m[3] + '-' + m[2] + '-' + m[1] : '';
+    }
+    function initDateField(box) {
+        const text = box.querySelector('[data-date-text]');
+        const native = box.querySelector('[data-date-native]');
+        const btn = box.querySelector('[data-date-open]');
+        text.addEventListener('input', function (ev) {
+            if (ev.inputType && ev.inputType.indexOf('delete') === 0) { return; } // let backspace remove the slash
+            const d = text.value.replace(/\D/g, '').slice(0, 8);
+            text.value = d.length > 4 ? d.slice(0, 2) + '/' + d.slice(2, 4) + '/' + d.slice(4) : d.length > 2 ? d.slice(0, 2) + '/' + d.slice(2) : d;
+        });
+        btn.addEventListener('click', function () {
+            if (text.disabled) { return; }
+            native.value = toIso(text.value);
+            try { native.showPicker(); } catch (err) { native.focus(); native.click(); }
+        });
+        native.addEventListener('change', function () {
+            if (!native.value) { return; }
+            text.value = native.value.split('-').reverse().join('/');
+            text.dispatchEvent(new Event('change', { bubbles: true }));
+            text.focus();
+        });
+    }
+
+    /* ---------- reserve price: ₹ preview in the Indian format ---------- */
+    function initRupee(input) {
+        const out = input.closest('.form-group').querySelector('[data-rupee-preview]');
+        function show() {
+            const n = parseFloat(input.value.replace(/,/g, ''));
+            if (isNaN(n) || n <= 0) { out.textContent = 'In rupees, e.g. 1250000 = ₹12,50,000.00'; return; }
+            const words = n >= 1e7 ? ' (' + (n / 1e7).toFixed(2).replace(/\.?0+$/, '') + ' crore)' : n >= 1e5 ? ' (' + (n / 1e5).toFixed(2).replace(/\.?0+$/, '') + ' lakh)' : '';
+            out.textContent = '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + words;
+        }
+        input.addEventListener('input', show);
+        show();
+    }
+
     // called by core.js after every page render
     Praman.initForms = function (root) {
+        root.querySelectorAll('form').forEach(initReveal);
+        root.querySelectorAll('[data-date-field]').forEach(initDateField);
+        root.querySelectorAll('[data-rupee]').forEach(initRupee);
+        if (Praman.initPdfFields) { Praman.initPdfFields(root); }
         root.querySelectorAll('form[data-response-form]').forEach(initResponseForm);
         root.querySelectorAll('[data-panel-select]').forEach(function (s) {
             s.addEventListener('change', function () { syncPanel(s); });

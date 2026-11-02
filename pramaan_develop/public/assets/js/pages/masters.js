@@ -58,6 +58,32 @@
             usage: function (r) { const n = DB.count('properties', { property_type: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
             search: function (r) { return [r.code, r.name, r.name_hi, r.description]; }
         },
+        units: {
+            table: 'units', pk: 'unit_id', title: 'Unit Master', one: 'Unit', icon: 'fa-ruler-combined', entity: 'UNIT',
+            sub: 'Area units used across the project (property entry, site inspection, reports). Every area is also stored in sq m using the factor below.',
+            name: function (r) { return r.name; }, sort: 'order',
+            fields: [
+                { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. SQYD', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
+                { name: 'name', label: 'Unit name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. Square Yard' },
+                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:40|text', placeholder: 'e.g. वर्ग गज' },
+                { name: 'symbol', label: 'Symbol', rules: 'required|max:15|text', unique: true, placeholder: 'e.g. sq yd', hint: 'Short label shown next to every area.' },
+                { name: 'to_sqm', label: '1 unit = sq m', rules: 'required|decimal:8|positive', placeholder: 'e.g. 0.83612736', inputmode: 'decimal',
+                    hint: 'How many square metres make one unit. Cannot change once properties use the unit.', lockIf: function (r) { return !!r.is_system; } },
+                { name: 'description', label: 'Description', rules: 'max:150|text' },
+                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('units') + 1; } }
+            ],
+            columns: [
+                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
+                ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' base unit</span>' : ''); }],
+                ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['factor', '1 unit =', function (r) { return Number(r.to_sqm); }, function (r) { return '<span class="mono">' + e(String(Number(r.to_sqm))) + '</span> sq m'; }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            locked: function (r) { return !!r.is_system; },
+            lockNote: 'Base unit — every area is stored in sq m, so its code and factor (1) cannot change and it is always active. You can change its name, symbol and order.',
+            usage: function (r) { const n = DB.count('properties', { area_unit: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
+            search: function (r) { return [r.code, r.name, r.name_hi, r.symbol, r.description]; }
+        },
         statuses: {
             table: 'statuses', pk: 'status_id', title: 'Status Master', one: 'Property status', icon: 'fa-flag', entity: 'STATUS',
             sub: 'Property status names, colours and icons. System statuses drive the verification workflow — their code cannot change and they cannot be removed.',
@@ -101,7 +127,7 @@
         return {
             title: m.title,
             html: crumbs(m.title) + P.pageHeader(icon(m.icon) + ' ' + m.title, m.sub,
-                '<a href="#' + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>') +
+                '<a href="' + P.BASE + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search ' + m.one.toLowerCase() + '…', filters) +
@@ -112,8 +138,8 @@
                     return '<tr>' + m.columns.map(function (c) { return '<td data-label="' + e(c[1]) + '">' + c[3](r) + '</td>'; }).join('') +
                         '<td data-label="Used in"><span class="badge ' + (r._usage.n ? 'badge-info' : 'badge-muted') + '">' + r._usage.n + '</span><span class="cell-sub">' + e(r._usage.text) + '</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
-                        '<a href="#' + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' +
-                        (locked ? '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="System status — always active">' + icon('fa-lock') + '</span>' :
+                        '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' +
+                        (locked ? '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
                             '<form method="post" data-action="master-toggle" data-confirm="' + e(on ? 'Deactivate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"? It will be hidden from new entries; existing records keep it.' : 'Activate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                             '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="id" value="' + id + '">' +
                             (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
@@ -134,9 +160,9 @@
         const locked = isEdit && m.locked && m.locked(row);
         const val = function (f) { return isEdit ? (row[f.name] == null ? '' : row[f.name]) : (f.def ? f.def() : ''); };
         const field = function (f) {
-            const ro = isEdit && f.lockOnEdit;
+            const ro = isEdit && (f.lockOnEdit || (f.lockIf && f.lockIf(row)));
             const attrs = ' id="' + f.name + '" name="' + f.name + '" data-label="' + e(f.label) + '"' + (ro ? ' readonly' : (f.rules ? ' data-rules="' + f.rules + '"' : '')) +
-                (f.upper ? ' data-uppercase' : '') + (f.placeholder ? ' placeholder="' + e(f.placeholder) + '"' : '');
+                (f.upper ? ' data-uppercase' : '') + (f.placeholder ? ' placeholder="' + e(f.placeholder) + '"' : '') + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '');
             let input;
             if (f.type === 'select') {
                 input = '<select class="form-select"' + attrs + (f.preview ? ' data-master-preview' : '') + '>' + L.options(f.options(val(f)), val(f), 'Select ' + f.label.toLowerCase()) + '</select>';
@@ -152,9 +178,10 @@
         return {
             title: (isEdit ? 'Edit ' : 'Add ') + m.one,
             html: crumbs(m.title, isEdit ? 'Edit' : 'Add') + P.pageHeader(icon(m.icon) + ' ' + (isEdit ? 'Edit ' : 'Add ') + e(m.one), isEdit ? e(m.name(row)) : m.sub,
-                '<a href="#' + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
+                '<a href="' + P.BASE + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
                 (usage && usage.n ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This ' + e(m.one.toLowerCase()) + ' is used in <strong>' + e(usage.text) + '</strong>. Changes show everywhere it is used.</span></div>' : '') +
-                (locked ? '<div class="alert alert-warning">' + icon('fa-lock') + '<span>System status — the workflow depends on code <strong>' + e(row.code) + '</strong>. You can change its name, colour, icon and order.</span></div>' : '') +
+                (locked ? '<div class="alert alert-warning">' + icon('fa-lock') + '<span>' + (m.lockNote ? e(m.lockNote)
+                    : 'System status — the workflow depends on code <strong>' + e(row.code) + '</strong>. You can change its name, colour, icon and order.') + '</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="master-save" novalidate data-validate>' +
                 '<input type="hidden" name="key" value="' + key + '">' + (isEdit ? '<input type="hidden" name="id" value="' + row[m.pk] + '">' : '') +
                 '<div class="form-grid">' + m.fields.map(field).join('') +
@@ -162,7 +189,7 @@
                 (locked ? '' : '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || row.is_active ? ' checked' : '') + '>' +
                     '<span><strong>Active</strong><br><small class="text-muted">Inactive records are hidden from new entries.</small></span></label></div>') +
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update' : 'Create') + ' ' + e(m.one) + '</span></button>' +
-                '<a href="#' + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>',
+                '<a href="' + P.BASE + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>',
             after: previewField ? function (root) {
                 const form = root.querySelector('form[data-action="master-save"]');
                 const box = form.querySelector('[data-preview-box]');
@@ -180,11 +207,11 @@
         let listHref = '';
         if (last) {
             const k = Object.keys(MASTERS).find(function (x) { return MASTERS[x].title === title; });
-            if (k) { listHref = '#' + BASE + '/' + k; }
-            else if (title === 'Sector Master') { listHref = '#' + BASE + '/sectors'; }
-            else if (title === 'Scheme Master') { listHref = '#' + BASE + '/schemes'; }
+            if (k) { listHref = P.BASE + BASE + '/' + k; }
+            else if (title === 'Sector Master') { listHref = P.BASE + BASE + '/sectors'; }
+            else if (title === 'Scheme Master') { listHref = P.BASE + BASE + '/schemes'; }
         }
-        return '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="#/admin/dashboard">Home</a><span>/</span>' +
+        return '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="' + P.BASE + '/admin/dashboard">Home</a><span>/</span>' +
             (last ? (listHref ? '<a href="' + listHref + '">' + e(title) + '</a>' : '<span>' + e(title) + '</span>') + '<span>/</span><strong>' + e(last) + '</strong>' : '<strong>' + e(title) + '</strong>') + '</nav>';
     }
 
@@ -240,7 +267,7 @@
                         '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
                         '<td data-label="Properties"><a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
-                        '<a href="#' + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' +
+                        '<a href="' + P.BASE + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' +
                         '<form method="post" data-action="sector-toggle" data-confirm="' + e(on ? 'Deactivate sector "' + r.sector_name + '"? Existing properties stay; no new property can be added in it.' : 'Activate sector "' + r.sector_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                         '<input type="hidden" name="id" value="' + r.sector_id + '">' + (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' +
@@ -260,7 +287,7 @@
             title: isEdit ? 'Edit Sector' : 'Add Sector',
             html: crumbs('Sector Master', isEdit ? 'Edit' : 'Add') + P.pageHeader(icon('fa-table-cells') + ' ' + (isEdit ? 'Edit Sector' : 'Add Sector'),
                 isEdit ? e(row.sector_name + ' · ' + sc.scheme_name) : 'Add one or more sectors to a scheme. Each name must be unique inside its scheme.',
-                '<a href="#' + BASE + '/sectors" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
+                '<a href="' + P.BASE + BASE + '/sectors" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
                 (props ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>' + props + ' propert' + (props === 1 ? 'y is' : 'ies are') + ' registered in this sector. Renaming shows the new name on them too.</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="sector-save" novalidate data-validate>' + (isEdit ? '<input type="hidden" name="id" value="' + row.sector_id + '">' : '') +
                 '<div class="form-grid"><div class="form-group"><label class="form-label" for="scheme_id">Scheme <span class="required">*</span></label>' +
@@ -274,7 +301,7 @@
                 (isEdit ? '<div class="form-group"><label class="form-label" for="sort_order">Display order <span class="required">*</span></label><input type="number" id="sort_order" name="sort_order" class="form-control" value="' + row.sort_order + '" data-rules="required|integer|between:0,999" data-label="Display order"><div class="invalid-feedback"></div></div>' +
                     '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (row.is_active ? ' checked' : '') + '><span><strong>Active</strong><br><small class="text-muted">Inactive sectors cannot receive new properties.</small></span></label></div>' : '') +
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Sector' : 'Add Sector(s)') + '</span></button>' +
-                '<a href="#' + BASE + '/sectors" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
+                '<a href="' + P.BASE + BASE + '/sectors" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };
     }
     P.route(BASE + '/sectors/create', PANEL, function (ctx) { return sectorForm(null, ctx); });

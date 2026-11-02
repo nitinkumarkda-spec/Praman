@@ -30,8 +30,8 @@ final class Seeder
     public const PASSWORD = 'Praman@123';
     private const DAY = 1440;
 
-    private const TABLES = ['site_inspections', 'sale_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'areas', 'users', 'roles'];
+    private const TABLES = ['site_inspections', 'section_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
+        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'users', 'roles'];
 
     public static function run(): void
     {
@@ -70,6 +70,7 @@ final class Seeder
     public static function seedConfig(): void
     {
         Settings::seed();
+        \App\Models\Unit::seedDefaults();
         if (\App\Models\Slide::count() === 0) {
             foreach ([
                 ['kishore_sagar.jpg', 'Kishore Sagar, Kota', 'Photo: Kushagra140, CC BY-SA 4.0, via Wikimedia Commons'],
@@ -217,6 +218,7 @@ final class Seeder
             $res = PropertyService::create([
                 'scheme_id' => $x[0], 'sector_id' => $x[1],
                 'plot_no' => $x[2], 'property_type' => $x[3], 'area_value' => $x[4], 'area_unit' => $x[5], 'area_sqm' => PropertyService::toSqm($x[4], $x[5]),
+                'reserve_price' => round(PropertyService::toSqm($x[4], $x[5]) * 15000, -3),
             ], 2);
             $p = $res['property'];
             Audit::log('PROPERTY', $p['property_id'], 'CREATED', null, ['property_code' => $p['property_code'], 'plot_no' => $p['plot_no'],
@@ -265,9 +267,10 @@ final class Seeder
         $eng = Task::first(['round_id' => $p7['current_round_id'], 'role_id' => 6]);
         Audit::as(self::actor(14), static fn () => Verification::respond($eng['task_id'], 'REJECTED',
             'Encroachment - temporary tin shed approx. 8 sq m on the front side.', 14, ['attachments' => ['site_inspection_photo.jpg', 'inspection_report.pdf']]));
-        \App\Models\SiteInspection::insert(['task_id' => $eng['task_id'], 'area_value' => 992, 'area_unit' => 'SQM', 'area_sqm' => 992, 'recorded_value' => 1000,
-            'recorded_unit' => 'SQM', 'difference' => 8, 'difference_pct' => 0.8, 'variance' => 'LESS', 'encroachment' => 'YES',
-            'encroachment_details' => 'Temporary tin shed of about 8 sq m on the front side.', 'measured_by' => 14, 'measured_at' => now()]);
+        \App\Models\SiteInspection::insert(['task_id' => $eng['task_id'], 'length_value' => 31, 'width_value' => 32, 'area_value' => 992, 'area_unit' => 'SQM', 'area_sqm' => 992,
+            'recorded_value' => 1000, 'recorded_unit' => 'SQM', 'difference' => 8, 'difference_pct' => 0.8, 'variance' => 'LESS', 'encroachment' => 'YES',
+            'encroachment_type' => 'PARTIAL', 'encroachment_details' => 'Temporary tin shed of about 8 sq m on the front side.',
+            'road_width' => 40, 'road_width_unit' => 'FT', 'is_corner' => 0, 'latitude' => 25.13254610, 'longitude' => 75.88731245, 'measured_by' => 14, 'measured_at' => now()]);
         self::sampleFile($eng, 14, 'site_inspection_photo.jpg', 'image', ['SITE INSPECTION — Plot IND-21', 'Kunhadi Industrial Area / Phase-I', 'Encroachment: tin shed ~8 sq m (front side)', 'Inspected by: Vikas Choudhary, JE']);
         self::sampleFile($eng, 14, 'inspection_report.pdf', 'pdf', ['KDA Engineering Cell - Site Inspection Report', 'Plot IND-21, Kunhadi Industrial Area, Phase-I',
             'Finding: temporary tin shed approx. 8 sq m on front side.', 'Recommendation: remove encroachment before auction.', 'Junior Engineer - Vikas Choudhary']);

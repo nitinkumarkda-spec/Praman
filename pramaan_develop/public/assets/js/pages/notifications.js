@@ -63,7 +63,7 @@
             '<label class="check"><input type="checkbox" data-notif-pref="sound"' + (pr.sound ? ' checked' : '') + '><span>Sound for new notifications</span></label></div>' +
             '<div class="notif-tabs"><button type="button" class="active" data-notif-tab="all">All</button><button type="button" data-notif-tab="unread">Unread' + (n ? ' (' + n + ')' : '') + '</button></div>' +
             '<div class="notif-body" data-notif-body>' + panelBody(user.user_id, 'all') + '</div>' +
-            '<a class="notif-foot" href="#/notifications">' + icon('fa-list') + ' View all notifications</a></div></div>';
+            '<a class="notif-foot" href="' + P.BASE + '/notifications">' + icon('fa-list') + ' View all notifications</a></div></div>';
     };
     function refreshBell(keepTab) {
         const menu = document.querySelector('[data-notif-menu]');
@@ -83,7 +83,7 @@
         const tab = keepTab || (active ? active.getAttribute('data-notif-tab') : 'all');
         menu.querySelector('[data-notif-body]').innerHTML = panelBody(u.user_id, tab);
         // keep the sidebar/page list in sync when on the notifications page
-        if (window.location.hash.indexOf('#/notifications') === 0) { pageListRefresh(); }
+        if (P.currentPath().indexOf('/notifications') === 0) { pageListRefresh(); }
     }
     function setOpen(menu, open) {
         menu.classList.toggle('open', open);
@@ -206,7 +206,7 @@
             fresh.slice(0, 3).forEach(function (n) {
                 try {
                     const dn = new window.Notification(P.APP.name + ' — ' + n.title, { body: n.message, tag: 'praman-' + n.notification_id });
-                    dn.onclick = function () { window.focus(); markRead(n, true).then(function () { refreshBell(); }); if (n.link) { window.location.hash = '#' + n.link; } dn.close(); };
+                    dn.onclick = function () { window.focus(); markRead(n, true).then(function () { refreshBell(); }); if (n.link) { P.goTo(n.link); } dn.close(); };
                 } catch (err) { /* ignore */ }
             });
         }
@@ -282,7 +282,7 @@
                 '<button type="button" class="btn btn-light" data-notif-delete-read>' + icon('fa-broom') + ' <span>Delete read</span></button>' +
                 '<button type="button" class="btn btn-primary" data-notif-all-read>' + icon('fa-check-double') + ' <span>Mark all read</span></button>') +
                 '<div class="stat-grid dash-stats">' +
-                '<a class="stat-card stat-navy stat-link" href="#/notifications" title="Total notifications — all alerts in system"><span class="stat-icon">' + icon('fa-bell') + '</span><div class="stat-content"><p class="stat-value" data-notif-stat="total">' + all.length + '</p><p class="stat-label" title="Total">Total</p><small class="stat-sub" title="all notifications">all notifications</small></div></a>' +
+                '<a class="stat-card stat-navy stat-link" href="' + P.BASE + '/notifications" title="Total notifications — all alerts in system"><span class="stat-icon">' + icon('fa-bell') + '</span><div class="stat-content"><p class="stat-value" data-notif-stat="total">' + all.length + '</p><p class="stat-label" title="Total">Total</p><small class="stat-sub" title="all notifications">all notifications</small></div></a>' +
                 '<a class="stat-card stat-gold stat-link" href="' + P.url('/notifications', { filter: 'unread' }) + '" title="Unread notifications — pending review"><span class="stat-icon">' + icon('fa-envelope') + '</span><div class="stat-content"><p class="stat-value" data-notif-stat="unread">' + unread + '</p><p class="stat-label" title="Unread">Unread</p><small class="stat-sub" title="need review">need review</small></div></a>' +
                 '<div class="stat-card stat-green" title="Notifications received today"><span class="stat-icon">' + icon('fa-calendar-day') + '</span><div class="stat-content"><p class="stat-value" data-notif-stat="today">' +
                 all.filter(function (n) { return n.created_at.slice(0, 10) === DB.today(); }).length + '</p><p class="stat-label" title="Today">Today</p><small class="stat-sub" title="received today">received today</small></div></div></div>' +

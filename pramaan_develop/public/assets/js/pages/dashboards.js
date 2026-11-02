@@ -74,11 +74,11 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'System overview — users, roles, schemes, properties, verification and activity.',
-                '<a href="#/admin/audit-logs" class="btn btn-light">' + icon('fa-chart-line') + ' <span>Activity &amp; Audit</span></a>' +
-                '<a href="#/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>') +
+                '<a href="' + P.BASE + '/admin/audit-logs" class="btn btn-light">' + icon('fa-chart-line') + ' <span>Activity &amp; Audit</span></a>' +
+                '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>') +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('navy', 'fa-users', c.users_total, 'Users', P.fmt_num(c.users_active) + ' active', '#/admin/users') +
-                P.statCard('gold', 'fa-sitemap', c.roles_total, 'Roles / Sections', P.fmt_num(c.roles_active) + ' active', '#/admin/roles') +
+                P.statCard('navy', 'fa-users', c.users_total, 'Users', P.fmt_num(c.users_active) + ' active', P.BASE + '/admin/users') +
+                P.statCard('gold', 'fa-sitemap', c.roles_total, 'Roles / Sections', P.fmt_num(c.roles_active) + ' active', P.BASE + '/admin/roles') +
                 P.statCard('blue', 'fa-map', c.schemes_total, 'Schemes', P.fmt_num(c.schemes_active) + ' active', P.url('/admin/audit-logs', { area: 'SCHEME', quick: 'area:SCHEME' })) +
                 P.statCard('green', 'fa-building', c.properties_total, 'Properties', 'registered', P.url('/admin/audit-logs', { area: 'PROPERTY', quick: 'area:PROPERTY' })) +
                 P.statCard('red', 'fa-user-lock', c.users_locked, 'Locked accounts', P.fmt_num(c.failed_24h) + ' failed logins (24h)', P.url('/admin/users', { status: 'locked' })) +
@@ -86,7 +86,7 @@
                 '</div>' +
                 grid('cols-2', P.chartCard('ch-status', 'Property status', 'fa-chart-pie', { height: 300, sub: 'click a slice' }) +
                     sectionOutcomeCard(sectionOutcomes(), 'Section verification outcomes', 'tasks per section, all rounds')) +
-                '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-sitemap') + ' Users per role</h3><a href="#/admin/roles" class="small">Role Master ' + icon('fa-arrow-right') + '</a></div>' +
+                '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-sitemap') + ' Users per role</h3><a href="' + P.BASE + '/admin/roles" class="small">Role Master ' + icon('fa-arrow-right') + '</a></div>' +
                 '<div class="card-body p-0"><div class="table-wrap"><table class="table table-stack table-top"><thead><tr><th>Role / Section</th><th class="text-right">Users</th><th class="text-right">Active</th><th>Status</th></tr></thead><tbody>' +
                 byRole.map(function (x) {
                     return '<tr><td data-label="Role"><a href="' + P.url('/admin/users', { role_id: x.r.role_id }) + '">' + e(x.r.role_name) + '</a></td><td data-label="Users" class="text-right">' + x.total + '</td>' +
@@ -107,20 +107,20 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'Scheme, sector and property register.',
-                '<a href="#/data-entry/schemes/create" class="btn btn-light">' + icon('fa-map') + ' <span>Create Scheme</span></a>' +
-                '<a href="#/data-entry/properties/create" class="btn btn-primary">' + icon('fa-circle-plus') + ' <span>Add Property</span></a>') +
+                '<a href="' + P.BASE + '/data-entry/schemes/create" class="btn btn-light">' + icon('fa-map') + ' <span>Create Scheme</span></a>' +
+                '<a href="' + P.BASE + '/data-entry/properties/create" class="btn btn-primary">' + icon('fa-circle-plus') + ' <span>Add Property</span></a>') +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('navy', 'fa-map', DB.count('schemes', { is_active: 1 }), 'Active schemes', P.fmt_num(DB.count('schemes')) + ' in register', P.url('/data-entry/schemes', { status: 'active' })) +
-                P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', 'in active schemes', '#/data-entry/schemes') +
-                P.statCard('blue', 'fa-building', DB.count('properties', { is_active: 1 }), 'All properties', 'registered', '#/data-entry/properties') +
+                P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', 'in active schemes', P.BASE + '/data-entry/schemes') +
+                P.statCard('blue', 'fa-building', DB.count('properties', { is_active: 1 }), 'All properties', 'registered', P.BASE + '/data-entry/properties') +
                 P.statCard('green', 'fa-list', DB.count('properties', { is_active: 1, current_status: 'LISTED' }), 'Listed (editable)', 'ready to send', P.url('/data-entry/properties', { status: 'LISTED' })) +
-                P.statCard('red', 'fa-user-pen', DB.count('properties', { is_active: 1, created_by: me }), 'Entered by me', 'your records', '#/data-entry/properties') +
+                P.statCard('red', 'fa-user-pen', DB.count('properties', { is_active: 1, created_by: me }), 'Entered by me', 'your records', P.BASE + '/data-entry/properties') +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-status', 'My properties by status', 'fa-chart-pie', { sub: 'click a slice' }) +
                     P.chartCard('ch-types', 'Properties by type', 'fa-shapes') +
                     P.chartCard('ch-units', 'Area by scheme (sq m)', 'fa-ruler-combined')) +
                 grid('cols-2', P.chartCard('ch-entries', 'Properties entered — last 14 days', 'fa-chart-line', { height: 280 }) +
-                    P.chartCard('ch-schemes', 'Properties per scheme', 'fa-map', { height: 280, href: '#/data-entry/schemes' })) +
+                    P.chartCard('ch-schemes', 'Properties per scheme', 'fa-map', { height: 280, href: P.BASE + '/data-entry/schemes' })) +
                 '<div class="grid-2">' + P.status_overview(P.propertyStatusCounts(me), 'My properties by status') + P.activity(P.recentActivity(8, me), 'My recent activity') + '</div>',
             after: function () {
                 const st = statusParts(P.propertyStatusCounts(me), true);
@@ -245,10 +245,10 @@
                 (urgent.length ? '<ul class="activity-list">' + urgent.map(function (x) {
                     const late = x.sla_due_date < t;
                     return '<li><span class="activity-icon">' + icon('fa-building') + '</span><div class="activity-body">' +
-                        '<a href="#/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.property_type]) + '</a>' +
+                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.property_type]) + '</a>' +
                         '<span class="text-muted">' + e(x.scheme.scheme_name + ' / ' + x.sector.sector_name) + ' · R' + x.round_no + '</span>' +
                         '<small class="' + (late ? 'text-danger' : 'text-muted') + '"><i class="fa-regular fa-clock" aria-hidden="true"></i> Due ' + e(P.fmt_date(x.sla_due_date)) + (late ? ' — overdue' : '') + '</small></div>' +
-                        '<a href="#/role/tasks/' + x.task_id + '" class="btn btn-primary btn-sm ml-auto">' + icon('fa-clipboard-check') + ' <span>Verify</span></a></li>';
+                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '" class="btn btn-primary btn-sm ml-auto">' + icon('fa-clipboard-check') + ' <span>Verify</span></a></li>';
                 }).join('') + '</ul>' : '<div class="empty-state compact">' + icon('fa-mug-hot', 'empty-icon') + '<p class="empty-title">No pending task</p><p class="text-muted">New properties sent by the OIC will appear here.</p></div>') +
                 '</div></div>' + P.activity(P.recentActivity(8, me), 'My recent activity') + '</div>',
             after: function () {

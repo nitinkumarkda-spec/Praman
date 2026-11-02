@@ -1,5 +1,5 @@
 /* ===== js/pages/landing.js ===== */
-/* PRAMAAN — landing page (#/ and #/login for guests): white glass header with a "Sign in" button,
+/* PRAMAAN — landing page (/ and /login for guests): white glass header with a "Sign in" button,
    light hero (headline + sign-in CTA on the left, 4-photo slider of Kota on the right), slim footer bar.
    The sign-in form (P.views.login from js/pages/auth.js) lives in a popup that opens from the header
    or hero button — and by itself when a flash message is waiting ("Please login to continue", "logged out" …).
@@ -11,7 +11,7 @@
     const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const S = function (k, d) { return DB.setting(k, d); };
     /** Organisation website from App Settings (only http/https links). */
-    function site() { const u = String(S('org_website', '')); return /^https?:\/\//i.test(u) ? u : '#/'; }
+    function site() { const u = String(S('org_website', '')); return /^https?:\/\//i.test(u) ? u : P.BASE + '/'; }
     // KDA emblem for the header and footer — the same embedded image as the favicon (<link id="app-icon"> in <head>)
     const EMBLEM = '<img src="' + e((document.getElementById('app-icon') || {}).href || '') + '" alt="" width="57" height="57">';
 
@@ -25,7 +25,7 @@
     /* ---------------- Header ---------------- */
     function header() {
         return '<header class="lp-header" data-lp-header><div class="lp-container lp-header-inner">' +
-            '<a class="lp-brand" href="#/" data-lp-top><span class="lp-brand-logo">' + EMBLEM + '</span><span class="lp-brand-text"><span class="lp-brand-name">' + e(P.APP.name) + '</span>' +
+            '<a class="lp-brand" href="' + P.BASE + '/" data-lp-top><span class="lp-brand-logo">' + EMBLEM + '</span><span class="lp-brand-text"><span class="lp-brand-name">' + e(P.APP.name) + '</span>' +
             '<span class="lp-brand-sub">' + e(P.APP.tagline) + '</span></span></a>' +
             '<div class="lp-header-actions"><span class="lp-header-note">' + icon('fa-lock') + ' ' + e(S('header_note', '')) + '</span>' +
             '<button type="button" class="lp-btn lp-btn-primary" data-lp-signin aria-haspopup="dialog" aria-controls="lp-signin">' + icon('fa-right-to-bracket') + ' <span>Sign in</span></button></div>' +
@@ -189,13 +189,13 @@
         closeTimer = window.setTimeout(function () { m.hidden = true; }, reduceMotion ? 0 : 320);
         if (lastFocus && lastFocus !== document.body && document.contains(lastFocus) && lastFocus.focus) { lastFocus.focus({ preventScroll: true }); }
         else if (m.contains(document.activeElement)) { document.activeElement.blur(); }   // opened by itself: do not leave focus in the hidden form
-        // #/login → #/ so a reload does not reopen it (replaceState fires no hashchange)
-        if (window.location.hash.indexOf('#/login') === 0 && window.history.replaceState) { window.history.replaceState(null, '', '#/'); }
+        // /login → / so a reload does not reopen it
+        if (P.currentPath() === '/login') { window.history.replaceState(null, '', P.BASE + '/'); }
     }
 
     window.addEventListener('scroll', syncHeader, { passive: true });
     // leaving the landing page (e.g. signed in) must not keep the page scroll locked
-    window.addEventListener('hashchange', function () {
+    window.addEventListener('praman:navigate', function () {
         if (!document.querySelector('.lp-modal.is-open')) { document.documentElement.classList.remove('lp-lock'); }
     });
     document.addEventListener('click', function (ev) {

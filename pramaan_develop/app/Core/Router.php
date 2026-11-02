@@ -11,6 +11,7 @@ final class Router
 {
     private array $routes = [];
     private array $groupMiddleware = [];
+    private ?array $pages = null;
 
     public function get(string $path, array $handler, array $middleware = []): void
     {
@@ -20,6 +21,12 @@ final class Router
     public function post(string $path, array $handler, array $middleware = []): void
     {
         $this->add('POST', $path, $handler, $middleware);
+    }
+
+    /** Screens drawn in the browser: GET on any path under these first segments serves $handler. */
+    public function pages(array $segments, array $handler): void
+    {
+        $this->pages = ['regex' => '#^/(' . implode('|', array_map('preg_quote', $segments)) . ')(/|$)#', 'handler' => $handler];
     }
 
     /** Routes registered inside $fn share $middleware. */
@@ -66,6 +73,11 @@ final class Router
                 (new $class())->handle($request, $arg === '' ? [] : explode(',', $arg));
             }
             [$class, $method] = $r['handler'];
+            (new $class($request))->$method();
+            return;
+        }
+        if ($this->pages && $request->method() === 'GET' && preg_match($this->pages['regex'], $path)) {
+            [$class, $method] = $this->pages['handler'];
             (new $class($request))->$method();
             return;
         }

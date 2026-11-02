@@ -22,6 +22,28 @@ final class Uploads
         return BASE_PATH . '/storage/uploads';
     }
 
+    /** One PDF document (site plan, allotment letter …): checked file, or an error message. */
+    public static function checkPdf(array $file, string $label): array|string
+    {
+        if (strtolower(pathinfo($file['name'], PATHINFO_EXTENSION)) !== 'pdf') {
+            return $label . ': only a PDF file is allowed.';
+        }
+        $res = self::check([$file]);
+        return is_string($res) ? $label . ' — ' . $res : $res[0];
+    }
+
+    /** Photos (JPG / JPEG / PNG only), each up to 5 MB, at most MAX_FILES: checked files, or an error message. */
+    public static function checkImages(array $files, string $label): array|string
+    {
+        foreach ($files as $f) {
+            if (!in_array(strtolower(pathinfo($f['name'], PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png'], true)) {
+                return $label . ': "' . self::cleanName($f['name']) . '" is not a JPG, JPEG or PNG image.';
+            }
+        }
+        $res = self::check($files);
+        return is_string($res) ? $label . ' — ' . $res : $res;
+    }
+
     /** @return array|string validated files, or an error message */
     public static function check(array $files): array|string
     {

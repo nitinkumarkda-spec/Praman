@@ -77,6 +77,16 @@ final class Request
         return $_GET[$key] ?? $default;
     }
 
+    /** One uploaded file for an input name="x" (null when nothing was picked). */
+    public function file(string $key): ?array
+    {
+        $f = $_FILES[$key] ?? null;
+        if (!$f || is_array($f['name'] ?? null) || ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+        return ['name' => (string) $f['name'], 'tmp' => (string) $f['tmp_name'], 'size' => (int) $f['size'], 'error' => (int) $f['error']];
+    }
+
     /** Normalised list of uploaded files for an input name="x[]". */
     public function files(string $key): array
     {

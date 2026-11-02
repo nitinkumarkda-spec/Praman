@@ -10,7 +10,7 @@ use App\Core\Validator;
 use App\Models\Property;
 use App\Models\Role;
 use App\Models\Round;
-use App\Models\SaleCheck;
+use App\Models\SectionCheck;
 use App\Models\SiteInspection;
 use App\Models\Task;
 use App\Models\TaskAssignee;
@@ -24,8 +24,12 @@ final class TaskController extends Controller
 {
     private const SITE_ROLE = 'ENGINEERING_CELL';
     private const SALE_ROLE = 'SALE_CELL';
-    private const MAX_WORDS = 100;
-    private const NOT_VACANT_MSG = 'A property that is not vacant cannot get “No Objection” — choose “Objection”.';
+    private const AUCTION_ROLE = 'AUCTION_CELL';
+    /** Cells with their own section; every other cell answers the General section. */
+    private const OWN_SECTION_ROLES = [self::SALE_ROLE, self::AUCTION_ROLE, self::SITE_ROLE];
+    private const ENCROACH_MAX = 300;
+    private const SITE_PHOTO = 'SITE_PHOTO';
+    private const NOT_AVAILABLE_MSG = 'A property that is allotted, auctioned or with an organisation / institution cannot get “No Objection” — choose “Objection”.';
 
     public function respond(): void
     {
@@ -38,20 +42,31 @@ final class TaskController extends Controller
         if (mb_strlen($remarks) > 1000 || preg_match('/[<>]/', $remarks)) {
             $this->fail('Remark may be at most 1000 characters and may not contain < or >.', 'remarks');
         }
-        $decision = $this->request->str('decision');
-        if ($decision !== 'APPROVED' && $decision !== 'REJECTED') {
-            $this->fail('Choose No Objection or Objection.', 'decision');
-        }
         $round = Round::find($t['round_id']);
         if ($round['round_status'] !== 'OPEN' || $t['task_status'] !== 'PENDING') {
             $this->fail('This task is no longer pending.');
         }
-        if ($decision === 'REJECTED' && mb_strlen($remarks) < 5) {
-            $this->fail('Objection reason is mandatory (at least 5 characters).', 'remarks');
-        }
         $role = Role::find($t['role_id']);
         $site = $role['role_code'] === self::SITE_ROLE ? $this->siteCheck($round['property_id'], $me) : null;
-        $sale = $role['role_code'] === self::SALE_ROLE ? $this->saleCheck($decision, $me) : null;
+        $photos = $site ? $this->sitePhotos() : [];
+        if ($site) {
+            // Engineering gives a site report, not a decision: encroachment = Objection, otherwise No Objection
+            $decision = $site['encroachment'] === 'YES' ? 'REJECTED' : 'APPROVED';
+            if ($decision === 'REJECTED') {
+                $found = SiteInspection::ENCROACHMENT_TYPES[$site['encroachment_type']] . ' found — ' . $site['encroachment_details'];
+                $remarks = mb_substr($found . ($remarks !== '' ? ' ' . $remarks : ''), 0, 1000);
+            }
+        } else {
+            $decision = $this->request->str('decision');
+            if ($decision !== 'APPROVED' && $decision !== 'REJECTED') {
+                $this->fail('Choose No Objection or Objection.', 'decision');
+            }
+            if ($decision === 'REJECTED' && mb_strlen($remarks) < 5) {
+                $this->fail('Objection reason is mandatory (at least 5 characters).', 'remarks');
+            }
+        }
+        $section = $this->sectionCheck($role['role_code'], $decision, $me);
+        $letters = $section ? $this->letters($section) : [];
 
         $files = $this->request->files('attachments');
         $checked = Uploads::check($files);
@@ -61,10 +76,21 @@ final class TaskController extends Controller
 
         $stored = [];
         try {
-            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $sale, $checked, &$stored) {
+            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $photos, $section, $letters, $checked, &$stored) {
                 $saved = [];
+                $ctx = ['task_id' => $t['task_id'], 'round_id' => $t['round_id'], 'property_id' => $round['property_id'], 'by' => $me];
+                foreach ($photos as $f) {
+                    $a = Uploads::store($f, $ctx + ['context' => self::SITE_PHOTO]);
+                    $stored[] = $a['path'];
+                    $saved[] = $a['file_name'];
+                }
+                foreach ($letters as $context => $f) {
+                    $a = Uploads::store($f, $ctx + ['context' => $context]);
+                    $stored[] = $a['path'];
+                    $saved[] = $a['file_name'];
+                }
                 foreach ($checked as $f) {
-                    $a = Uploads::store($f, ['task_id' => $t['task_id'], 'round_id' => $t['round_id'], 'property_id' => $round['property_id'], 'by' => $me]);
+                    $a = Uploads::store($f, $ctx);
                     $stored[] = $a['path'];
                     $saved[] = $a['file_name'];
                 }
@@ -75,8 +101,8 @@ final class TaskController extends Controller
                 if ($site) {
                     SiteInspection::insert(['task_id' => $t['task_id']] + $site);
                 }
-                if ($sale) {
-                    SaleCheck::insert(['task_id' => $t['task_id']] + $sale);
+                if ($section) {
+                    SectionCheck::insert(['task_id' => $t['task_id']] + $section);
                 }
                 return $res + ['files' => count($saved)];
             });
@@ -90,75 +116,192 @@ final class TaskController extends Controller
         $this->done($res['message'] . ($res['files'] ? ' ' . $res['files'] . ' attachment(s) uploaded.' : ''), '/role/tasks?status=pending');
     }
 
-    /** Engineering Cell: actual measured area + encroachment. */
+    /**
+     * Engineering Cell: physical site check — length × width (area), encroachment (partial / complete + details),
+     * road width, corner plot and geo coordinates. Site photos are checked separately (sitePhotos()).
+     */
     private function siteCheck(int $propertyId, int $by): array
     {
-        $raw = $this->request->str('site_area_value');
-        if (!preg_match('/^\d{1,10}(\.\d{1,2})?$/', $raw) || (float) $raw <= 0) {
-            $this->fail('Enter the actual measured area — a positive number with at most 2 decimals.', 'site_area_value');
-        }
+        $len = $this->measure('site_length', 'Length');
+        $wid = $this->measure('site_width', 'Width');
         $unit = $this->request->str('site_area_unit');
-        if ($unit !== 'SQM' && $unit !== 'SQFT') {
-            $this->fail('Select the unit of the measured area.', 'site_area_unit');
+        if (!PropertyService::validUnit($unit)) {
+            $this->fail('Select an active unit from the Unit Master.', 'site_area_unit');
         }
+        $value = round($len * $wid, 2);
+        if ($value > 9999999999.99) {
+            $this->fail('Length × width is too large — check the measurement.', 'site_length');
+        }
+
         $enc = $this->request->str('encroachment');
         if ($enc !== 'YES' && $enc !== 'NO') {
             $this->fail('Select Yes or No for encroachment.', 'encroachment');
         }
-        $text = $enc === 'YES' ? $this->request->str('encroachment_details') : '';
+        $type = null;
+        $text = '';
         if ($enc === 'YES') {
-            if ($text === '') {
-                $this->fail('Describe the encroachment (required when the answer is "Yes").', 'encroachment_details');
+            $type = $this->request->str('encroachment_type');
+            if (!isset(SiteInspection::ENCROACHMENT_TYPES[$type])) {
+                $this->fail('Select partial or complete encroachment.', 'encroachment_type');
             }
-            if (count(preg_split('/\s+/', $text, -1, PREG_SPLIT_NO_EMPTY)) > self::MAX_WORDS || mb_strlen($text) > 1000) {
-                $this->fail('Keep the description within ' . self::MAX_WORDS . ' words.', 'encroachment_details');
+            $text = preg_replace('/\s+/u', ' ', $this->request->str('encroachment_details'));
+            if (mb_strlen($text) < 5) {
+                $this->fail('Enter the details of the encroachment (at least 5 characters).', 'encroachment_details');
+            }
+            if (mb_strlen($text) > self::ENCROACH_MAX) {
+                $this->fail('Details of encroachment may be at most ' . self::ENCROACH_MAX . ' characters.', 'encroachment_details');
             }
             if (preg_match('/[<>]/', $text)) {
-                $this->fail('Description may not contain < or >.', 'encroachment_details');
+                $this->fail('Details of encroachment may not contain < or >.', 'encroachment_details');
             }
         }
+
+        $road = $this->request->str('road_width');
+        if (!preg_match('/^\d{1,3}$/', $road) || (int) $road < 1) {
+            $this->fail('Enter the road size as a whole number (1–999, no decimals).', 'road_width');
+        }
+        $roadUnit = $this->request->str('road_width_unit');
+        if (!isset(SiteInspection::ROAD_UNITS[$roadUnit])) {
+            $this->fail('Select feet or meter for the road size.', 'road_width_unit');
+        }
+        $corner = $this->yesNo('is_corner', 'Select Yes or No for “Corner plot”.');
+        $lat = $this->coordinate('latitude', 'Latitude', 2, 90);
+        $lng = $this->coordinate('longitude', 'Longitude', 3, 180);
+
         $p = Property::find($propertyId);
-        $value = (float) $raw;
-        $inUnit = $unit === $p['area_unit'] ? $value : ($p['area_unit'] === 'SQM' ? $value * PropertyService::SQFT_TO_SQM : $value / PropertyService::SQFT_TO_SQM);
-        $actual = round($inUnit, 2);
+        $actual = round(PropertyService::convert($value, $unit, $p['area_unit']), 2);
         $diff = round($actual - (float) $p['area_value'], 2);
         return [
+            'length_value' => $len, 'width_value' => $wid,
             'area_value' => $value, 'area_unit' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
             'recorded_value' => $p['area_value'], 'recorded_unit' => $p['area_unit'], 'difference' => abs($diff),
             'difference_pct' => $p['area_value'] ? round(abs($diff) / (float) $p['area_value'] * 100, 2) : 0,
             'variance' => abs($diff) < 0.01 ? 'SAME' : ($diff < 0 ? 'LESS' : 'MORE'),
-            'encroachment' => $enc, 'encroachment_details' => $text !== '' ? $text : null, 'measured_by' => $by, 'measured_at' => now(),
+            'encroachment' => $enc, 'encroachment_type' => $type, 'encroachment_details' => $text !== '' ? $text : null,
+            'road_width' => (int) $road, 'road_width_unit' => $roadUnit, 'is_corner' => $corner,
+            'latitude' => $lat, 'longitude' => $lng, 'measured_by' => $by, 'measured_at' => now(),
         ];
     }
 
-    /** Sale Cell: vacant, or allotment details (then only Objection is allowed). */
-    private function saleCheck(string $decision, int $by): array
+    /** Site photos: at least one JPG / JPEG / PNG (max 5 MB each, up to 10). */
+    private function sitePhotos(): array
     {
-        $vacant = $this->request->str('vacant');
-        if ($vacant !== 'YES' && $vacant !== 'NO') {
-            $this->fail('Select Yes or No for vacancy.', 'vacant');
+        $files = $this->request->files('site_photos');
+        if (!$files) {
+            $this->fail('Upload at least one site photo (JPG, JPEG or PNG).', 'site_photos');
         }
-        if ($vacant === 'YES') {
-            return ['vacant' => 'YES', 'checked_by' => $by, 'checked_at' => now()];
+        $checked = Uploads::checkImages($files, 'Site photos');
+        if (is_string($checked)) {
+            $this->fail($checked, 'site_photos');
         }
-        $mode = $this->request->str('allotment_mode');
-        if (!isset(\App\Core\Lookups::ALLOTMENT_MODES[$mode])) {
-            $this->fail('Select the mode of allotment.', 'allotment_mode');
+        return $checked;
+    }
+
+    /** Positive number with at most 2 decimals. */
+    private function measure(string $field, string $label): float
+    {
+        $raw = $this->request->str($field);
+        if (!preg_match('/^\d{1,7}(\.\d{1,2})?$/', $raw) || (float) $raw <= 0) {
+            $this->fail($label . ': enter a positive number with at most 2 decimals.', $field);
         }
-        $date = $this->request->str('allotment_date');
-        if (!Validator::isDate($date)) {
-            $this->fail('Enter a valid date of allotment.', 'allotment_date');
+        return round((float) $raw, 2);
+    }
+
+    /** Decimal degrees, up to 8 digits after the decimal point, within ±$max. */
+    private function coordinate(string $field, string $label, int $intDigits, int $max): float
+    {
+        $raw = $this->request->str($field);
+        if (!preg_match('/^-?\d{1,' . $intDigits . '}(\.\d{1,8})?$/', $raw) || abs((float) $raw) > $max) {
+            $this->fail($label . ': enter a number between -' . $max . ' and ' . $max . ' with at most 8 decimals.', $field);
         }
-        if ($date > today()) {
-            $this->fail('Date of allotment cannot be in the future.', 'allotment_date');
+        return round((float) $raw, 8);
+    }
+
+    /**
+     * Department-wise section: Sale (Sale Cell), Auction (Auction Cell), General (every other cell
+     * except Engineering, which has its site inspection). null when the cell has no section.
+     * Any "Yes" means the property is not available: only Objection is allowed.
+     */
+    private function sectionCheck(string $roleCode, string $decision, int $by): ?array
+    {
+        $out = ['checked_by' => $by, 'checked_at' => now()];
+        if ($roleCode === self::SALE_ROLE) {
+            $out['is_sale_allotted'] = $this->yesNo('is_sale_allotted', 'Sale: select Yes or No for “Allotted”.');
+            if ($out['is_sale_allotted']) {
+                $out['allottee_name'] = $this->person('allottee_name', 'Name of allottee / mutation');
+                $out['allotment_date'] = $this->pastDate('allotment_date', 'Date of allotment / mutation');
+            }
         }
-        $name = $this->request->str('allottee_name');
-        if (mb_strlen($name) < 3 || mb_strlen($name) > 100 || !preg_match("/^[\p{L}\p{M} .'()\/-]+$/u", $name)) {
-            $this->fail('Enter the name of the allottee (3–100 letters).', 'allottee_name');
+        if ($roleCode === self::AUCTION_ROLE) {
+            $out['is_auctioned'] = $this->yesNo('is_auctioned', 'Auction: select Yes or No for “Auctioned”.');
+            if ($out['is_auctioned']) {
+                $out['auction_date'] = $this->pastDate('auction_date', 'Date of auction');
+            }
         }
-        if ($decision !== 'REJECTED') {
-            $this->fail(self::NOT_VACANT_MSG);
+        if (!in_array($roleCode, self::OWN_SECTION_ROLES, true)) {
+            $out['is_inst_allotted'] = $this->yesNo('is_inst_allotted', 'General: select Yes or No for “Allotment to an organisation / institution”.');
+            // "Yes" = occupied: allotted, or allotment in progress (no exact date yet)
+            $out['is_inst_in_process'] = $out['is_inst_allotted'] && $this->request->input('is_inst_in_process') === '1' ? 1 : 0;
+            if ($out['is_inst_allotted']) {
+                $out['inst_name'] = $this->validate(['inst_name' => ['Name of organisation / institution', 'required|min:3|max:150|orgname']])['inst_name'];
+                if (!$out['is_inst_in_process']) {
+                    $out['inst_allotment_date'] = $this->pastDate('inst_allotment_date', 'Date of allotment (organisation / institution)');
+                }
+            }
         }
-        return ['vacant' => 'NO', 'allotment_mode' => $mode, 'allotment_date' => $date, 'allottee_name' => $name, 'checked_by' => $by, 'checked_at' => now()];
+        if (count($out) === 2) {
+            return null; // Engineering: site inspection only
+        }
+        $taken = !empty($out['is_sale_allotted']) || !empty($out['is_auctioned']) || !empty($out['is_inst_allotted']) || !empty($out['is_inst_in_process']);
+        if ($taken && $decision !== 'REJECTED') {
+            $this->fail(self::NOT_AVAILABLE_MSG, 'decision');
+        }
+        return $out;
+    }
+
+    /** Allotment / mutation letter PDF, required when the Sale answer is "Yes". */
+    private function letters(array $check): array
+    {
+        if (empty($check['is_sale_allotted'])) {
+            return [];
+        }
+        $f = $this->request->file('allotment_letter');
+        if (!$f) {
+            $this->fail('Upload the allotment letter / mutation letter (PDF, max 5 MB).', 'allotment_letter');
+        }
+        $checked = Uploads::checkPdf($f, 'Allotment letter / mutation letter');
+        if (is_string($checked)) {
+            $this->fail($checked, 'allotment_letter');
+        }
+        return ['ALLOTMENT_LETTER' => $checked];
+    }
+
+    private function yesNo(string $field, string $message): int
+    {
+        $v = $this->request->str($field);
+        if ($v !== 'YES' && $v !== 'NO') {
+            $this->fail($message, $field);
+        }
+        return $v === 'YES' ? 1 : 0;
+    }
+
+    /** Name of a person: letters and spaces only. */
+    private function person(string $field, string $label): string
+    {
+        $_POST[$field] = preg_replace('/\s+/u', ' ', $this->request->str($field));
+        return $this->validate([$field => [$label, 'required|min:3|max:100|alpha_space']])[$field];
+    }
+
+    /** dd/mm/yyyy, not in the future → Y-m-d. */
+    private function pastDate(string $field, string $label): string
+    {
+        $iso = (string) Validator::dmy($this->validate([$field => [$label, 'required|dmy']])[$field]);
+        if ($iso > today()) {
+            $this->fail($label . ' cannot be in the future.', $field);
+        }
+        if ($iso < '1950-01-01') {
+            $this->fail($label . ' must be after 01/01/1950.', $field);
+        }
+        return $iso;
     }
 }

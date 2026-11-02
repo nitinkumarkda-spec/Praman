@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 /**
  * Route table. Every POST goes through "csrf"; panel access through "panel:…".
- * The screen URLs themselves (#/admin/users …) are drawn in the browser from
- * GET / — the server decides what data and which actions each panel gets.
+ * The screen URLs themselves (/admin/users …) all serve the same page and are drawn
+ * in the browser — the server decides what data and which actions each panel gets.
  *
  * @var App\Core\Router $router
  */
@@ -26,6 +26,7 @@ use App\Controllers\SystemController;
 
 $router->get('/', [HomeController::class, 'index']);
 $router->get('/api/state', [HomeController::class, 'state']);
+$router->pages(['admin', 'data-entry', 'oic', 'role', 'notifications', 'change-password', 'login'], [HomeController::class, 'index']);
 
 $router->group(['csrf'], static function ($r): void {
     $r->post('/api/login', [AuthController::class, 'login'], ['guest']);

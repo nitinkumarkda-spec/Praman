@@ -1,10 +1,10 @@
 /* =====================================================================
-   PRAMAAN — app loader ("gate opening"). Markup: app/Views/partials/loader.php,
+   PRAMAAN — app loader. Markup: app/Views/partials/loader.php,
    styles: css/loader.css.
-     Praman.loader.done()        first screen is drawn → finish + open the gates
+     Praman.loader.done()        first screen is drawn → finish + fade out loader
      Praman.loader.show(message) cover the screen again (sign in / out, login-as)
-   The loader stays at least MIN_MS so the animation is never cut, and opens by
-   itself after FAILSAFE_MS so a slow script can never lock the screen.
+   The loader stays briefly for a smooth, cohesive presentation, and closes
+   after FAILSAFE_MS so a slow script can never lock the screen.
    ===================================================================== */
 (function (window, document) {
     'use strict';
@@ -13,10 +13,10 @@
     const el = document.getElementById('app-loader');
     const root = document.documentElement;
     const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-    const MIN_MS = reduce ? 200 : 2300;      // first load: letters + tagline have time to play
-    const SWITCH_MIN_MS = reduce ? 150 : 900; // sign in / out
+    const MIN_MS = reduce ? 200 : 1000;       // clean duration without artificial delays
+    const SWITCH_MIN_MS = reduce ? 150 : 500; // sign in / out
     const FAILSAFE_MS = 9000;
-    const OPEN_MS = reduce ? 320 : 1250;      // gate animation length (css/loader.css)
+    const OPEN_MS = reduce ? 250 : 450;       // smooth fade out length (css/loader.css)
     const STEPS = [
         [0, 'Starting secure session…'], [22, 'Loading property records…'], [48, 'Checking verification sections…'],
         [74, 'Preparing your dashboard…'], [100, 'Verified — opening']
@@ -42,7 +42,7 @@
     function setMessage(text) {
         if (msg.textContent === text) { return; }
         msg.classList.add('is-swap');
-        window.setTimeout(function () { msg.textContent = text; msg.classList.remove('is-swap'); }, 180);
+        window.setTimeout(function () { msg.textContent = text; msg.classList.remove('is-swap'); }, 150);
     }
     function paint() {
         const v = Math.min(100, Math.round(value));
@@ -56,7 +56,7 @@
     }
     function tick() {
         // ease towards the target: fast at first, slower near it
-        value += Math.max(0.15, (target - value) * 0.035);
+        value += Math.max(0.18, (target - value) * 0.04);
         if (value > target) { value = target; }
         paint();
         if (value < 100) { raf = window.requestAnimationFrame(tick); }
@@ -72,7 +72,7 @@
                 el.classList.remove('is-done', 'is-opening');
                 finishing = false;
             }, OPEN_MS);
-        }, reduce ? 0 : 620); // let the tick stamp in and draw first
+        }, reduce ? 0 : 350); // brief pause to show 100% / verified tick, then smooth fade out
     }
 
     function done() {
@@ -85,8 +85,8 @@
             window.cancelAnimationFrame(raf);
             const start = value;
             const t0 = performance.now();
-            (function run(now) { // finish the bar in ~350 ms
-                const k = Math.min(1, (now - t0) / 350);
+            (function run(now) { // finish the bar in ~250 ms
+                const k = Math.min(1, (now - t0) / 250);
                 value = start + (100 - start) * k;
                 paint();
                 if (k < 1) { window.requestAnimationFrame(run); } else { open(); }

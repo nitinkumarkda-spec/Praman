@@ -11,11 +11,13 @@ use App\Models\PlotType;
 use App\Models\Property;
 use App\Models\Scheme;
 use App\Models\Sector;
+use App\Models\SiteInspection;
 use App\Models\Status;
+use App\Models\Unit;
 use App\Services\Audit;
 
 /**
- * Super Admin → simple masters (Plot Type, Status) and the Sector Master.
+ * Super Admin → simple masters (Area, Plot Type, Unit, Status) and the Sector Master.
  * Same rules as the screens in public/assets/js/pages/masters.js.
  */
 final class MasterController extends Controller
@@ -36,6 +38,15 @@ final class MasterController extends Controller
                 'code'        => ['Code', 'required|code', true, true, true, false],
                 'name'        => ['Name', 'required|min:2|max:60|text', true, false, false, false],
                 'name_hi'     => ['Name (Hindi)', 'max:60|text', false, false, false, false],
+                'description' => ['Description', 'max:150|text', false, false, false, false],
+                'sort_order'  => ['Display order', 'required|integer|between:0,999', false, false, false, true],
+            ]],
+            'units' => [Unit::class, 'UNIT', 'Unit', static fn ($r) => $r['name'], [
+                'code'        => ['Code', 'required|code', true, true, true, false],
+                'name'        => ['Unit name', 'required|min:2|max:40|text', true, false, false, false],
+                'name_hi'     => ['Name (Hindi)', 'max:40|text', false, false, false, false],
+                'symbol'      => ['Symbol', 'required|max:15|text', true, false, false, false],
+                'to_sqm'      => ['1 unit = sq m', 'required|decimal:8|positive', false, false, false, 'float'],
                 'description' => ['Description', 'max:150|text', false, false, false, false],
                 'sort_order'  => ['Display order', 'required|integer|between:0,999', false, false, false, true],
             ]],
@@ -69,7 +80,7 @@ final class MasterController extends Controller
         if ($id && !$old) {
             $this->fail($one . ' not found.');
         }
-        $locked = $old && $key === 'statuses' && $old['is_system'];
+        $locked = $old && in_array($key, ['statuses', 'units'], true) && $old['is_system'];
         $rules = [];
         foreach ($fields as $f => [$label, $rule, , $upper, $lockOnEdit]) {
             if ($id && $lockOnEdit) {
@@ -85,9 +96,18 @@ final class MasterController extends Controller
         foreach ($rules as $f => $_) {
             [$label, , $unique, , , $number] = $fields[$f];
             $v = $d[$f];
-            $data[$f] = $v === '' ? null : ($number ? (int) $v : $v);
+            $data[$f] = $v === '' ? null : ($number === 'float' ? (float) $v : ($number ? (int) $v : $v));
             if ($unique && $v !== '' && $model::valueExists($f, (string) $v, $id)) {
                 $this->fail($label . ' "' . $v . '" already exists.', $f);
+            }
+        }
+        if ($key === 'units' && $id && abs((float) $data['to_sqm'] - (float) $old['to_sqm']) > 1e-9) {
+            // stored areas were converted with the old factor
+            if ($old['is_system']) {
+                $this->fail('The base unit (sq m) is always 1 sq m.', 'to_sqm');
+            }
+            if ($this->usage($key, $old) > 0) {
+                $this->fail('This unit is used by properties, so its conversion factor cannot change. Add a new unit instead.', 'to_sqm');
             }
         }
         $data['is_active'] = $locked ? 1 : ($this->request->input('is_active') === '1' ? 1 : 0);
@@ -127,7 +147,7 @@ final class MasterController extends Controller
         if (!$r) {
             $this->fail('Record not found.');
         }
-        if (($key === 'statuses' && $r['is_system']) || $this->usage($key, $r) > 0) {
+        if ((in_array($key, ['statuses', 'units'], true) && $r['is_system']) || $this->usage($key, $r) > 0) {
             $this->fail('This ' . strtolower($one) . ' is in use and cannot be deleted. Deactivate it instead.');
         }
         $model::delete($r[$model::pk()]);
@@ -142,6 +162,7 @@ final class MasterController extends Controller
             'areas'      => Scheme::count(['area_id' => $r['area_id']]),
             'plot-types' => Property::count(['property_type' => $r['code']]),
             'statuses'   => Property::count(['current_status' => $r['code']]),
+            'units'      => Property::count(['area_unit' => $r['code']]) + SiteInspection::count(['area_unit' => $r['code']]),
             default      => 1,
         };
     }
@@ -159,6 +180,9 @@ final class MasterController extends Controller
         }
         if ($key === 'statuses' && $r['is_system']) {
             return 'System statuses cannot be deactivated.';
+        }
+        if ($key === 'units' && $r['is_system']) {
+            return 'The base unit (sq m) cannot be deactivated.';
         }
         return null;
     }

@@ -95,61 +95,114 @@
         if (ev.target.closest('[data-att-close]') || ev.target.id === 'att-viewer') { closeViewer(); }
     });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && document.getElementById('att-viewer')) { closeViewer(); } });
-    window.addEventListener('hashchange', closeViewer);
+    window.addEventListener('praman:navigate', closeViewer);
 
-    /* ---------------- upload widget ---------------- */
-    P.uploaderHtml = function (label) {
-        return '<div class="form-group"><label class="form-label">' + e(label || 'Attachments') + ' <small class="text-muted">(optional)</small></label>' +
-            '<div class="upload-zone" data-upload-zone tabindex="0" role="button" aria-label="Add attachments">' +
-            '<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" data-upload-input hidden>' +
-            '<span class="upload-icon">' + icon('fa-cloud-arrow-up') + '</span><div><strong>Drag &amp; drop files here</strong> or <span class="upload-link">browse</span>' +
-            '<small>' + P.ATTACH_RULES + '</small></div></div><ul class="upload-list" data-upload-list></ul></div>';
+    /* ---------------- single PDF field (site plan, allotment letter …) ---------------- */
+    /** o: {name, label, required, current: attachment row or null}. The file goes with the form as <name>. */
+    P.pdfField = function (o) {
+        const req = o.required && !o.current;
+        return '<div class="form-group"><label class="form-label" for="' + e(o.name) + '">' + e(o.label) +
+            (req ? ' <span class="required">*</span>' : ' <small class="text-muted">(' + (o.current ? 'replace — optional' : 'optional') + ')</small>') + '</label>' +
+            '<div class="pdf-pick" data-pdf-field><input type="file" id="' + e(o.name) + '" name="' + e(o.name) + '" class="pdf-input" accept=".pdf,application/pdf" ' +
+            'data-rules="' + (req ? 'required|' : '') + 'pdf" data-label="' + e(o.label) + '">' +
+            '<span class="pdf-icon">' + icon('fa-file-pdf') + '</span>' +
+            '<span class="pdf-meta"><strong data-pdf-name>' + (o.current ? 'Choose a new PDF to replace' : 'Choose or drop a PDF') + '</strong><small data-pdf-size>PDF only · max 5 MB</small></span>' +
+            '<span class="btn btn-light btn-sm pdf-browse" aria-hidden="true">' + icon('fa-folder-open') + ' <span>Browse</span></span>' +
+            '<button type="button" class="btn btn-light btn-sm btn-icon-only text-danger pdf-clear" data-pdf-clear hidden aria-label="' + e('Remove ' + o.label) + '" title="Remove">' + icon('fa-trash-can') + '</button></div>' +
+            (o.current ? '<div class="pdf-current"><small class="text-muted">' + icon('fa-paperclip') + ' On file:</small>' + P.attachmentChips([o.current]) + '</div>' : '') +
+            '<div class="invalid-feedback"></div></div>';
     };
-    /** Wire the widget inside form; files are kept on form._files. */
-    P.initUploader = function (form) {
-        const zone = form.querySelector('[data-upload-zone]');
-        if (!zone) { return; }
-        const input = zone.querySelector('[data-upload-input]');
-        const list = form.querySelector('[data-upload-list]');
-        form._files = [];
-        function draw() {
-            list.innerHTML = form._files.map(function (f, i) {
-                const isImg = /^image\//.test(f.type) || /\.(jpe?g|png)$/i.test(f.name);
-                return '<li class="upload-item"><span class="upload-thumb ' + (isImg ? 'img' : 'pdf') + '">' + (isImg && f._thumb ? '<img src="' + f._thumb + '" alt="">' : icon(isImg ? 'fa-file-image' : 'fa-file-pdf')) + '</span>' +
-                    '<span class="upload-meta"><strong>' + e(f.name) + '</strong><small>' + fmtSize(f.size) + '</small></span>' +
-                    '<button type="button" class="btn btn-light btn-sm btn-icon-only text-danger" data-upload-remove="' + i + '" title="Remove" aria-label="' + e('Remove ' + f.name) + '">' + icon('fa-trash-can') + '</button></li>';
-            }).join('');
-            zone.classList.toggle('has-files', form._files.length > 0);
-        }
-        function add(files) {
-            const errs = [];
-            Array.prototype.forEach.call(files, function (f) {
-                const err = checkFile(f);
-                if (err) { errs.push(err); return; }
-                if (form._files.some(function (x) { return x.name.toLowerCase() === f.name.toLowerCase(); })) { errs.push('"' + f.name + '" is already added (a file with the same name).'); return; }
-                if (form._files.length >= MAX_FILES) { errs.push('You can attach at most ' + MAX_FILES + ' files.'); return; }
-                form._files.push(f);
-                if (/^image\//.test(f.type)) {
-                    const url = URL.createObjectURL(f);
-                    f._thumb = url;
-                }
+    P.initPdfFields = function (root) {
+        root.querySelectorAll('[data-pdf-field]').forEach(function (box) {
+            const input = box.querySelector('input[type="file"]');
+            const name = box.querySelector('[data-pdf-name]'), size = box.querySelector('[data-pdf-size]'), clear = box.querySelector('[data-pdf-clear]');
+            const empty = name.textContent;
+            function draw() {
+                const f = input.files && input.files[0];
+                name.textContent = f ? f.name : empty;
+                size.textContent = f ? fmtSize(f.size) + ' · PDF' : 'PDF only · max 5 MB';
+                box.classList.toggle('has-file', !!f);
+                clear.hidden = !f;
+            }
+            input.addEventListener('change', draw);
+            ['dragenter', 'dragover'].forEach(function (t) { input.addEventListener(t, function () { box.classList.add('drag'); }); });
+            ['dragleave', 'drop'].forEach(function (t) { input.addEventListener(t, function () { box.classList.remove('drag'); }); });
+            clear.addEventListener('click', function () {
+                input.value = '';
+                input.dispatchEvent(new Event('change', { bubbles: true }));
             });
-            if (errs.length) { P.toast('error', errs.slice(0, 3).join(' ')); }
-            draw();
-        }
-        zone.addEventListener('click', function () { input.click(); });
-        zone.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); input.click(); } });
-        input.addEventListener('change', function () { add(input.files); input.value = ''; });
-        ['dragenter', 'dragover'].forEach(function (t) { zone.addEventListener(t, function (ev) { ev.preventDefault(); zone.classList.add('drag'); }); });
-        ['dragleave', 'drop'].forEach(function (t) { zone.addEventListener(t, function (ev) { ev.preventDefault(); zone.classList.remove('drag'); }); });
-        zone.addEventListener('drop', function (ev) { add(ev.dataTransfer.files); });
-        list.addEventListener('click', function (ev) {
-            const b = ev.target.closest('[data-upload-remove]');
-            if (!b) { return; }
-            const f = form._files.splice(Number(b.getAttribute('data-upload-remove')), 1)[0];
-            if (f && f._thumb) { URL.revokeObjectURL(f._thumb); }
             draw();
         });
-        P._addFiles = add; // used by automated tests
+    };
+
+    /* ---------------- upload widget ----------------
+       o: {name (default "attachments"), images: JPG/PNG only, required, hint}. Several widgets may sit in one form;
+       each keeps its files on form._uploads[name] and they are sent as name[]. */
+    P.uploaderHtml = function (label, o) {
+        o = o || {};
+        const name = o.name || 'attachments';
+        const rules = o.images ? 'JPG, JPEG, PNG · max 5 MB each · up to ' + MAX_FILES + ' photos' : P.ATTACH_RULES;
+        return '<div class="form-group"><label class="form-label">' + e(label || 'Attachments') + (o.required ? ' <span class="required">*</span>' : ' <small class="text-muted">(optional)</small>') + '</label>' +
+            '<div class="upload-zone" data-upload-zone data-upload-name="' + e(name) + '"' + (o.images ? ' data-upload-images' : '') + (o.required ? ' data-upload-required data-label="' + e(label) + '"' : '') +
+            ' tabindex="0" role="button" aria-label="' + e('Add ' + (label || 'attachments')) + '">' +
+            '<input type="file" multiple accept="' + (o.images ? '.jpg,.jpeg,.png,image/jpeg,image/png' : '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png') + '" data-upload-input hidden>' +
+            '<span class="upload-icon">' + icon(o.images ? 'fa-camera' : 'fa-cloud-arrow-up') + '</span><div><strong>Drag &amp; drop ' + (o.images ? 'photos' : 'files') + ' here</strong> or <span class="upload-link">browse</span>' +
+            '<small>' + rules + '</small>' + (o.hint ? '<small>' + e(o.hint) + '</small>' : '') + '</div></div><ul class="upload-list" data-upload-list></ul><div class="invalid-feedback"></div></div>';
+    };
+    /** Wire every widget inside form; files are kept on form._uploads[name] (form._files = the attachments widget). */
+    P.initUploader = function (form) {
+        form._uploads = {};
+        form.querySelectorAll('[data-upload-zone]').forEach(function (zone) {
+            const name = zone.getAttribute('data-upload-name') || 'attachments';
+            const images = zone.hasAttribute('data-upload-images');
+            const input = zone.querySelector('[data-upload-input]');
+            const list = zone.parentNode.querySelector('[data-upload-list]');
+            const files = form._uploads[name] = [];
+            if (name === 'attachments') { form._files = files; }
+            function draw() {
+                list.innerHTML = files.map(function (f, i) {
+                    const isImg = /^image\//.test(f.type) || /\.(jpe?g|png)$/i.test(f.name);
+                    return '<li class="upload-item"><span class="upload-thumb ' + (isImg ? 'img' : 'pdf') + '">' + (isImg && f._thumb ? '<img src="' + f._thumb + '" alt="">' : icon(isImg ? 'fa-file-image' : 'fa-file-pdf')) + '</span>' +
+                        '<span class="upload-meta"><strong>' + e(f.name) + '</strong><small>' + fmtSize(f.size) + '</small></span>' +
+                        '<button type="button" class="btn btn-light btn-sm btn-icon-only text-danger" data-upload-remove="' + i + '" title="Remove" aria-label="' + e('Remove ' + f.name) + '">' + icon('fa-trash-can') + '</button></li>';
+                }).join('');
+                zone.classList.toggle('has-files', files.length > 0);
+                if (files.length && P.Validation) { P.Validation.setError(zone, null); }
+            }
+            function add(picked) {
+                const errs = [];
+                Array.prototype.forEach.call(picked, function (f) {
+                    const err = images && !/\.(jpe?g|png)$/i.test(f.name) ? '"' + f.name + '": only JPG, JPEG or PNG photos are allowed.' : checkFile(f);
+                    if (err) { errs.push(err); return; }
+                    if (files.some(function (x) { return x.name.toLowerCase() === f.name.toLowerCase(); })) { errs.push('"' + f.name + '" is already added (a file with the same name).'); return; }
+                    if (files.length >= MAX_FILES) { errs.push('You can add at most ' + MAX_FILES + ' files here.'); return; }
+                    files.push(f);
+                    if (/^image\//.test(f.type)) { f._thumb = URL.createObjectURL(f); }
+                });
+                if (errs.length) { P.toast('error', errs.slice(0, 3).join(' ')); }
+                draw();
+            }
+            zone.addEventListener('click', function () { input.click(); });
+            zone.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); input.click(); } });
+            input.addEventListener('change', function () { add(input.files); input.value = ''; });
+            ['dragenter', 'dragover'].forEach(function (t) { zone.addEventListener(t, function (ev) { ev.preventDefault(); zone.classList.add('drag'); }); });
+            ['dragleave', 'drop'].forEach(function (t) { zone.addEventListener(t, function (ev) { ev.preventDefault(); zone.classList.remove('drag'); }); });
+            zone.addEventListener('drop', function (ev) { add(ev.dataTransfer.files); });
+            list.addEventListener('click', function (ev) {
+                const b = ev.target.closest('[data-upload-remove]');
+                if (!b) { return; }
+                const f = files.splice(Number(b.getAttribute('data-upload-remove')), 1)[0];
+                if (f && f._thumb) { URL.revokeObjectURL(f._thumb); }
+                draw();
+            });
+            if (zone.hasAttribute('data-upload-required') && P.Validation) {
+                P.Validation.addCheck(form, function () {
+                    if (files.length || zone.closest('[hidden]')) { return null; }
+                    zone.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return { field: zone, message: 'Add at least one file in “' + zone.getAttribute('data-label') + '”.' };
+                });
+            }
+            if (name === 'attachments') { P._addFiles = add; } // used by automated tests
+        });
     };
 })(window, document);

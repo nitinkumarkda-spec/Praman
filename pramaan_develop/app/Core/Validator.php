@@ -67,6 +67,9 @@ final class Validator
                 'min'      => $len < (int) $arg ? $label . ' must be at least ' . $arg . ' characters.' : null,
                 'max'      => $len > (int) $arg ? $label . ' may not be more than ' . $arg . ' characters.' : null,
                 'name'     => !preg_match("/^[\p{L}\p{M} .'()\/-]+$/u", $v) ? $label . ' may contain only letters, spaces and . \' ( ) / -' : null,
+                'alpha_space' => !preg_match('/^[\p{L}\p{M}]+( [\p{L}\p{M}]+)*$/u', $v) ? $label . ' may contain only letters and single spaces (no digits or special characters).' : null,
+                'orgname'  => !preg_match("/^[\p{L}\p{M}0-9][\p{L}\p{M}0-9 .,&'()\/-]*$/u", $v) ? $label . ' may contain only letters, digits, spaces and . , & \' ( ) / -' : null,
+                'dmy'      => self::dmy($v) === null ? $label . ' must be a valid date (dd/mm/yyyy).' : null,
                 'text'     => preg_match('/[<>]/', $v) ? $label . ' may not contain < or >.' : null,
                 'code'     => !preg_match('/^[A-Z][A-Z0-9_]{1,39}$/', $v) ? $label . ': use CAPITAL letters, digits and underscore (2–40), starting with a letter.' : null,
                 'ucode'    => !preg_match('/^[A-Z0-9][A-Z0-9\/_-]{1,29}$/', $v) ? $label . ' may contain only CAPITAL letters, digits, / _ - (2–30 characters).' : null,
@@ -100,6 +103,15 @@ final class Validator
             return $label . ' must be between ' . $min . ' and ' . $max . '.';
         }
         return null;
+    }
+
+    /** "dd/mm/yyyy" -> "yyyy-mm-dd" (null when not a real date). */
+    public static function dmy(string $v): ?string
+    {
+        if (!preg_match('~^(\d{2})/(\d{2})/(\d{4})$~', $v, $m) || !checkdate((int) $m[2], (int) $m[1], (int) $m[3])) {
+            return null;
+        }
+        return $m[3] . '-' . $m[2] . '-' . $m[1];
     }
 
     public static function isDate(string $v): bool

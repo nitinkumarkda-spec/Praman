@@ -62,7 +62,7 @@ final class StateService
 
         $t = &$state['tables'];
         $t['roles'] = Role::where([], 'sort_order');
-        foreach (['areas' => 'Area', 'plot_types' => 'PlotType', 'statuses' => 'Status',
+        foreach (['areas' => 'Area', 'plot_types' => 'PlotType', 'statuses' => 'Status', 'units' => 'Unit',
                  'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }
@@ -118,7 +118,7 @@ final class StateService
         }, $rows);
     }
 
-    /** Tasks with the Engineering site inspection / Sale vacancy check attached. */
+    /** Tasks with the Engineering site inspection / Sale-Auction-General section answers attached. */
     private static function tasks(?array $roundIds): array
     {
         $tasks = $roundIds === null ? Task::where() : Task::where(['round_id' => $roundIds]);
@@ -127,10 +127,10 @@ final class StateService
         }
         $ids = array_column($tasks, 'task_id');
         $site = array_column(\App\Models\SiteInspection::where(['task_id' => $ids]), null, 'task_id');
-        $sale = array_column(\App\Models\SaleCheck::where(['task_id' => $ids]), null, 'task_id');
+        $checks = array_column(\App\Models\SectionCheck::where(['task_id' => $ids]), null, 'task_id');
         foreach ($tasks as &$x) {
             $x['site_inspection'] = $site[$x['task_id']] ?? null;
-            $x['sale_check'] = $sale[$x['task_id']] ?? null;
+            $x['section_check'] = $checks[$x['task_id']] ?? null;
         }
         return $tasks;
     }

@@ -144,6 +144,28 @@ CREATE TABLE statuses (
     UNIQUE KEY uq_statuses_name (name)
 ) ENGINE=InnoDB;
 
+-- area units (sq m, sq ft, sq yard …): every area is also stored in sq m using to_sqm
+CREATE TABLE units (
+    unit_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    code         VARCHAR(20)       NOT NULL,
+    name         VARCHAR(40)       NOT NULL,
+    name_hi      VARCHAR(40)       NULL,
+    symbol       VARCHAR(15)       NOT NULL,              -- short label, e.g. "sq ft"
+    to_sqm       DECIMAL(16,8)     NOT NULL,              -- 1 unit = to_sqm square metres
+    description  VARCHAR(150)      NULL,
+    sort_order   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active    TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system    TINYINT(1)        NOT NULL DEFAULT 0,    -- sq m: the base unit
+    created_by   INT UNSIGNED      NULL,
+    created_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by   INT UNSIGNED      NULL,
+    updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (unit_id),
+    UNIQUE KEY uq_units_code (code),
+    UNIQUE KEY uq_units_name (name),
+    CONSTRAINT ck_units_factor CHECK (to_sqm > 0)
+) ENGINE=InnoDB;
+
 -- ---------------------------------------------------------------------
 -- 3. Schemes, sectors and the role-user mapping of a scheme
 -- ---------------------------------------------------------------------
@@ -213,9 +235,10 @@ CREATE TABLE properties (
     plot_no         VARCHAR(30)    NOT NULL,
     property_type   VARCHAR(30)    NOT NULL,
     area_value      DECIMAL(12,2)  NOT NULL,
-    area_unit       ENUM('SQM','SQFT') NOT NULL DEFAULT 'SQM',
+    area_unit       VARCHAR(20)    NOT NULL DEFAULT 'SQM',     -- units.code
     area_sqm        DECIMAL(14,4)  NOT NULL,
     remarks         VARCHAR(500)   NULL,
+    reserve_price   DECIMAL(14,2)  NULL,                  -- in rupees (required for new entries)
     current_status  VARCHAR(30)    NOT NULL DEFAULT 'LISTED',
     current_round_id INT UNSIGNED  NULL,
     ready_round_id  INT UNSIGNED   NULL,
@@ -234,8 +257,10 @@ CREATE TABLE properties (
     CONSTRAINT fk_properties_scheme   FOREIGN KEY (scheme_id)      REFERENCES schemes (scheme_id)       ON DELETE RESTRICT,
     CONSTRAINT fk_properties_sector   FOREIGN KEY (sector_id)      REFERENCES sectors (sector_id)       ON DELETE RESTRICT,
     CONSTRAINT fk_properties_type     FOREIGN KEY (property_type)  REFERENCES plot_types (code)         ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_unit     FOREIGN KEY (area_unit)      REFERENCES units (code)              ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_properties_status   FOREIGN KEY (current_status) REFERENCES statuses (code)           ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_properties_area CHECK (area_value > 0)
+    CONSTRAINT ck_properties_area CHECK (area_value > 0),
+    CONSTRAINT ck_properties_price CHECK (reserve_price IS NULL OR reserve_price > 0)
 ) ENGINE=InnoDB;
 
 -- snapshot of the scheme's role users, taken when the property is created
@@ -319,42 +344,60 @@ CREATE TABLE task_assignees (
     CONSTRAINT fk_task_assignees_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
--- Engineering Cell: actual site measurement + encroachment, filled with the decision
+-- Engineering Cell: physical site check (length × width, encroachment, road, corner, geo location), filled with the decision.
+-- Site photos are attachments of the task (context SITE_PHOTO).
 CREATE TABLE site_inspections (
     inspection_id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     task_id               INT UNSIGNED  NOT NULL,
-    area_value            DECIMAL(12,2) NOT NULL,
-    area_unit             ENUM('SQM','SQFT') NOT NULL,
+    length_value          DECIMAL(10,2) NULL,                 -- as measured at the site, in area_unit's length
+    width_value           DECIMAL(10,2) NULL,
+    area_value            DECIMAL(12,2) NOT NULL,             -- length × width
+    area_unit             VARCHAR(20)   NOT NULL,             -- units.code
     area_sqm              DECIMAL(14,4) NOT NULL,
     recorded_value        DECIMAL(12,2) NOT NULL,
-    recorded_unit         ENUM('SQM','SQFT') NOT NULL,
+    recorded_unit         VARCHAR(20)   NOT NULL,             -- units.code
     difference            DECIMAL(12,2) NOT NULL DEFAULT 0,
     difference_pct        DECIMAL(7,2)  NOT NULL DEFAULT 0,
     variance              ENUM('SAME','LESS','MORE') NOT NULL,
     encroachment          ENUM('YES','NO') NOT NULL,
-    encroachment_details  VARCHAR(1000) NULL,
+    encroachment_type     ENUM('PARTIAL','COMPLETE') NULL,    -- when encroachment = YES
+    encroachment_details  VARCHAR(300)  NULL,
+    road_width            SMALLINT UNSIGNED NULL,             -- whole number
+    road_width_unit       ENUM('FT','M') NULL,
+    is_corner             TINYINT(1)    NULL,
+    latitude              DECIMAL(10,8) NULL,
+    longitude             DECIMAL(11,8) NULL,
     measured_by           INT UNSIGNED  NOT NULL,
     measured_at           DATETIME      NOT NULL,
     PRIMARY KEY (inspection_id),
     UNIQUE KEY uq_site_inspections_task (task_id),
     CONSTRAINT fk_site_inspections_task FOREIGN KEY (task_id)     REFERENCES tasks (task_id) ON DELETE CASCADE,
-    CONSTRAINT fk_site_inspections_user FOREIGN KEY (measured_by) REFERENCES users (user_id) ON DELETE RESTRICT
+    CONSTRAINT fk_site_inspections_user FOREIGN KEY (measured_by) REFERENCES users (user_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_site_inspections_unit FOREIGN KEY (area_unit)     REFERENCES units (code) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_site_inspections_recorded_unit FOREIGN KEY (recorded_unit) REFERENCES units (code) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
--- Sale Cell: vacancy check, filled with the decision
-CREATE TABLE sale_checks (
-    check_id        INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    task_id         INT UNSIGNED NOT NULL,
-    vacant          ENUM('YES','NO') NOT NULL,
-    allotment_mode  ENUM('AUCTION','LOTTERY','DIRECT_SALE','LAND_FOR_LAND','REHABILITATION','OTHER') NULL,
-    allotment_date  DATE         NULL,
-    allottee_name   VARCHAR(100) NULL,
-    checked_by      INT UNSIGNED NOT NULL,
-    checked_at      DATETIME     NOT NULL,
+-- Department-wise answers filled with the decision: Sale (Sale Cell), Auction (Auction Cell), General (other cells, not Engineering).
+-- Any "Yes" means the property is not available, so the decision must be Objection.
+-- The allotment / mutation letter is an attachment of the task (context ALLOTMENT_LETTER).
+CREATE TABLE section_checks (
+    check_id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    task_id             INT UNSIGNED NOT NULL,
+    is_sale_allotted    TINYINT(1)   NULL,                 -- Sale: allotted to a person (NULL = section not asked)
+    allottee_name       VARCHAR(100) NULL,
+    allotment_date      DATE         NULL,
+    is_auctioned        TINYINT(1)   NULL,                 -- Auction (NULL = section not asked)
+    auction_date        DATE         NULL,
+    is_inst_allotted    TINYINT(1)   NULL,                 -- General (other cells): allotted to an organisation / institution, or in progress (NULL = not asked)
+    is_inst_in_process  TINYINT(1)   NULL,                 -- allotment in progress: name only, no allotment date yet
+    inst_name           VARCHAR(150) NULL,
+    inst_allotment_date DATE         NULL,
+    checked_by          INT UNSIGNED NOT NULL,
+    checked_at          DATETIME     NOT NULL,
     PRIMARY KEY (check_id),
-    UNIQUE KEY uq_sale_checks_task (task_id),
-    CONSTRAINT fk_sale_checks_task FOREIGN KEY (task_id)    REFERENCES tasks (task_id) ON DELETE CASCADE,
-    CONSTRAINT fk_sale_checks_user FOREIGN KEY (checked_by) REFERENCES users (user_id) ON DELETE RESTRICT
+    UNIQUE KEY uq_section_checks_task (task_id),
+    CONSTRAINT fk_section_checks_task FOREIGN KEY (task_id)    REFERENCES tasks (task_id) ON DELETE CASCADE,
+    CONSTRAINT fk_section_checks_user FOREIGN KEY (checked_by) REFERENCES users (user_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- files uploaded with a section response (stored outside the web root, storage/uploads)

@@ -20,7 +20,7 @@
             case 'ROUND': case 'TASK': return 'VERIFICATION';
             case 'PROPERTY': return 'PROPERTY';
             case 'SCHEME': return 'SCHEME';
-            case 'AREA': case 'PLOT_TYPE': case 'STATUS': case 'SECTOR': return 'MASTERS';
+            case 'AREA': case 'PLOT_TYPE': case 'UNIT': case 'STATUS': case 'SECTOR': return 'MASTERS';
             case 'USER': case 'ROLE': return ['IMPERSONATION_STARTED', 'IMPERSONATION_ENDED', 'ACCOUNT_LOCKED', 'PASSWORD_CHANGED'].indexOf(a.action) !== -1 ? 'AUTH' : 'MASTERS';
             default: return 'SYSTEM';
         }
@@ -237,7 +237,7 @@
 
         return {
             title: 'Activity & Performance Insights',
-            html: '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="#/admin/dashboard">Home</a><span>/</span><span>Administration</span><span>/</span><strong>Activity &amp; Performance Insights</strong></nav>' +
+            html: '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="' + P.BASE + '/admin/dashboard">Home</a><span>/</span><span>Administration</span><span>/</span><strong>Activity &amp; Performance Insights</strong></nav>' +
                 P.pageHeader(icon('fa-chart-line') + ' Activity &amp; Performance Insights', 'Monitor user activity, section performance, operational trends and audit history in one place.') +
                 stats + filterCard + pills + '<div class="ins-layout"><div class="ins-main">' + timeline + '</div><aside class="ins-side">' + side + '</aside></div>',
             after: function (root) {

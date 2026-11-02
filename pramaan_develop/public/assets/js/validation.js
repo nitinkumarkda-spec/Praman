@@ -70,8 +70,29 @@
         password: function (v, a, l) { return passwordError(v, l); },
         url: function (v, a, l) { return /^https?:\/\/[^\s<>"']+\.[^\s<>"']+$/i.test(v) ? null : l + ' must be a valid web address (https://…).'; },
         csvlist: function (v, a, l) { return /^[a-z0-9_.-]+(\s*,\s*[a-z0-9_.-]+)*$/i.test(v) ? null : l + ': use usernames separated by commas.'; },
+        latitude: function (v, a, l) { return /^-?\d{1,2}(\.\d{1,8})?$/.test(v) && Math.abs(+v) <= 90 ? null : l + ' must be between -90 and 90 with at most 8 decimals.'; },
+        longitude: function (v, a, l) { return /^-?\d{1,3}(\.\d{1,8})?$/.test(v) && Math.abs(+v) <= 180 ? null : l + ' must be between -180 and 180 with at most 8 decimals.'; },
+        alpha_space: function (v, a, l) { return /^[\p{L}\p{M}]+( [\p{L}\p{M}]+)*$/u.test(v) ? null : l + ' may contain only letters and single spaces (no digits or special characters).'; },
+        orgname: function (v, a, l) { return /^[\p{L}\p{M}0-9][\p{L}\p{M}0-9 .,&'()\/-]*$/u.test(v) ? null : l + ' may contain only letters, digits, spaces and . , & \' ( ) / -'; },
         date: function (v, a, l) { return /^\d{4}-\d{2}-\d{2}$/.test(v) && !isNaN(Date.parse(v)) ? null : l + ' must be a valid date.'; },
-        notfuture: function (v, a, l) { return v <= (window.PramanDB ? window.PramanDB.today() : v) ? null : l + ' cannot be in the future.'; },
+        dmy: function (v, a, l) {
+            const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+            const d = m ? new Date(+m[3], +m[2] - 1, +m[1]) : null;
+            if (!d || d.getDate() !== +m[1] || d.getMonth() !== +m[2] - 1) { return l + ' must be a valid date (dd/mm/yyyy).'; }
+            return +m[3] < 1950 ? l + ' must be after 01/01/1950.' : null;
+        },
+        notfuture: function (v, a, l) {
+            const iso = /^\d{2}\/\d{2}\/\d{4}$/.test(v) ? v.split('/').reverse().join('-') : v; // dd/mm/yyyy or Y-m-d
+            return iso <= (window.PramanDB ? window.PramanDB.today() : iso) ? null : l + ' cannot be in the future.';
+        },
+        /** <input type="file">: one PDF up to 5 MB */
+        pdf: function (v, a, l, el) {
+            const f = el.files && el.files[0];
+            if (!f) { return null; }
+            if (!/\.pdf$/i.test(f.name) || (f.type && f.type !== 'application/pdf')) { return l + ': only a PDF file is allowed.'; }
+            if (f.size === 0) { return l + ': the file is empty.'; }
+            return f.size > 5 * 1024 * 1024 ? l + ': the file is ' + (f.size / 1048576).toFixed(1) + ' MB — the limit is 5 MB.' : null;
+        },
         same: function (v, a, l, el) {
             const form = el.form || document;
             const other = form.querySelector('[name="' + CSS.escape(a) + '"]');

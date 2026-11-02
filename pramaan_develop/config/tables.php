@@ -16,6 +16,7 @@ return [
     'areas'            => 'areas',
     'plot_types'       => 'plot_types',
     'statuses'         => 'statuses',
+    'units'            => 'units',
     // schemes
     'schemes'          => 'schemes',
     'sectors'          => 'sectors',
@@ -28,7 +29,7 @@ return [
     'tasks'            => 'tasks',
     'task_assignees'   => 'task_assignees',
     'site_inspections' => 'site_inspections',
-    'sale_checks'      => 'sale_checks',
+    'section_checks'   => 'section_checks',
     'attachments'      => 'attachments',
     // tracking
     'notifications'    => 'notifications',

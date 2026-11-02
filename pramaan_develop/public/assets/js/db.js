@@ -25,6 +25,7 @@
         login_attempts: 'attempt_id',
         notifications:  'notification_id',
         plot_types:     'plot_type_id',
+        units:          'unit_id',
         statuses:       'status_id',
         areas:          'area_id',
         attachments:    'attachment_id'
@@ -125,9 +126,6 @@
         raw: function () { return data; }
     };
 
-    DB.zoneName = function () { return '—'; };
-    DB.wardName = function () { return '—'; };
-    DB.assemblyName = function () { return '—'; };
     DB.panelUsers = function (panel) {
         return DB.where('users', { panel: panel, is_active: 1 }).map(function (u) { return u.user_id; });
     };

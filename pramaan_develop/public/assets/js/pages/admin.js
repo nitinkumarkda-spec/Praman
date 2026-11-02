@@ -32,7 +32,7 @@
         return {
             title: 'Role Master',
             html: P.pageHeader(icon('fa-sitemap') + ' Role Master', 'Each role is one verification section (Engineering, Sale, Legal …). Users are mapped to roles in the User Master.',
-                '<a href="#/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>') +
+                '<a href="' + P.BASE + '/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>') +
                 '<div class="card">' + P.list_toolbar(p, 'Search role name or code…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
                 P.th_sort(p, 'order', '#') + P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
@@ -45,7 +45,7 @@
                         '<td data-label="Mandatory">' + (r.is_mandatory ? '<span class="badge badge-gold">' + icon('fa-star') + ' Mandatory</span>' : '<span class="badge badge-muted">Optional</span>') + '</td>' +
                         '<td data-label="Users"><a href="' + P.url('/admin/users', { role_id: r.role_id }) + '">' + r.active_users + ' active</a><span class="cell-sub">' + r.users_count + ' total</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions"><div class="btn-group">' +
-                        '<a href="#/admin/roles/' + r.role_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + r.role_name) + '" aria-label="' + e('Edit ' + r.role_name) + '">' + icon('fa-pen') + '</a>' +
+                        '<a href="' + P.BASE + '/admin/roles/' + r.role_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + r.role_name) + '" aria-label="' + e('Edit ' + r.role_name) + '">' + icon('fa-pen') + '</a>' +
                         '<form method="post" data-action="role-toggle" data-confirm="' + e(on ? 'Deactivate role "' + r.role_name + '"? It will not be used for new schemes and verification rounds.' : 'Activate role "' + r.role_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                         '<input type="hidden" name="id" value="' + r.role_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
@@ -68,7 +68,7 @@
             title: isEdit ? 'Edit Role' : 'Add Role',
             html: P.pageHeader(icon('fa-sitemap') + ' ' + (isEdit ? 'Edit Role' : 'Add Role'),
                 isEdit ? 'Changes apply to new schemes and new verification rounds.' : 'Create a verification section. Map users to it from the User Master.',
-                '<a href="#/admin/roles" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
+                '<a href="' + P.BASE + '/admin/roles" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
                 (isEdit && usage > 0 ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This role is mapped in <strong>' + usage + '</strong> scheme(s). Existing properties keep their snapshot.</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="role-save" novalidate data-validate>' +
                 (isEdit ? '<input type="hidden" name="id" value="' + role.role_id + '">' : '') + '<div class="form-grid">' +
@@ -84,7 +84,7 @@
                 '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || role.is_active ? ' checked' : '') + '>' +
                 '<span><strong>Active</strong><br><small class="text-muted">Inactive roles are skipped for new schemes and rounds.</small></span></label></div>' +
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Role' : 'Create Role') + '</span></button>' +
-                '<a href="#/admin/roles" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
+                '<a href="' + P.BASE + '/admin/roles" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };
     }
     P.route('/admin/roles/create', PANEL, function () { return roleForm(null); });
@@ -123,7 +123,7 @@
         return {
             title: 'User Master',
             html: P.pageHeader(icon('fa-users') + ' User Master', 'Panel users and role users (e.g. engineer-1 under Engineering). Many users can belong to one role.',
-                '<a href="#/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>') +
+                '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>') +
                 '<div class="card">' + P.list_toolbar(p, 'Search name, username, emp code, mobile, email…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
                 P.th_sort(p, 'name', 'Name') + P.th_sort(p, 'username', 'Username') + P.th_sort(p, 'emp_code', 'Emp. Code') + P.th_sort(p, 'panel', 'Panel') +
@@ -138,7 +138,7 @@
                         (u.is_locked ? ' <span class="badge badge-danger">' + icon('fa-lock') + ' Locked</span>' : '') + '</td><td class="actions"><div class="btn-group">' +
                         (!self && u.panel !== 'SUPER_ADMIN' && u.is_active ? '<form method="post" data-action="impersonate"><input type="hidden" name="id" value="' + u.user_id + '">' +
                             '<button type="submit" class="btn-switch" title="' + e('Login as ' + u.name) + '" aria-label="' + e('Login as ' + u.name) + '">' + icon('fa-right-to-bracket') + '</button></form>' : '') +
-                        '<a href="#/admin/users/' + u.user_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + u.name) + '" aria-label="' + e('Edit ' + u.name) + '">' + icon('fa-pen') + '</a>' +
+                        '<a href="' + P.BASE + '/admin/users/' + u.user_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + u.name) + '" aria-label="' + e('Edit ' + u.name) + '">' + icon('fa-pen') + '</a>' +
                         (u.is_locked ? '<form method="post" data-action="user-unlock" data-confirm="' + e('Unlock account "' + u.username + '"?') + '"><input type="hidden" name="id" value="' + u.user_id + '">' +
                             '<button type="submit" class="btn btn-sm btn-warning btn-icon-only" title="Unlock account" aria-label="Unlock account">' + icon('fa-lock-open') + '</button></form>' : '') +
                         (!self ? '<form method="post" data-action="user-toggle" data-confirm="' + e(u.is_active ? 'Deactivate "' + u.name + '"? They will not be able to login.' : 'Activate "' + u.name + '"?') + '" data-confirm-variant="' + (u.is_active ? 'danger' : 'success') + '">' +
@@ -178,7 +178,7 @@
 
         let html = P.pageHeader(icon('fa-user-gear') + ' ' + (isEdit ? 'Edit User' : 'Add User'),
             isEdit ? e(user.name + ' · ' + user.username) : 'Create a login for a panel user or a role user.',
-            '<a href="#/admin/users" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
+            '<a href="' + P.BASE + '/admin/users" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
             (mappings > 0 ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This user is mapped in <strong>' + mappings + '</strong> scheme role mapping(s). Changing the role or deactivating removes them from <em>new</em> properties only.</span></div>' : '') +
             '<div class="' + (isEdit ? 'grid-2' : '') + '"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-id-card') + ' User details</h3></div><div class="card-body">' +
             '<form method="post" data-action="user-save" novalidate data-validate autocomplete="off">' + (isEdit ? '<input type="hidden" name="id" value="' + user.user_id + '">' : '') +
@@ -200,7 +200,7 @@
             '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || user.is_active ? ' checked' : '') + (isSelf ? ' disabled checked' : '') + '>' +
             '<span><strong>Active</strong><br><small class="text-muted">Inactive users cannot login.</small></span></label></div>' +
             '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update User' : 'Create User') + '</span></button>' +
-            '<a href="#/admin/users" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>';
+            '<a href="' + P.BASE + '/admin/users" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>';
         if (isEdit) {
             html += '<div><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-unlock-keyhole') + ' Reset password</h3></div><div class="card-body">' +
                 '<p class="text-muted mb-3">Set a temporary password. The user must change it on next login. This also unlocks the account.</p>' +

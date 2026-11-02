@@ -48,7 +48,7 @@
             case 'PROPERTY_CREATED':
                 title = 'Property registered';
                 body = '<p>Plot <strong>' + e(n.plot_no || '') + '</strong>' + (n.property_type ? ' · ' + e(val('property_type', n.property_type)) : '') +
-                    (n.area_value ? ' · ' + P.fmt_num(n.area_value, 2) + ' ' + (n.area_unit === 'SQFT' ? 'sq ft' : 'sq m') : '') + '</p>' + statusPill(null, 'LISTED');
+                    (n.area_value ? ' · ' + P.fmt_num(n.area_value, 2) + ' ' + P.Lookups.unitSymbol(n.area_unit) : '') + '</p>' + statusPill(null, 'LISTED');
                 break;
             case 'PROPERTY_UPDATED': {
                 title = 'Property details updated';
