@@ -40,15 +40,9 @@ $router->group(['csrf'], static function ($r): void {
         $r->post('/api/impersonate', 'User@impersonate', ['can:user.impersonate']);
         $r->post('/api/user-permission-save', 'Permission@userSave', ['can:user.permissions']);
 
-        $r->post('/api/master-save', 'Master@save', ['can:master.create,master.edit']);
-        $r->post('/api/master-toggle', 'Master@toggle', ['can:master.toggle']);
-        $r->post('/api/master-delete', 'Master@delete', ['can:master.delete']);
-        $r->post('/api/sector-save', 'Master@sectorSave', ['can:master.create,master.edit']);
-        $r->post('/api/sector-toggle', 'Master@sectorToggle', ['can:master.toggle']);
-        $r->post('/api/sector-delete', 'Master@sectorDelete', ['can:master.delete']);
-
-        $r->post('/api/scheme-save', 'Scheme@save', ['can:scheme.create,scheme.edit']);
-        $r->post('/api/scheme-toggle', 'Scheme@toggle', ['can:scheme.toggle']);
+        // every master (key = areas | plot-types | units | statuses | sectors | schemes), every action (do = save | toggle | delete);
+        // the controller checks the exact permission (master.* or, for schemes, scheme.*)
+        $r->post('/api/master', 'Master@handle', ['can:master.create,master.edit,master.toggle,master.delete,scheme.create,scheme.edit,scheme.toggle']);
 
         $r->post('/api/publish-direction', 'Insight@publishDirection', ['can:direction.publish']);
         $r->post('/api/settings-save', 'Settings@save', ['can:settings.edit']);

@@ -62,8 +62,8 @@ pramaan_develop/
 │   ├── Core/              App, Router, Request, Response, Session, Csrf, Auth, Database, Model,
 │   │                      Controller, Validator, Password, View, Config, Clock, Logger, helpers
 │   ├── Middleware/        Auth, Guest, Csrf, Can (permission-based access: "can:user.create")
-│   ├── Controllers/       Auth, Home (page + /api/state), Scheme, Notification, Attachment, System,
-│   │                      Role, User, Master, Insight, Settings, Property, Verification, Task (flat, like Models/)
+│   ├── Controllers/       Auth, Home (page + /api/state), Master (every master incl. Scheme — one action), Notification, Attachment, System,
+│   │                      Role, User, Insight, Settings, Property, Verification, Task, Permission (flat, like Models/)
 │   ├── Models/            one class per table (column whitelist, prepared statements)
 │   ├── Codes/             every fixed code the logic checks, written once: Panel, PropertyStatus, TaskStatus,
 │   │                      RoundStatus, PermissionEffect, YesNo, SiteCode, Section, AttachmentContext

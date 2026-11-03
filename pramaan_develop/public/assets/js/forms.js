@@ -4,7 +4,7 @@
    Sectors come from the data the server sent (core: PramanDB).
      • data-uppercase           live upper-casing (codes, plot no.)
      • data-panel-select        User Master: show Role only for Role Users
-     • data-scheme-form         sector repeater, active count, mandatory-role check
+     • data-scheme-form         sector tag input (chips + search), active count, mandatory-role check
      • data-property-form       scheme → sectors (local DB), Yes/No confirmation, area preview
      • data-bulk-form           OIC bulk send: reason required for Not Ready rows
      • data-simulate-form       Reject needs a remark
@@ -71,31 +71,191 @@
     function refreshSectorCount(form) {
         const out = form.querySelector('[data-sector-count]');
         if (out) { out.textContent = String(sectorCount(form)); }
-        const items = form.querySelectorAll('[data-repeater-item]');
-        items.forEach(function (it) {
-            const btn = it.querySelector('[data-repeater-remove]');
-            if (btn) { btn.disabled = items.length === 1 && !form.querySelector('[data-sector-active]'); }
-        });
     }
-    function initSchemeForm(form) {
-        const list = form.querySelector('[data-repeater]');
-        const tpl = form.querySelector('template[data-repeater-template]');
 
-        form.addEventListener('click', function (e) {
-            if (e.target.closest('[data-repeater-add]')) {
-                const node = tpl.content.firstElementChild.cloneNode(true);
-                list.appendChild(node);
-                node.querySelector('input').focus();
-                refreshSectorCount(form);
+    /* ---------- Sector tag input (jQuery tags-input style): chips + search in names used by other schemes ---------- */
+    function initSectorTags(form) {
+        const wrap = form.querySelector('[data-sector-tags]');
+        if (!wrap) { return; }
+        const e = Praman.e, DB = Praman.DB;
+        const box = wrap.querySelector('[data-tag-box]'), chips = wrap.querySelector('[data-tag-chips]');
+        const entry = wrap.querySelector('[data-sector-entry]'), list = wrap.querySelector('[data-tag-suggest]');
+        const errBox = wrap.querySelector('[data-tag-error]');
+        const schemeId = Number(wrap.getAttribute('data-scheme-id')) || 0;
+        let active = -1;
+
+        const areaSel = form.querySelector('#area_id');
+        const ALL = '__all__';
+        // sectors of the other schemes in the selected Area: name -> scheme names
+        let used = {}, names = [];
+        function loadArea() {
+            used = {};
+            const areaId = areaSel ? Number(areaSel.value) : 0;
+            DB.all('sectors').forEach(function (s) {
+                const sc = DB.find('schemes', s.scheme_id);
+                if (!areaId || !sc || s.scheme_id === schemeId || sc.area_id !== areaId) { return; }
+                const k = s.sector_name.trim();
+                (used[k] = used[k] || []).push(sc.scheme_name);
+            });
+            names = Object.keys(used).sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true }); });
+        }
+        loadArea();
+
+        /** Every name already in this form (existing sectors + chips), lower-cased. */
+        function taken() {
+            const out = {};
+            form.querySelectorAll('[data-sector-name]').forEach(function (i) { const v = i.value.trim().toLowerCase(); if (v) { out[v] = true; } });
+            return out;
+        }
+        function error(msg) {
+            errBox.textContent = msg || '';
+            wrap.classList.toggle('is-invalid', !!msg);
+        }
+        /** Add one name as a chip; returns false (with a message) when it is not allowed. */
+        function add(raw) {
+            const name = String(raw || '').replace(/\s+/g, ' ').trim();
+            if (!name) { return true; }
+            if (name.length > 80) { error('“' + name.slice(0, 30) + '…” is longer than 80 characters.'); return false; }
+            if (/[<>]/.test(name)) { error('“' + name + '”: < and > are not allowed.'); return false; }
+            if (taken()[name.toLowerCase()]) { error('“' + name + '” is already in this scheme.'); return false; }
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip anim-fade-up';
+            chip.innerHTML = '<span class="tag-chip-text">' + e(name) + '</span>' +
+                '<input type="hidden" name="sectors_new[]" value="' + e(name) + '" data-sector-name data-sector-new>' +
+                '<button type="button" class="tag-chip-x" aria-label="' + e('Remove ' + name) + '" data-tag-remove>&times;</button>';
+            chips.appendChild(chip);
+            error('');
+            refreshSectorCount(form);
+            return true;
+        }
+        /** Text in the box → chips (a comma-separated list adds several). */
+        function commit() {
+            const parts = entry.value.split(',');
+            const left = [];
+            parts.forEach(function (p) { if (!add(p)) { left.push(p.trim()); } });
+            entry.value = left.join(', ');
+            render();
+        }
+        /** Open / close the suggestion list (the ⌄ icon turns with it). */
+        function show(open) {
+            list.hidden = !open;
+            wrap.classList.toggle('is-open', open);
+            entry.setAttribute('aria-expanded', String(open));
+        }
+        function options() { return Array.prototype.slice.call(list.querySelectorAll('[data-value]')); }
+        function mark(i) {
+            const opts = options();
+            active = opts.length ? (i + opts.length) % opts.length : -1;
+            opts.forEach(function (o, j) { o.classList.toggle('is-active', j === active); o.setAttribute('aria-selected', String(j === active)); });
+            if (opts[active]) { opts[active].scrollIntoView({ block: 'nearest' }); }
+        }
+        /** Names still free to pick in the selected Area (optionally matching q). */
+        function free(q) {
+            const have = taken();
+            return names.filter(function (n) { return !have[n.toLowerCase()] && (!q || n.toLowerCase().indexOf(q) !== -1); });
+        }
+        function render() {
+            const q = entry.value.trim().toLowerCase();
+            const have = taken();
+            const hits = free(q);
+            const exact = names.some(function (n) { return n.toLowerCase() === q; });
+            const areaName = areaSel && areaSel.value ? areaSel.options[areaSel.selectedIndex].text : '';
+            let html = '';
+            if (q && !exact && !have[q] && q.indexOf(',') === -1) {
+                html += '<li class="tag-option tag-option-new" role="option" data-value="' + e(entry.value.trim()) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add “<strong>' + e(entry.value.trim()) + '</strong>” as a new sector</span></li>';
             }
-            const rm = e.target.closest('[data-repeater-remove]');
-            if (rm) {
-                const item = rm.closest('[data-repeater-item]');
-                if (list.querySelectorAll('[data-repeater-item]').length > 1) { item.remove(); }
-                else { item.querySelector('input').value = ''; }
-                refreshSectorCount(form);
+            if (!areaName) {
+                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Select the <strong>Area</strong> above to pick from its sectors.</li>';
+            } else if (!names.length) {
+                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No other scheme in ' + e(areaName) + ' has sectors yet — type new names.</li>';
+            } else if (!q && hits.length > 1) {
+                html += '<li class="tag-option tag-option-all" role="option" data-value="' + ALL + '"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>' +
+                    '<span>Add all <strong>' + hits.length + '</strong> sectors of ' + e(areaName) + '</span></li>';
+            }
+            if (areaName && names.length && !hits.length && !q) {
+                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-check" aria-hidden="true"></i> All sectors of ' + e(areaName) + ' are added.</li>';
+            }
+            hits.forEach(function (n) {
+                const k = q ? n.toLowerCase().indexOf(q) : -1;
+                const label = k === -1 ? e(n) : e(n.slice(0, k)) + '<mark>' + e(n.slice(k, k + q.length)) + '</mark>' + e(n.slice(k + q.length));
+                const sc = used[n];
+                html += '<li class="tag-option" role="option" data-value="' + e(n) + '"><span>' + label + '</span>' +
+                    '<small>' + e(sc.length === 1 ? sc[0] : sc.length + ' schemes') + '</small></li>';
+            });
+            const open = !!html && document.activeElement === entry;
+            list.innerHTML = html;
+            show(open);
+            navigated = false;
+            mark(0);
+        }
+        /** A suggestion was picked: one sector, or every free sector of the Area. */
+        function choose(value) {
+            if (value === ALL) {
+                free('').forEach(add);
+                entry.value = '';
+                render();
+            } else {
+                entry.value = value;
+                commit();
+            }
+        }
+        let navigated = false; // Enter on an empty box picks only what the user moved to with ↑ ↓
+
+        entry.addEventListener('input', function () {
+            if (entry.value.indexOf(',') !== -1) { commit(); } else { error(''); render(); }
+        });
+        entry.addEventListener('focus', render);
+        entry.addEventListener('blur', function () { window.setTimeout(function () { if (document.activeElement !== entry) { show(false); } }, 150); });
+        entry.addEventListener('paste', function () { window.setTimeout(commit, 0); });
+        entry.addEventListener('keydown', function (ev) {
+            if ((ev.key === 'ArrowDown' || ev.key === 'ArrowUp') && list.hidden) { ev.preventDefault(); render(); }
+            else if (ev.key === 'ArrowDown') { ev.preventDefault(); navigated = true; mark(active + 1); }
+            else if (ev.key === 'ArrowUp') { ev.preventDefault(); navigated = true; mark(active - 1); }
+            else if (ev.key === 'Enter' || (ev.key === 'Tab' && entry.value.trim())) {
+                ev.preventDefault(); // never submits the form from here
+                // with text typed (or after ↑ ↓), Enter takes the highlighted suggestion — "Add …" is first when the name is new
+                const pick = (entry.value.trim() || navigated) && !list.hidden ? options()[active] : null;
+                if (pick) { choose(pick.getAttribute('data-value')); } else { commit(); }
+            } else if (ev.key === 'Escape') { show(false); }
+            else if (ev.key === 'Backspace' && !entry.value) {
+                const last = chips.lastElementChild;
+                if (last) { last.remove(); refreshSectorCount(form); render(); }
             }
         });
+        list.addEventListener('mousedown', function (ev) {
+            const o = ev.target.closest('[data-value]');
+            if (!o) { return; }
+            ev.preventDefault(); // keep focus in the box
+            choose(o.getAttribute('data-value'));
+        });
+        // a different Area → its sectors
+        if (areaSel) {
+            areaSel.addEventListener('change', function () { loadArea(); if (document.activeElement === entry) { render(); } });
+        }
+        list.addEventListener('mousemove', function (ev) { const o = ev.target.closest('[data-value]'); if (o) { mark(options().indexOf(o)); } });
+        // click anywhere on the box (a chip's name, the empty space, the ⌄ icon) opens the list — again and again;
+        // a second click outside the text closes it; × on a chip only removes that chip
+        box.addEventListener('mousedown', function (ev) {
+            if (ev.target === entry) { return; }
+            ev.preventDefault(); // keep the caret in the text box
+            const x = ev.target.closest('[data-tag-remove]');
+            if (x) {
+                x.closest('.tag-chip').remove();
+                refreshSectorCount(form);
+                entry.focus();
+                render(); // the removed name is offered again
+                return;
+            }
+            entry.focus();
+            if (list.hidden) { render(); } else { show(false); }
+        });
+        entry.addEventListener('click', function () { if (list.hidden) { render(); } });
+        // text still in the box when the form is sent becomes a chip first
+        form.addEventListener('submit', function () { if (entry.value.trim()) { commit(); } }, true);
+    }
+
+    function initSchemeForm(form) {
+        initSectorTags(form);
         form.addEventListener('input', function (e) { if (e.target.matches('[data-sector-name]')) { refreshSectorCount(form); } });
         form.addEventListener('change', function (e) {
             if (e.target.matches('[data-sector-active]')) { refreshSectorCount(form); }
@@ -106,14 +266,6 @@
                 if (err) { err.textContent = ''; }
             }
         });
-        // Enter inside a sector box adds a new row instead of submitting
-        form.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' && e.target.matches('[data-sector-new]')) {
-                e.preventDefault();
-                form.querySelector('[data-repeater-add]').click();
-            }
-        });
-
         if (V()) {
             V().addCheck(form, function () {
                 // duplicate names
@@ -127,7 +279,7 @@
                 });
                 if (dup) { return { field: dup, message: 'Sector name "' + dup.value.trim() + '" is repeated. Each sector must be unique.' }; }
                 if (sectorCount(form) < 1) {
-                    return { field: form.querySelector('[data-sector-new]') || form.querySelector('[data-sector-name]'), message: 'Add at least one sector. A scheme cannot be saved without sectors.' };
+                    return { field: form.querySelector('[data-sector-entry]') || form.querySelector('[data-sector-name]'), message: 'Add at least one sector. A scheme cannot be saved without sectors.' };
                 }
                 return null;
             });
@@ -431,6 +583,6 @@
         root.querySelectorAll('form[data-scheme-form]').forEach(initSchemeForm);
         root.querySelectorAll('form[data-property-form]').forEach(initPropertyForm);
         root.querySelectorAll('form[data-bulk-form]').forEach(initBulkForm);
-        root.querySelectorAll('form[data-action="sector-save"]').forEach(initSectorForm);
+        root.querySelectorAll('form[data-sector-form]').forEach(initSectorForm);
     };
 })(window, document);

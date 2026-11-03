@@ -5076,10 +5076,10 @@ html.lp-lock { overflow: hidden; }
         if (st === 'active') { rows = rows.filter(function (r) { return r.is_active; }); }
         if (st === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
-            sort: 'order', dir: 'asc', filters: ['status'],
+            sort: 'name', dir: 'asc', filters: ['status'],
             search: function (r) { return [r.role_name, r.role_code]; },
             sortable: {
-                order: function (r) { return r.sort_order; }, name: function (r) { return r.role_name; }, code: function (r) { return r.role_code; },
+                name: function (r) { return r.role_name; }, code: function (r) { return r.role_code; },
                 sla: function (r) { return r.sla_days; }, users: function (r) { return r.active_users; }
             }
         });
@@ -5091,11 +5091,11 @@ html.lp-lock { overflow: hidden; }
                 '<a href="#/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>') +
                 '<div class="card">' + P.list_toolbar(p, 'Search role name or code…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'order', '#') + P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
+                P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
                 '<th>Mandatory</th>' + P.th_sort(p, 'users', 'Users') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Order">' + r.sort_order + '</td><td data-label="Role"><strong>' + e(r.role_name) + '</strong>' + '</td>' +
+                    return '<tr><td data-label="Role"><strong>' + e(r.role_name) + '</strong>' + '</td>' +
                         '<td data-label="Code"><span class="mono">' + e(r.role_code) + '</span></td><td data-label="SLA">' + r.sla_days + '</td>' +
                         '<td data-label="Mandatory">' + (r.is_mandatory ? '<span class="badge badge-gold">' + icon('fa-star') + ' Mandatory</span>' : '<span class="badge badge-muted">Optional</span>') + '</td>' +
                         '<td data-label="Users"><a href="' + P.url('/admin/users', { role_id: r.role_id }) + '">' + r.active_users + ' active</a><span class="cell-sub">' + r.users_count + ' total</span></td>' +
@@ -5106,7 +5106,7 @@ html.lp-lock { overflow: hidden; }
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') +
                         '</form></div></td></tr>';
-                }).join('') : P.empty_state(8, p.hasFilters(), 'No roles yet')) +
+                }).join('') : P.empty_state(7, p.hasFilters(), 'No roles yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     });
@@ -5131,7 +5131,6 @@ html.lp-lock { overflow: hidden; }
                 input('role_code', 'Role code', true, 'type="text" class="form-control mono" maxlength="40" placeholder="e.g. ENGINEERING_CELL" data-uppercase ' + (isEdit ? 'readonly' : 'data-rules="required|code" data-label="Role code"'), v('role_code'),
                     isEdit ? 'Code cannot be changed after creation.' : 'CAPITAL letters, digits and underscore. Cannot be changed later.') +
                 input('sla_days', 'SLA (days to respond)', true, 'type="number" class="form-control" min="1" max="365" data-rules="required|integer|between:1,365" data-label="SLA days"', v('sla_days', 5)) +
-                input('sort_order', 'Display order', true, 'type="number" class="form-control" min="0" max="999" data-rules="required|integer|between:0,999" data-label="Display order"', v('sort_order', DB.count('roles') + 1)) +
                 input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="What does this section verify?" data-rules="max:255|text" data-label="Description"', v('description')) +
                 '<div class="form-group"><label class="check"><input type="checkbox" name="is_mandatory" value="1"' + (!isEdit || role.is_mandatory ? ' checked' : '') + '>' +
                 '<span><strong>Mandatory</strong><br><small class="text-muted">Every scheme must map at least one user of this role.</small></span></label></div>' +
@@ -5152,7 +5151,7 @@ html.lp-lock { overflow: hidden; }
         const old = id ? Object.assign({}, DB.find('roles', id)) : null;
         const data = {
             role_name: d.role_name.trim(), role_name_hi: (d.role_name_hi || '').trim() || null, description: (d.description || '').trim() || null,
-            sla_days: Number(d.sla_days), sort_order: Number(d.sort_order), is_mandatory: d.is_mandatory === '1' ? 1 : 0, is_active: d.is_active === '1' ? 1 : 0
+            sla_days: Number(d.sla_days), sort_order: id ? old.sort_order : (DB.count('roles') + 1), is_mandatory: d.is_mandatory === '1' ? 1 : 0, is_active: d.is_active === '1' ? 1 : 0
         };
         if (DB.valueExists('roles', 'role_name', data.role_name, id)) { return P.fail(form, 'role_name', 'A role with this name already exists.'); }
         if (!id) {
@@ -6435,15 +6434,13 @@ html.lp-lock { overflow: hidden; }
         areas: {
             table: 'master_areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: 'fa-map-location-dot', entity: 'AREA',
             sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
-            name: function (r) { return r.area_name; }, sort: 'order',
+            name: function (r) { return r.area_name; }, sort: 'name',
             fields: [
                 { name: 'area_code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.' },
                 { name: 'area_name', label: 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota' },
-                { name: 'description', label: 'Description', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('master_areas') + 1; } }
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.area_code; }, function (r) { return '<span class="mono">' + e(r.area_code) + '</span>'; }],
                 ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -6454,15 +6451,13 @@ html.lp-lock { overflow: hidden; }
         'plot-types': {
             table: 'master_plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
-            name: function (r) { return r.name; }, sort: 'order',
+            name: function (r) { return r.name; }, sort: 'name',
             fields: [
                 { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. GODOWN', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Godown' },
-                { name: 'description', label: 'Description', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('master_plot_types') + 1; } }
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>'; }],
                 ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -6479,11 +6474,9 @@ html.lp-lock { overflow: hidden; }
                 { name: 'name', label: 'Display name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. On Hold' },
                 { name: 'color', label: 'Badge colour', type: 'select', rules: 'required', options: function () { return COLOR_OPTS; }, def: function () { return 'info'; }, preview: true },
                 { name: 'icon', label: 'Icon', type: 'select', rules: 'required', options: function () { return ICON_OPTS; }, def: function () { return 'fa-flag'; }, preview: true },
-                { name: 'description', label: 'Meaning', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('master_statuses') + 1; } }
+                { name: 'description', label: 'Meaning', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' system</span>' : '<span class="cell-sub">custom</span>'); }],
                 ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.code); }],
                 ['desc', 'Meaning', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -6636,6 +6629,7 @@ html.lp-lock { overflow: hidden; }
             DB.audit(m.entity, id, 'UPDATED', pick(old, Object.keys(data)), data);
             P.flash('success', m.one + ' "' + m.name(DB.find(m.table, id)) + '" updated successfully.');
         } else {
+            if (data.sort_order === undefined) { data.sort_order = DB.count(m.table) + 1; }
             const r = DB.insert(m.table, Object.assign(data, { created_by: Auth.id(), is_system: 0 }));
             DB.audit(m.entity, r[m.pk], 'CREATED', null, data);
             P.flash('success', m.one + ' "' + m.name(r) + '" created successfully.');
@@ -6709,11 +6703,11 @@ html.lp-lock { overflow: hidden; }
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or area…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'name', 'Sector') +
-                P.th_sort(p, 'order', 'Order') + P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
+                P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
                     return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.area && r.area !== '—' ? ' · ' + e(r.area) : '') + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
-                        '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
+                        '<td data-label="Sector">' + e(r.sector_name) + '</td>
                         '<td data-label="Properties"><a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
                         '<a href="#' + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' +
@@ -6723,7 +6717,7 @@ html.lp-lock { overflow: hidden; }
                         (!r.props ? '<form method="post" data-action="sector-delete" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
                             '<input type="hidden" name="id" value="' + r.sector_id + '"><button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
-                }).join('') : P.empty_state(6, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
+                }).join('') : P.empty_state(5, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     });
     function sectorForm(row, ctx) {
@@ -6747,8 +6741,7 @@ html.lp-lock { overflow: hidden; }
                 (isEdit ? '<input type="text" id="sector_name" name="sector_name" class="form-control" maxlength="80" value="' + e(row.sector_name) + '" data-rules="required|max:80|text" data-label="Sector name">'
                     : '<input type="text" id="sector_name" name="sector_name" class="form-control" maxlength="400" placeholder="e.g. Sector-5, Sector-6, Block-C" data-rules="required|max:400|text" data-label="Sector name(s)">' +
                     '<div class="form-hint">Separate several sectors with commas.</div>') + '<div class="invalid-feedback"></div></div>' +
-                (isEdit ? '<div class="form-group"><label class="form-label" for="sort_order">Display order <span class="required">*</span></label><input type="number" id="sort_order" name="sort_order" class="form-control" value="' + row.sort_order + '" data-rules="required|integer|between:0,999" data-label="Display order"><div class="invalid-feedback"></div></div>' +
-                    '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (row.is_active ? ' checked' : '') + '><span><strong>Active</strong><br><small class="text-muted">Inactive sectors cannot receive new properties.</small></span></label></div>' : '') +
+                (isEdit ? '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (row.is_active ? ' checked' : '') + '><span><strong>Active</strong><br><small class="text-muted">Inactive sectors cannot receive new properties.</small></span></label></div>' : '') +
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Sector' : 'Add Sector(s)') + '</span></button>' +
                 '<a href="#' + BASE + '/sectors" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };
@@ -6771,8 +6764,8 @@ html.lp-lock { overflow: hidden; }
             }
             const active = d.is_active === '1' ? 1 : 0;
             if (!active && lastActiveSector(r)) { return P.fail(form, null, 'This is the last active sector of the scheme. A scheme needs at least one active sector.'); }
-            DB.update('scheme_sectors', id, { sector_name: name, sort_order: Number(d.sort_order), is_active: active, updated_by: Auth.id() });
-            DB.audit('SECTOR', id, 'UPDATED', { sector_name: r.sector_name, sort_order: r.sort_order, is_active: r.is_active }, { sector_name: name, sort_order: Number(d.sort_order), is_active: active });
+            DB.update('scheme_sectors', id, { sector_name: name, is_active: active, updated_by: Auth.id() });
+            DB.audit('SECTOR', id, 'UPDATED', { sector_name: r.sector_name, is_active: r.is_active }, { sector_name: name, is_active: active });
             P.flash('success', 'Sector "' + name + '" updated.');
         } else {
             const sid = Number(d.scheme_id);

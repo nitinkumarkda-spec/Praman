@@ -162,36 +162,8 @@ final class Seeder
         ] as $i => $a) {
             Area::insert(['area_code' => $a[0], 'area_name' => $a[1], 'name_hi' => $a[2], 'description' => $a[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
         }
-        foreach ([
-            ['RESIDENTIAL', 'Residential', 'आवासीय', 'Residential plot / property'],
-            ['COMMERCIAL', 'Commercial', 'व्यावसायिक', 'Commercial plot / shop / office'],
-            ['INSTITUTIONAL', 'Institutional', 'संस्थागत', 'Institutional land / premises'],
-            ['GROUP_HOUSING', 'Group Housing', 'ग्रुप हाउसिंग', 'Group housing plot'],
-            ['MOTEL', 'Motel', 'मोटल', 'Motel plot / building'],
-            ['HOTEL', 'Hotel', 'होटल', 'Hotel plot / building'],
-            ['PETROL_PUMP', 'Petrol Pump', 'पेट्रोल पंप', 'Petrol pump site'],
-            ['RESORT', 'Resort', 'रिसॉर्ट', 'Resort plot / property'],
-            ['JVVNL', 'JVVNL', 'जेवीवीएनएल', 'JVVNL utility site / office'],
-            ['ELECTRICAL_SUBSTATION', 'Electrical Substation', 'विद्युत सबस्टेशन', 'Electrical substation (GSS / Substation)'],
-            ['INDUSTRIAL', 'Industrial', 'औद्योगिक', 'Industrial plot / shed'],
-            ['FLATTED', 'Flatted', 'फ्लैटेड', 'Flatted factory / units'],
-            ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse plot / land'],
-            ['MIX_USE', 'Mix Use', 'मिश्रित उपयोग', 'Mixed use commercial / residential'],
-            ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth site'],
-            ['PARK', 'Park', 'पार्क', 'Park / green area'],
-            ['FACILITY_AREA', 'Facility Area', 'सुविधा क्षेत्र', 'Public utility / facility area'],
-            ['PLAY_GROUND', 'Play Ground', 'खेल मैदान', 'Play ground / sports area'],
-            ['MARRIAGE_GARDEN', 'Marriage Garden', 'मैरिज गार्डन', 'Marriage garden / party lawn'],
-            ['WAREHOUSE', 'Ware House', 'वेयरहाउस', 'Warehouse / godown'],
-            ['AGRI_WAREHOUSE', 'Agriculture Ware House', 'कृषि वेयरहाउस', 'Agricultural produce warehouse'],
-            ['CNG_PUMP', 'CNG Pump', 'सीएनजी पंप', 'CNG gas dispensing station'],
-            ['ECO_FRIENDLY_HOUSE', 'Eco Friendly House', 'इको फ्रेंडली हाउस', 'Eco-friendly housing unit'],
-            ['INSTITUTION', 'Institution', 'संस्थान', 'Educational / public institution'],
-            ['ROAD', 'Road', 'सड़क', 'Road / right of way area'],
-            ['HT_LINE', 'HT Line', 'एचटी लाइन', 'High tension power line corridor'],
-            ['GAS_LINE', 'Gas Line', 'गैस लाइन', 'Gas pipeline corridor'],
-            ['PETROLEUM_LINE', 'Petroleum Line', 'पेट्रोलियम लाइन', 'Petroleum pipeline corridor'],
-        ] as $i => $t) {
+        foreach ([['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
+                     ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property']] as $i => $t) {
             PlotType::insert(['code' => $t[0], 'name' => $t[1], 'name_hi' => $t[2], 'description' => $t[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
         }
         foreach ([['LISTED', 'Listed', 'info', 'fa-list', 'Registered, not yet sent for verification'],
@@ -236,10 +208,10 @@ final class Seeder
 
         // ---- properties (10-6 days ago) ----
         $props = [
-            [1, 1, '101', 'RESIDENTIAL', 150, 'SQM'], [1, 1, '102', 'RESIDENTIAL', 180, 'SQM'], [1, 2, '205-A', 'RESIDENTIAL', 2400, 'SQFT'],
-            [1, 3, '310', 'FLATTED', 95.5, 'SQM'], [2, 5, 'SH-12', 'COMMERCIAL', 320, 'SQFT'], [2, 6, 'K-04', 'KIOSK', 12, 'SQM'],
-            [3, 7, 'IND-21', 'INDUSTRIAL', 1000, 'SQM'], [3, 8, 'IND-45', 'INDUSTRIAL', 1500, 'SQM'], [1, 4, '412', 'RESIDENTIAL', 200, 'SQM'],
-            [2, 5, 'SH-15', 'COMMERCIAL', 280, 'SQFT'],
+            [1, 1, '101', 'PLOT', 150, 'SQM'], [1, 1, '102', 'PLOT', 180, 'SQM'], [1, 2, '205-A', 'PLOT', 2400, 'SQFT'],
+            [1, 3, '310', 'FLAT', 95.5, 'SQM'], [2, 5, 'SH-12', 'SHOP', 320, 'SQFT'], [2, 6, 'K-04', 'KIOSK', 12, 'SQM'],
+            [3, 7, 'IND-21', 'PLOT', 1000, 'SQM'], [3, 8, 'IND-45', 'PLOT', 1500, 'SQM'], [1, 4, '412', 'PLOT', 200, 'SQM'],
+            [2, 5, 'SH-15', 'SHOP', 280, 'SQFT'],
         ];
         self::loginAt(2, 10 * self::DAY + 20, 0);
         foreach ($props as $i => $x) {

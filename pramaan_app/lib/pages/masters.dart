@@ -99,11 +99,9 @@ final Map<String, MasterDef> kMasters = {
       const MField('area_name', 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota'),
       const MField('name_hi', 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. उत्तर कोटा'),
       const MField('description', 'Description', rules: 'max:150|text'),
-      MField('sort_order', 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: () => P.db.count('master_areas') + 1),
-    ],
+          ],
     columns: [
-      MColumn('order', '#', (r) => toNum(r['sort_order']), (r) => val(r['sort_order'])),
-      MColumn('code', 'Code', (r) => r['area_code'], (r) => val(r['area_code'], mono: true)),
+            MColumn('code', 'Code', (r) => r['area_code'], (r) => val(r['area_code'], mono: true)),
       MColumn('name', 'Area name', (r) => r['area_name'], (r) => _sub(r['area_name'], r['name_hi'])),
       MColumn('desc', 'Description', (r) => r['description'], (r) => val(r['description'])),
     ],
@@ -122,11 +120,9 @@ final Map<String, MasterDef> kMasters = {
       const MField('name', 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Godown'),
       const MField('name_hi', 'Name (Hindi)', rules: 'max:60|text'),
       const MField('description', 'Description', rules: 'max:150|text'),
-      MField('sort_order', 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: () => P.db.count('master_plot_types') + 1),
-    ],
+          ],
     columns: [
-      MColumn('order', '#', (r) => toNum(r['sort_order']), (r) => val(r['sort_order'])),
-      MColumn('code', 'Code', (r) => r['code'], (r) => val(r['code'], mono: true)),
+            MColumn('code', 'Code', (r) => r['code'], (r) => val(r['code'], mono: true)),
       MColumn('name', 'Plot type', (r) => r['name'], (r) => _sub(r['name'], r['name_hi'])),
       MColumn('desc', 'Description', (r) => r['description'], (r) => val(r['description'])),
     ],
@@ -144,11 +140,9 @@ final Map<String, MasterDef> kMasters = {
       MField('color', 'Badge colour', type: 'select', rules: 'required', options: (_) => kColorOpts, def: () => 'info', preview: true),
       MField('icon', 'Icon', type: 'select', rules: 'required', options: (_) => kIconOpts, def: () => 'fa-flag', preview: true),
       const MField('description', 'Meaning', rules: 'max:150|text'),
-      MField('sort_order', 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: () => P.db.count('master_statuses') + 1),
-    ],
+          ],
     columns: [
-      MColumn('order', '#', (r) => toNum(r['sort_order']), (r) => val(r['sort_order'])),
-      MColumn('code', 'Code', (r) => r['code'], (r) => cellSub(r['code'], truthy(r['is_system']) ? 'system' : 'custom', mono: true)),
+            MColumn('code', 'Code', (r) => r['code'], (r) => cellSub(r['code'], truthy(r['is_system']) ? 'system' : 'custom', mono: true)),
       MColumn('name', 'Badge', (r) => r['name'], (r) => Align(alignment: Alignment.centerLeft, child: statusPill(r['code']))),
       MColumn('desc', 'Meaning', (r) => r['description'], (r) => val(r['description'])),
     ],
@@ -533,7 +527,7 @@ class SectorListPage extends StatelessWidget {
           p: p,
           placeholder: 'Search sector, scheme or area…',
           filters: [FilterDef('scheme_id', 'Scheme', schemeOptions(), 'All schemes'), const FilterDef('status', 'Status', kActiveOpts, 'All status')],
-          sorts: const [('scheme', 'Scheme'), ('name', 'Sector'), ('order', 'Order'), ('props', 'Properties')],
+          sorts: const [('scheme', 'Scheme'), ('name', 'Sector'), ('props', 'Properties')],
         ),
         rows: [
           for (final r in p.items)
@@ -542,8 +536,7 @@ class SectorListPage extends StatelessWidget {
               subtitle: Text('${r['scheme_name']} · ${r['scheme_code']}${r['area'] != null && r['area'] != '—' ? ' · ${r['area']}' : ''}${truthy(r['scheme_active']) ? '' : ' · scheme inactive'}', style: T.small),
               trailing: activePill(r['is_active']),
               fields: [
-                ('Order', val(r['sort_order'])),
-                ('Properties', Align(alignment: Alignment.centerLeft, child: Pill('${r['props']}', tone: (toInt(r['props']) ?? 0) > 0 ? Tone.info : Tone.muted))),
+                                ('Properties', Align(alignment: Alignment.centerLeft, child: Pill('${r['props']}', tone: (toInt(r['props']) ?? 0) > 0 ? Tone.info : Tone.muted))),
               ],
               actions: [
                 IconBtn(FA.pen, tooltip: 'Edit sector', onPressed: () => P.go('$kMastersBase/sectors/${r['sector_id']}/edit')),
@@ -650,9 +643,8 @@ class _SectorFormPageState extends State<SectorFormPage> {
           _f.fail(null, 'This is the last active sector of the scheme. A scheme needs at least one active sector.');
           return;
         }
-        final order = int.parse(_f.trimmed('sort_order'));
-        db.update('scheme_sectors', id, {'sector_name': name, 'sort_order': order, 'is_active': active, 'updated_by': P.uid});
-        db.audit('SECTOR', id, 'UPDATED', {'sector_name': row['sector_name'], 'sort_order': row['sort_order'], 'is_active': row['is_active']}, {'sector_name': name, 'sort_order': order, 'is_active': active});
+                db.update('scheme_sectors', id, {'sector_name': name, 'is_active': active, 'updated_by': P.uid});
+        db.audit('SECTOR', id, 'UPDATED', {'sector_name': row['sector_name'], 'is_active': row['is_active']}, {'sector_name': name, 'is_active': active});
         P.flash('success', 'Sector "$name" updated.');
       } else {
         final sid = toInt(_f.value('scheme_id'))!;
@@ -716,8 +708,7 @@ class _SectorFormPageState extends State<SectorFormPage> {
               FSelect(form: _f, name: 'scheme_id', label: 'Scheme', options: schemeOptions(markInactive: true), rules: 'required', placeholder: 'Select scheme'),
             if (isEdit) ...[
               FText(form: _f, name: 'sector_name', label: 'Sector name', rules: 'required|max:80|text', maxLength: 80),
-              FText(form: _f, name: 'sort_order', label: 'Display order', rules: 'required|integer|between:0,999', keyboard: TextInputType.number, maxLength: 3),
-              FCheck(form: _f, name: 'is_active', title: 'Active', subtitle: 'Inactive sectors cannot receive new properties.'),
+                            FCheck(form: _f, name: 'is_active', title: 'Active', subtitle: 'Inactive sectors cannot receive new properties.'),
             ] else
               FText(form: _f, name: 'sector_name', label: 'Sector name(s)', rules: 'required|max:400|text', placeholder: 'e.g. Sector-5, Sector-6, Block-C', maxLength: 400, hint: 'Separate several sectors with commas.'),
             const SizedBox(height: 8),

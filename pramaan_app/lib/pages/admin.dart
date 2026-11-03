@@ -52,7 +52,7 @@ class RoleListPage extends StatelessWidget {
           p: p,
           placeholder: 'Search role name or code…',
           filters: const [FilterDef('status', 'Status', kActiveOpts, 'All status')],
-          sorts: const [('order', '#'), ('name', 'Role / Section'), ('code', 'Code'), ('sla', 'SLA (days)'), ('users', 'Users')],
+          sorts: const [('name', 'Role / Section'), ('code', 'Code'), ('sla', 'SLA (days)'), ('users', 'Users')],
         ),
         rows: [
           for (final r in p.items)
@@ -60,8 +60,7 @@ class RoleListPage extends StatelessWidget {
               title: cellSub(r['role_name'], r['role_name_hi'], strong: true),
               trailing: activePill(r['is_active']),
               fields: [
-                ('Order', val(r['sort_order'])),
-                ('Code', val(r['role_code'], mono: true)),
+                                ('Code', val(r['role_code'], mono: true)),
                 ('SLA (days)', val(r['sla_days'])),
                 ('Mandatory', truthy(r['is_mandatory']) ? const Pill('Mandatory', tone: Tone.gold, icon: FA.star) : const Pill('Optional')),
                 (
@@ -147,7 +146,7 @@ class _RoleFormPageState extends State<RoleFormPage> {
         'role_name_hi': _f.trimmed('role_name_hi').isEmpty ? null : _f.trimmed('role_name_hi'),
         'description': _f.trimmed('description').isEmpty ? null : _f.trimmed('description'),
         'sla_days': int.parse(_f.trimmed('sla_days')),
-        'sort_order': int.parse(_f.trimmed('sort_order')),
+        'sort_order': id != null ? (old?['sort_order'] ?? 0) : P.db.count('roles') + 1,
         'is_mandatory': _f.isOn('is_mandatory') ? 1 : 0,
         'is_active': _f.isOn('is_active') ? 1 : 0,
       };
@@ -205,8 +204,7 @@ class _RoleFormPageState extends State<RoleFormPage> {
             ),
             FText(form: _f, name: 'role_name_hi', label: 'Role name (Hindi)', rules: 'max:100|text', placeholder: 'e.g. अभियांत्रिकी शाखा', maxLength: 100),
             FText(form: _f, name: 'sla_days', label: 'SLA (days to respond)', rules: 'required|integer|between:1,365', keyboard: TextInputType.number, maxLength: 3),
-            FText(form: _f, name: 'sort_order', label: 'Display order', rules: 'required|integer|between:0,999', keyboard: TextInputType.number, maxLength: 3),
-            FText(form: _f, name: 'description', label: 'Description', rules: 'max:255|text', placeholder: 'What does this section verify?', maxLength: 255),
+                        FText(form: _f, name: 'description', label: 'Description', rules: 'max:255|text', placeholder: 'What does this section verify?', maxLength: 255),
             FCheck(form: _f, name: 'is_mandatory', title: 'Mandatory', subtitle: 'Every scheme must map at least one user of this role.'),
             FCheck(form: _f, name: 'is_active', title: 'Active', subtitle: 'Inactive roles are skipped for new schemes and rounds.'),
             const SizedBox(height: 8),

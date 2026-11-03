@@ -22,7 +22,6 @@ final class RoleController extends Controller
         $rules = [
             'role_name'    => ['Role name', 'required|min:3|max:100|name'],
             'sla_days'     => ['SLA days', 'required|integer|between:1,365'],
-            'sort_order'   => ['Display order', 'required|integer|between:0,999'],
             'description'  => ['Description', 'max:255|text'],
         ];
         if (!$id) {
@@ -31,9 +30,13 @@ final class RoleController extends Controller
         }
         $d = $this->validate($rules);
         $data = [
-            'role_name' => $d['role_name'], 'role_name_hi' => $this->request->str('role_name_hi') ?: null, 'description' => $d['description'] ?: null,
-            'sla_days' => (int) $d['sla_days'], 'sort_order' => (int) $d['sort_order'],
-            'is_mandatory' => $this->request->input('is_mandatory') === '1' ? 1 : 0, 'is_active' => $this->request->input('is_active') === '1' ? 1 : 0,
+            'role_name' => $d['role_name'],
+            'role_name_hi' => $this->request->str('role_name_hi') ?: null,
+            'description' => $d['description'] ?: null,
+            'sla_days' => (int) $d['sla_days'],
+            'sort_order' => $id ? ($old['sort_order'] ?? 0) : (((int) Role::max('sort_order')) + 1),
+            'is_mandatory' => $this->request->input('is_mandatory') === '1' ? 1 : 0,
+            'is_active' => $this->request->input('is_active') === '1' ? 1 : 0,
         ];
         if (Role::valueExists('role_name', $data['role_name'], $id)) {
             $this->fail('A role with this name already exists.', 'role_name');

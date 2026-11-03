@@ -56,7 +56,6 @@ final class MasterController extends Controller
     private function masters(): array
     {
         $code = static fn ($label = 'Code') => [$label, 'required|code', true, true, true, false];
-        $order = ['Display order', 'required|integer|between:0,999', false, false, false, true];
         $text = static fn ($label, $max, $req = false, $unique = false) => [$label, ($req ? 'required|min:2|' : '') . 'max:' . $max . '|text', $unique, false, false, false];
         $lastSector = static fn ($r) => $r['is_active'] && Sector::count(['scheme_id' => $r['scheme_id'], 'is_active' => 1]) <= 1
             ? 'This is the last active sector of the scheme. A scheme needs at least one active sector.' : null;
@@ -65,7 +64,7 @@ final class MasterController extends Controller
             'areas' => [
                 'model' => Area::class, 'entity' => 'AREA', 'one' => 'Area', 'name' => static fn ($r) => $r['area_name'],
                 'fields' => ['area_code' => $code(), 'area_name' => $text('Area name', 60, true, true),
-                    'description' => $text('Description', 150), 'sort_order' => $order],
+                    'description' => $text('Description', 150)],
                 'usage' => static fn ($r) => Scheme::count(['area_id' => $r['area_id']]),
                 'block' => static function ($r) {
                     $n = Scheme::count(['area_id' => $r['area_id'], 'is_active' => 1]);
@@ -75,7 +74,7 @@ final class MasterController extends Controller
             'plot-types' => [
                 'model' => PlotType::class, 'entity' => 'PLOT_TYPE', 'one' => 'Plot type', 'name' => static fn ($r) => $r['name'],
                 'fields' => ['code' => $code(), 'name' => $text('Name', 60, true, true),
-                    'description' => $text('Description', 150), 'sort_order' => $order],
+                    'description' => $text('Description', 150)],
                 'usage' => static fn ($r) => Property::count(['property_type' => $r['code']]),
                 'block' => static fn ($r) => PlotType::count(['is_active' => 1]) <= 1 ? 'At least one plot type must remain active.' : null,
             ],
@@ -84,7 +83,7 @@ final class MasterController extends Controller
                 'fields' => ['code' => $code(), 'name' => $text('Unit name', 40, true, true),
                     'symbol' => ['Symbol', 'required|max:15|text', true, false, false, false],
                     'to_sqm' => ['1 unit = sq m', 'required|decimal:8|positive', false, false, false, 'float'],
-                    'description' => $text('Description', 150), 'sort_order' => $order],
+                    'description' => $text('Description', 150)],
                 'usage' => static fn ($r) => Property::count(['area_unit' => $r['code']]) + SiteInspection::count(['area_unit' => $r['code']]),
                 'block' => static fn ($r) => $r['is_system'] ? 'The base unit (sq m) cannot be deactivated.' : null,
                 // stored areas were converted with the old factor
@@ -97,13 +96,13 @@ final class MasterController extends Controller
                 'fields' => ['code' => $code('Status code'), 'name' => $text('Display name', 40, true, true),
                     'color' => ['Badge colour', 'required|in:' . Lookups::keys(Lookups::STATUS_COLORS), false, false, false, false],
                     'icon' => ['Icon', 'required|in:' . Lookups::keys(Lookups::STATUS_ICONS), false, false, false, false],
-                    'description' => $text('Meaning', 150), 'sort_order' => $order],
+                    'description' => $text('Meaning', 150)],
                 'usage' => static fn ($r) => Property::count(['current_status' => $r['code']]),
                 'block' => static fn ($r) => $r['is_system'] ? 'System statuses cannot be deactivated.' : null,
             ],
             'sectors' => [
                 'model' => Sector::class, 'entity' => 'SECTOR', 'one' => 'Sector', 'name' => static fn ($r) => $r['sector_name'], 'scope' => 'scheme_id',
-                'fields' => ['sector_name' => ['Sector name', 'required|max:80|text', true, false, false, false], 'sort_order' => $order],
+                'fields' => ['sector_name' => ['Sector name', 'required|max:80|text', true, false, false, false]],
                 'create' => ['scheme_id' => ['Scheme', 'required|integer', false, false, false, true],
                     'sector_name' => ['Sector name(s)', 'required|max:400|text', true, false, false, false]],
                 'split' => 'sector_name',

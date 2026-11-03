@@ -37,7 +37,7 @@
         if (st === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'order', dir: 'asc', filters: ['status'],
-            search: function (r) { return [r.role_name, r.role_code]; },
+            search: function (r) { return [r.role_name, r.role_code, r.role_name_hi]; },
             sortable: {
                 order: function (r) { return r.sort_order; }, name: function (r) { return r.role_name; }, code: function (r) { return r.role_code; },
                 sla: function (r) { return r.sla_days; }, users: function (r) { return r.active_users; }
@@ -51,11 +51,11 @@
                 Auth.can('role.create') ? '<a href="' + P.BASE + '/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>' : '') +
                 '<div class="card">' + P.list_toolbar(p, 'Search role name or code…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'order', '#') + P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
+                P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
                 '<th>Mandatory</th>' + P.th_sort(p, 'users', 'Users') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Order">' + r.sort_order + '</td><td data-label="Role"><strong>' + e(r.role_name) + '</strong></td>' +
+                    return '<tr><td data-label="Role"><strong>' + e(r.role_name) + '</strong></td>' +
                         '<td data-label="Code"><span class="mono">' + e(r.role_code) + '</span></td><td data-label="SLA">' + r.sla_days + '</td>' +
                         '<td data-label="Mandatory">' + (r.is_mandatory ? '<span class="badge badge-gold">' + icon('fa-star') + ' Mandatory</span>' : '<span class="badge badge-muted">Optional</span>') + '</td>' +
                         '<td data-label="Users"><a href="' + P.url('/admin/users', { role_id: r.role_id }) + '">' + r.active_users + ' active</a><span class="cell-sub">' + r.users_count + ' total</span></td>' +
@@ -66,7 +66,7 @@
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') +
                         '</form>' : '') + '</div></td></tr>';
-                }).join('') : P.empty_state(8, p.hasFilters(), 'No roles yet')) +
+                }).join('') : P.empty_state(7, p.hasFilters(), 'No roles yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'role.view');
@@ -91,7 +91,6 @@
                 input('role_code', 'Role code', true, 'type="text" class="form-control mono" maxlength="40" placeholder="e.g. ENGINEERING_CELL" data-uppercase ' + (isEdit ? 'readonly' : 'data-rules="required|code" data-label="Role code"'), v('role_code'),
                     isEdit ? 'Code cannot be changed after creation.' : 'CAPITAL letters, digits and underscore. Cannot be changed later.') +
                 input('sla_days', 'SLA (days to respond)', true, 'type="number" class="form-control" min="1" max="365" data-rules="required|integer|between:1,365" data-label="SLA days"', v('sla_days', 5)) +
-                input('sort_order', 'Display order', true, 'type="number" class="form-control" min="0" max="999" data-rules="required|integer|between:0,999" data-label="Display order"', v('sort_order', DB.count('roles') + 1)) +
                 input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="What does this section verify?" data-rules="max:255|text" data-label="Description"', v('description')) +
                 '<div class="form-group"><label class="check"><input type="checkbox" name="is_mandatory" value="1"' + (!isEdit || role.is_mandatory ? ' checked' : '') + '>' +
                 '<span><strong>Mandatory</strong><br><small class="text-muted">Every scheme must map at least one user of this role.</small></span></label></div>' +

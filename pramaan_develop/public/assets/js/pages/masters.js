@@ -21,15 +21,13 @@
         areas: {
             table: 'areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: 'fa-map-location-dot', entity: 'AREA',
             sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
-            name: function (r) { return r.area_name; }, sort: 'order',
+            name: function (r) { return r.area_name; }, sort: 'name',
             fields: [
                 { name: 'area_code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.' },
                 { name: 'area_name', label: 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota' },
-                { name: 'description', label: 'Description', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('areas') + 1; } }
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.area_code; }, function (r) { return '<span class="mono">' + e(r.area_code) + '</span>'; }],
                 ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -40,15 +38,13 @@
         'plot-types': {
             table: 'plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
-            name: function (r) { return r.name; }, sort: 'order',
+            name: function (r) { return r.name; }, sort: 'name',
             fields: [
                 { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. GODOWN', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Godown' },
-                { name: 'description', label: 'Description', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('plot_types') + 1; } }
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>'; }],
                 ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -59,18 +55,16 @@
         units: {
             table: 'units', pk: 'unit_id', title: 'Unit Master', one: 'Unit', icon: 'fa-ruler-combined', entity: 'UNIT',
             sub: 'Area units used across the project (property entry, site inspection, reports). Every area is also stored in sq m using the factor below.',
-            name: function (r) { return r.name; }, sort: 'order',
+            name: function (r) { return r.name; }, sort: 'name',
             fields: [
                 { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. SQYD', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Unit name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. Square Yard' },
                 { name: 'symbol', label: 'Symbol', rules: 'required|max:15|text', unique: true, placeholder: 'e.g. sq yd', hint: 'Short label shown next to every area.' },
                 { name: 'to_sqm', label: '1 unit = sq m', rules: 'required|decimal:8|positive', placeholder: 'e.g. 0.83612736', inputmode: 'decimal',
                     hint: 'How many square metres make one unit. Cannot change once properties use the unit.', lockIf: function (r) { return !!r.is_system; } },
-                { name: 'description', label: 'Description', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('units') + 1; } }
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' base unit</span>' : ''); }],
                 ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>'; }],
                 ['factor', '1 unit =', function (r) { return Number(r.to_sqm); }, function (r) { return '<span class="mono">' + e(String(Number(r.to_sqm))) + '</span> sq m'; }],
@@ -84,17 +78,15 @@
         statuses: {
             table: 'statuses', pk: 'status_id', title: 'Status Master', one: 'Property status', icon: 'fa-flag', entity: 'STATUS',
             sub: 'Property status names, colours and icons. System statuses drive the verification workflow — their code cannot change and they cannot be removed.',
-            name: function (r) { return r.name; }, sort: 'order',
+            name: function (r) { return r.name; }, sort: 'name',
             fields: [
                 { name: 'code', label: 'Status code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. ON_HOLD', hint: 'CAPITAL letters, digits, underscore. Cannot be changed later.' },
                 { name: 'name', label: 'Display name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. On Hold' },
                 { name: 'color', label: 'Badge colour', type: 'select', rules: 'required', options: COLOR_OPTS, def: function () { return 'info'; }, preview: true },
                 { name: 'icon', label: 'Icon', type: 'select', rules: 'required', options: ICON_OPTS, def: function () { return 'fa-flag'; }, preview: true },
-                { name: 'description', label: 'Meaning', rules: 'max:150|text' },
-                { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('statuses') + 1; } }
+                { name: 'description', label: 'Meaning', rules: 'max:150|text' }
             ],
             columns: [
-                ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' system</span>' : '<span class="cell-sub">custom</span>'); }],
                 ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.code); }],
                 ['desc', 'Meaning', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
@@ -240,8 +232,7 @@
         const p = P.paginate(rows, ctx, {
             sort: 'scheme', dir: 'asc', filters: ['scheme_id', 'status'],
             search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code, r.area]; },
-            sortable: { scheme: function (r) { return r.scheme_name + ' ' + String(r.sort_order).padStart(3, '0'); }, name: function (r) { return r.sector_name; },
-                order: function (r) { return r.sort_order; }, props: function (r) { return r.props; } }
+            sortable: { scheme: function (r) { return r.scheme_name; }, name: function (r) { return r.sector_name; }, props: function (r) { return r.props; } }
         });
         const schemes = {};
         DB.all('schemes').sort(P.by(function (s) { return s.scheme_name; })).forEach(function (s) { schemes[s.scheme_id] = s.scheme_name + ' (' + s.scheme_code + ')'; });
@@ -256,11 +247,11 @@
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or area…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'name', 'Sector') +
-                P.th_sort(p, 'order', 'Order') + P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
+                P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
                     return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.area && r.area !== '—' ? ' · ' + e(r.area) : '') + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
-                        '<td data-label="Sector">' + e(r.sector_name) + '</td><td data-label="Order">' + r.sort_order + '</td>' +
+                        '<td data-label="Sector">' + e(r.sector_name) + '</td>' +
                         '<td data-label="Properties">' + (Auth.can('master.edit') ? '<a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a>'
                             : '<span class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</span>') + '</td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
@@ -271,7 +262,7 @@
                         (!r.props && Auth.can('master.delete') ? '<form method="post" data-action="master" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
                             '<input type="hidden" name="key" value="sectors"><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="' + r.sector_id + '"><button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
-                }).join('') : P.empty_state(6, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
+                }).join('') : P.empty_state(5, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'master.view');
     function sectorForm(row, ctx) {
@@ -295,8 +286,7 @@
                 (isEdit ? '<input type="text" id="sector_name" name="sector_name" class="form-control" maxlength="80" value="' + e(row.sector_name) + '" data-rules="required|max:80|text" data-label="Sector name">'
                     : '<input type="text" id="sector_name" name="sector_name" class="form-control" maxlength="400" placeholder="e.g. Sector-5, Sector-6, Block-C" data-rules="required|max:400|text" data-label="Sector name(s)">' +
                     '<div class="form-hint">Separate several sectors with commas.</div>') + '<div class="invalid-feedback"></div></div>' +
-                (isEdit ? '<div class="form-group"><label class="form-label" for="sort_order">Display order <span class="required">*</span></label><input type="number" id="sort_order" name="sort_order" class="form-control" value="' + row.sort_order + '" data-rules="required|integer|between:0,999" data-label="Display order"><div class="invalid-feedback"></div></div>' +
-                    '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (row.is_active ? ' checked' : '') + '><span><strong>Active</strong><br><small class="text-muted">Inactive sectors cannot receive new properties.</small></span></label></div>' : '') +
+                (isEdit ? '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (row.is_active ? ' checked' : '') + '><span><strong>Active</strong><br><small class="text-muted">Inactive sectors cannot receive new properties.</small></span></label></div>' : '') +
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Sector' : 'Add Sector(s)') + '</span></button>' +
                 '<a href="' + P.BASE + BASE + '/sectors" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };

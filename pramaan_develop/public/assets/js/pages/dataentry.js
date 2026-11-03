@@ -56,8 +56,8 @@
                         '<td data-label="Role mapping">' + s.mapped_roles + ' roles<span class="cell-sub">' + s.mapped_users + ' users</span></td>' +
                         '<td data-label="Properties">' + s.property_count + '</td><td data-label="Status">' + P.active_badge(s.is_active) + '</td>' +
                         '<td class="actions"><div class="btn-group">' + (Auth.can('scheme.edit') ? '<a href="' + P.BASE + base + '/' + s.scheme_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit scheme" aria-label="Edit scheme">' + icon('fa-pen') + '</a>' : '') +
-                        (Auth.can('scheme.toggle') ? '<form method="post" data-action="scheme-toggle" data-confirm="' + e(on ? 'Deactivate scheme "' + s.scheme_name + '"? No new property can be added in it.' : 'Activate scheme "' + s.scheme_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
-                        '<input type="hidden" name="id" value="' + s.scheme_id + '">' +
+                        (Auth.can('scheme.toggle') ? '<form method="post" data-action="master"data-confirm="' + e(on ? 'Deactivate scheme "' + s.scheme_name + '"? No new property can be added in it.' : 'Activate scheme "' + s.scheme_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                        '<input type="hidden" name="key" value="schemes"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' + s.scheme_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' : '') + '</div></td></tr>';
                 }).join('') : P.empty_state(11, p.hasFilters(), 'No schemes yet — create the first one')) +
@@ -65,10 +65,16 @@
         };
     }
 
-    function sectorNewRow(value) {
-        return '<div class="sector-row" data-repeater-item><div class="sector-input">' +
-            '<input type="text" name="sectors_new[]" class="form-control" maxlength="80" value="' + e(value || '') + '" placeholder="Sector name, e.g. Sector-4" aria-label="New sector name" data-rules="max:80|text" data-label="Sector name" data-sector-name data-sector-new></div>' +
-            '<button type="button" class="btn btn-light btn-sm text-danger" data-repeater-remove aria-label="Remove sector">' + icon('fa-trash-can') + ' <span>Remove</span></button></div>';
+    /** Tag input for new sectors: each name becomes a chip (hidden sectors_new[]); typing searches names used in other schemes (js/forms.js). */
+    function sectorTagsHtml(schemeId) {
+        return '<div class="tag-input" data-sector-tags data-scheme-id="' + (schemeId || '') + '">' +
+            '<div class="tag-box" data-tag-box>' + icon('fa-table-cells tag-box-icon') + '<span class="tag-chips" data-tag-chips></span>' +
+            '<input type="text" class="tag-entry" maxlength="80" placeholder="Type a sector name and press Enter — e.g. Sector-4" aria-label="Add sector" ' +
+            'autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" data-sector-entry>' +
+            '<button type="button" class="tag-caret" tabindex="-1" aria-label="Show sectors" data-tag-caret>' + icon('fa-chevron-down') + '</button></div>' +
+            '<ul class="tag-suggest" role="listbox" aria-label="Sector suggestions" hidden data-tag-suggest></ul>' +
+            '<div class="form-hint">Click to pick from the Area’s sectors, or type a new name and press Enter.</div>' +
+            '<div class="invalid-feedback" data-tag-error></div></div>';
     }
     function schemeForm(scheme, base, crumbs) {
         const isEdit = !!scheme;
@@ -79,10 +85,11 @@
 
         let html = (crumbs ? crumbs('Scheme Master', isEdit ? 'Edit' : 'Add') : '') + P.pageHeader(icon('fa-map') + ' ' + (isEdit ? 'Edit Scheme' : 'Create Scheme'),
             isEdit ? 'Changes to sectors and role mapping apply to NEW properties only — existing properties keep their snapshot.'
-                : 'Fill scheme details, add all its sectors, tick "Done" and map a user for every role.',
+                : 'Fill scheme details, add its sectors and map a user for every role.',
             '<a href="' + P.BASE + base + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
-            '<form method="post" data-action="scheme-save" novalidate data-validate data-scheme-form data-confirm="' +
+            '<form method="post" data-action="master" novalidate data-validate data-scheme-form data-confirm="' +
             (isEdit ? 'Save changes to this scheme?' : 'Create this scheme with the sectors and role mapping shown?') + '">' +
+            '<input type="hidden" name="key" value="schemes"><input type="hidden" name="do" value="save">' +
             '<input type="hidden" name="back" value="' + e(base) + '">' + (isEdit ? '<input type="hidden" name="id" value="' + scheme.scheme_id + '">' : '') +
             // 1. details
             '<div class="card"><div class="card-header"><h3 class="card-title"><span class="step-no">1</span> Scheme details</h3></div><div class="card-body"><div class="form-grid">' +
@@ -111,12 +118,8 @@
                 }).join('') + '</div><p class="form-hint mb-3">Deactivated sectors keep their existing properties but cannot be used for new ones.</p>';
         }
         html += '<p class="form-section">' + icon('fa-plus') + ' ' + (isEdit ? 'Add new sectors' : 'Add sectors') + '</p>' +
-            '<div class="sector-list" data-repeater>' + (isEdit ? '' : sectorNewRow('')) + '</div>' +
-            '<template data-repeater-template>' + sectorNewRow('').replace('class="sector-row"', 'class="sector-row anim-fade-up"') + '</template>' +
-            '<button type="button" class="btn btn-outline btn-sm mt-2" data-repeater-add>' + icon('fa-plus') + ' <span>Add another sector</span></button>' +
-            '<div class="form-group done-box mt-3"><label class="check"><input type="checkbox" name="sectors_done" value="1" id="sectors_done" data-rules="required" data-label="the “All sectors added — Done” checkbox">' +
-            '<span><strong>All sectors added — Done</strong> <span class="required">*</span><br><small class="text-muted">Tick after adding all sectors. The scheme is saved only with at least one sector and this box ticked.</small></span></label>' +
-            '<div class="invalid-feedback"></div></div></div></div>' +
+            sectorTagsHtml(isEdit ? scheme.scheme_id : null) +
+            '</div></div>' +
             // 3. mapping
             '<div class="card"><div class="card-header"><div><h3 class="card-title"><span class="step-no">3</span> Role – user mapping</h3>' +
             '<span class="text-muted small">These users will verify every property created in this scheme.</span></div>' +

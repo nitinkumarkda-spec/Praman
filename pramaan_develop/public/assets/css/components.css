@@ -1076,6 +1076,65 @@ body.sidebar-collapsed .sidebar-nav::-webkit-scrollbar { width: 0; }
 .perm-table .perm-check { justify-content: center; }
 .perm-table .perm-check input:disabled { cursor: not-allowed; }
 
+/* Tag input (Scheme → sectors): chips inside one box + search suggestions below */
+.tag-input { position: relative; }
+
+/* the box: one border, one focus ring (the text box inside has none) */
+.tag-box { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 48px; padding: 7px 44px 7px 12px; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); transition: border-color .2s, box-shadow .2s; }
+.tag-box:hover { border-color: var(--navy-600); }
+.tag-box:focus-within, .tag-input.is-open .tag-box { border-color: var(--navy-600); box-shadow: 0 0 0 3px rgba(30, 58, 110, .12); }
+.tag-input.is-open .tag-box { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.tag-input.is-invalid .tag-box { border-color: var(--red-600); box-shadow: 0 0 0 3px rgba(220, 38, 38, .12); }
+.tag-box-icon { color: var(--gold-500); font-size: 14px; margin-right: 2px; }
+.tag-chips { display: contents; }
+
+/* chips: light, readable, × turns red only on hover */
+.tag-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 30px; padding: 0 4px 0 10px; cursor: pointer;
+    background: var(--navy-50); border: 1px solid var(--navy-100); border-radius: 8px; color: var(--navy-800); font-size: 13px; font-weight: 600; }
+.tag-chip:hover { border-color: var(--navy-600); }
+.tag-chip-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px;
+    background: transparent; color: var(--slate-600); font-size: 16px; line-height: 1; cursor: pointer; transition: background .15s, color .15s; }
+.tag-chip-x:hover { background: var(--red-100); color: var(--red-600); }
+.tag-chip-x:focus-visible { box-shadow: 0 0 0 2px var(--red-600); }
+
+/* the text box inside: no border, no focus ring of its own */
+.tag-entry { flex: 1 1 200px; min-width: 120px; height: 30px; padding: 0 4px; border: 0; outline: none; background: transparent; font: inherit; color: var(--text); cursor: pointer; }
+.tag-entry:focus, .tag-entry:focus-visible { outline: none; box-shadow: none; border-radius: 0; }
+.tag-input.is-open .tag-entry, .tag-entry:not(:placeholder-shown) { cursor: text; }
+.tag-entry::placeholder { color: #94a3b8; }
+.tag-chips:not(:empty) + .tag-entry::placeholder { color: transparent; }
+
+/* ⌄ icon at the right, turns when the list is open */
+.tag-caret { position: absolute; top: 50%; right: 8px; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; margin-top: -15px;
+    padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--slate-600); cursor: pointer; }
+.tag-caret:hover { background: var(--navy-50); color: var(--navy-800); }
+.tag-caret:focus-visible { box-shadow: none; }
+.tag-caret i { font-size: 12px; transition: transform .2s ease; }
+.tag-input.is-open .tag-caret i { transform: rotate(180deg); }
+
+/* the list: hangs from the box, same width */
+.tag-suggest { position: absolute; z-index: 30; left: 0; right: 0; margin: -1px 0 0; padding: 6px; list-style: none; max-height: 290px; overflow-y: auto;
+    background: var(--surface); border: 1px solid var(--navy-600); border-top-color: var(--border); border-radius: 0 0 var(--radius) var(--radius);
+    box-shadow: 0 12px 24px rgba(15, 43, 82, .12); }
+.tag-suggest[hidden] { display: none; }
+.tag-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 38px; padding: 8px 12px; border-radius: 8px; cursor: pointer; color: var(--text); }
+.tag-option > span:first-child { display: inline-flex; align-items: center; gap: 10px; }
+.tag-option > span:first-child::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); flex: 0 0 auto; }
+.tag-option small { color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tag-option mark { background: var(--gold-100); color: var(--navy-800); padding: 0 1px; border-radius: 3px; }
+.tag-option.is-active { background: var(--navy-50); }
+.tag-option.is-active > span:first-child::before { background: var(--navy-600); }
+.tag-option-new, .tag-option-all { justify-content: flex-start; gap: 10px; color: var(--navy-800); font-weight: 500; }
+.tag-option-new > span:first-child::before, .tag-option-all > span:first-child::before { display: none; }
+.tag-option-new i { color: var(--green-600); width: 16px; text-align: center; }
+.tag-option-all { border-bottom: 1px dashed var(--border); border-radius: 8px 8px 0 0; margin-bottom: 4px; }
+.tag-option-all i { color: var(--gold-500); width: 16px; text-align: center; }
+.tag-note { display: flex; align-items: center; gap: 8px; padding: 10px 12px; color: var(--text-muted); font-size: 13px; }
+.tag-note i { color: var(--blue-600); }
+.tag-input .invalid-feedback:not(:empty) { display: block; }
+
 /* Searchable dropdown (combo): closed box + panel with search and grouped options */
 .combo { position: relative; max-width: 560px; }
 .combo-trigger { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; text-align: left; cursor: pointer;
