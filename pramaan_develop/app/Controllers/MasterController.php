@@ -61,16 +61,6 @@ final class MasterController extends Controller
             ? 'This is the last active sector of the scheme. A scheme needs at least one active sector.' : null;
 
         return [
-            'areas' => [
-                'model' => Area::class, 'entity' => 'AREA', 'one' => 'Area', 'name' => static fn ($r) => $r['area_name'],
-                'fields' => ['area_code' => $code(), 'area_name' => $text('Area name', 60, true, true),
-                    'description' => $text('Description', 150)],
-                'usage' => static fn ($r) => Scheme::count(['area_id' => $r['area_id']]),
-                'block' => static function ($r) {
-                    $n = Scheme::count(['area_id' => $r['area_id'], 'is_active' => 1]);
-                    return $n ? 'This area has ' . $n . ' active scheme' . ($n > 1 ? 's' : '') . ' and cannot be deactivated.' : null;
-                },
-            ],
             'plot-types' => [
                 'model' => PlotType::class, 'entity' => 'PLOT_TYPE', 'one' => 'Plot type', 'name' => static fn ($r) => $r['name'],
                 'fields' => ['code' => $code(), 'name' => $text('Name', 60, true, true),
@@ -117,15 +107,10 @@ final class MasterController extends Controller
                     'scheme_code'    => ['Scheme code', 'required|ucode', true, true, true, false],
                     'scheme_name'    => ['Scheme name', 'required|min:3|max:150|text', true, false, false, false],
                     'scheme_type'    => ['Scheme type', 'required|in:' . Lookups::keys(Lookups::SCHEME_TYPES), false, false, false, false],
-                    'area_id'        => ['Area', 'required|integer', false, false, false, true],
                     'year_of_scheme' => ['Year of scheme', 'required|year', false, false, false, true],
                 ],
                 'usage' => static fn ($r) => Sector::count(['scheme_id' => $r['scheme_id']]),
                 'block' => static fn ($r) => null,
-                'check' => static function ($d, $old) {
-                    $area = Area::find((int) $d['area_id']);
-                    return !$area || (!$old && !$area['is_active']) ? ['Please select a valid active area.', 'area_id'] : null;
-                },
                 'prepare' => static function (Request $in, ?int $id): array {
                     // sectors: existing (rename / deactivate) + new rows
                     $existing = [];

@@ -244,7 +244,7 @@
                     const late = x.sla_due_date < t;
                     return '<li><span class="activity-icon">' + icon('fa-building') + '</span><div class="activity-body">' +
                         '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.property_type]) + '</a>' +
-                        '<span class="text-muted">' + e(x.scheme.scheme_name + ' / ' + x.sector.sector_name) + ' · R' + x.round_no + '</span>' +
+                        '<span class="text-muted">' + e(x.scheme.scheme_name + (x.sector ? ' / ' + x.sector.sector_name : '')) + ' · R' + x.round_no + '</span>' +
                         '<small class="' + (late ? 'text-danger' : 'text-muted') + '"><i class="fa-regular fa-clock" aria-hidden="true"></i> Due ' + e(P.fmt_date(x.sla_due_date)) + (late ? ' — overdue' : '') + '</small></div>' +
                         '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '" class="btn btn-primary btn-sm ml-auto">' + icon('fa-clipboard-check') + ' <span>Verify</span></a></li>';
                 }).join('') + '</ul>' : '<div class="empty-state compact">' + icon('fa-mug-hot', 'empty-icon') + '<p class="empty-title">No pending task</p><p class="text-muted">New properties sent by the OIC will appear here.</p></div>') +

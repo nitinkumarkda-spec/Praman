@@ -94,7 +94,8 @@ final class Uploads
         }
         $stored = $sub . '/' . bin2hex(random_bytes(16)) . '.' . $f['ext'];
         $path = self::dir() . '/' . $stored;
-        if (!move_uploaded_file($f['tmp'], $path)) {
+        // 'stored' = the same upload already saved once (one site plan for many properties): keep a copy of it
+        if (!(!empty($f['stored']) ? copy($f['tmp'], $path) : move_uploaded_file($f['tmp'], $path))) {
             throw new \RuntimeException('Could not save the uploaded file.');
         }
         @chmod($path, 0600);

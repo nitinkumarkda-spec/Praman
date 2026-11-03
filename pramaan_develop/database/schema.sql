@@ -198,7 +198,7 @@ CREATE TABLE schemes (
     scheme_code     VARCHAR(30)       NOT NULL,
     scheme_name     VARCHAR(150)      NOT NULL,
     scheme_type     ENUM('RESIDENTIAL','COMMERCIAL','INDUSTRIAL','MIXED','FARMHOUSE') NOT NULL,
-    area_id         INT UNSIGNED      NOT NULL,
+    area_id         INT UNSIGNED      NULL,
     year_of_scheme  SMALLINT UNSIGNED NOT NULL,
     is_active       TINYINT(1)        NOT NULL DEFAULT 1,
     created_by      INT UNSIGNED      NULL,
@@ -255,14 +255,16 @@ CREATE TABLE properties (
     property_id     INT UNSIGNED   NOT NULL AUTO_INCREMENT,
     property_code   VARCHAR(20)    NULL,
     scheme_id       INT UNSIGNED   NOT NULL,
-    sector_id       INT UNSIGNED   NOT NULL,
+    sector_id       INT UNSIGNED   NULL,                  -- optional
+    sector_key      INT UNSIGNED   AS (IFNULL(sector_id, 0)) STORED,  -- 0 = no sector; keeps plot no. unique also without a sector
     plot_no         VARCHAR(30)    NOT NULL,
     property_type   VARCHAR(30)    NOT NULL,
-    area_value      DECIMAL(12,2)  NOT NULL,
-    area_unit       VARCHAR(20)    NOT NULL DEFAULT 'SQM',     -- units.code
-    area_sqm        DECIMAL(14,4)  NOT NULL,
+    area_value      DECIMAL(12,2)  NULL,                  -- optional (all three together)
+    area_unit       VARCHAR(20)    NULL,                  -- units.code
+    area_sqm        DECIMAL(14,4)  NULL,
+    is_corner       TINYINT(1)     NOT NULL DEFAULT 0,    -- marked Corner in the Add Property grid
     remarks         VARCHAR(500)   NULL,
-    reserve_price   DECIMAL(14,2)  NULL,                  -- in rupees (required for new entries)
+    reserve_price   DECIMAL(14,2)  NULL,                  -- in rupees, optional
     current_status  VARCHAR(30)    NOT NULL DEFAULT 'LISTED',
     current_round_id INT UNSIGNED  NULL,
     ready_round_id  INT UNSIGNED   NULL,
@@ -274,7 +276,8 @@ CREATE TABLE properties (
     updated_at      DATETIME       NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (property_id),
     UNIQUE KEY uq_properties_code (property_code),
-    UNIQUE KEY uq_properties_plot (sector_id, plot_no),
+    KEY ix_properties_sector (sector_id),
+    UNIQUE KEY uq_properties_plot (scheme_id, sector_key, plot_no),
     KEY ix_properties_scheme (scheme_id, is_active),
     KEY ix_properties_status (current_status, is_active, valid_till),   -- expiry job, re-verification due, status filters
     KEY ix_properties_created (created_by, is_active),                 -- "entered by me"
@@ -283,7 +286,8 @@ CREATE TABLE properties (
     CONSTRAINT fk_properties_type     FOREIGN KEY (property_type)  REFERENCES plot_types (code)         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_properties_unit     FOREIGN KEY (area_unit)      REFERENCES units (code)              ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_properties_status   FOREIGN KEY (current_status) REFERENCES statuses (code)           ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_properties_area CHECK (area_value > 0),
+    CONSTRAINT ck_properties_area CHECK (area_value IS NULL OR area_value > 0),
+    CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (area_unit IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL)),
     CONSTRAINT ck_properties_price CHECK (reserve_price IS NULL OR reserve_price > 0)
 ) ENGINE=InnoDB;
 
@@ -378,11 +382,11 @@ CREATE TABLE site_inspections (
     area_value            DECIMAL(12,2) NOT NULL,             -- length × width
     area_unit             VARCHAR(20)   NOT NULL,             -- units.code
     area_sqm              DECIMAL(14,4) NOT NULL,
-    recorded_value        DECIMAL(12,2) NOT NULL,
-    recorded_unit         VARCHAR(20)   NOT NULL,             -- units.code
+    recorded_value        DECIMAL(12,2) NULL,                 -- property area at the time; NULL when the register has none
+    recorded_unit         VARCHAR(20)   NULL,                 -- units.code
     difference            DECIMAL(12,2) NOT NULL DEFAULT 0,
     difference_pct        DECIMAL(7,2)  NOT NULL DEFAULT 0,
-    variance              ENUM('SAME','LESS','MORE') NOT NULL,
+    variance              ENUM('SAME','LESS','MORE') NULL,      -- NULL: nothing recorded to compare with
     encroachment          ENUM('YES','NO') NOT NULL,
     encroachment_type     ENUM('PARTIAL','COMPLETE') NULL,    -- when encroachment = YES
     encroachment_details  VARCHAR(300)  NULL,

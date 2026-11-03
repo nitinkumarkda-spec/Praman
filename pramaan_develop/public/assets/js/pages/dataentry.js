@@ -27,10 +27,10 @@
         if (q.status === 'inactive') { rows = rows.filter(function (s) { return !s.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'name', dir: 'asc', filters: ['type', 'status'],
-            search: function (s) { return [s.scheme_name, s.scheme_code, s.area]; },
+            search: function (s) { return [s.scheme_name, s.scheme_code]; },
             sortable: {
                 code: function (s) { return s.scheme_code; }, name: function (s) { return s.scheme_name; },
-                area: function (s) { return s.area; }, type: function (s) { return s.scheme_type; },
+                type: function (s) { return s.scheme_type; },
                 year: function (s) { return s.year_of_scheme; }, sectors: function (s) { return s.sector_count; },
                 properties: function (s) { return s.property_count; }
             }
@@ -41,15 +41,14 @@
             title: 'Scheme Master',
             html: (crumbs ? crumbs('Scheme Master') : '') + P.pageHeader(icon('fa-map') + ' Scheme Master', 'Schemes with their sectors and the role users who will verify properties in them.',
                 Auth.can('scheme.create') ? '<a href="' + P.BASE + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a>' : '') +
-                '<div class="card">' + P.list_toolbar(p, 'Search scheme name, code or area…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search scheme name or code…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'area', 'Area') + P.th_sort(p, 'type', 'Type') +
+                P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'name', 'Scheme') + P.th_sort(p, 'type', 'Type') +
                 P.th_sort(p, 'year', 'Year') + P.th_sort(p, 'sectors', 'Sectors') + '<th>Role mapping</th>' + P.th_sort(p, 'properties', 'Properties') +
                 '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (s) {
                     const on = s.is_active === 1;
                     return '<tr><td data-label="Code"><span class="mono">' + e(s.scheme_code) + '</span></td><td data-label="Scheme"><strong>' + e(s.scheme_name) + '</strong></td>' +
-                        '<td data-label="Area">' + e(s.area) + '</td>' +
                         '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type] || s.scheme_type) + '</td>' +
                         '<td data-label="Year">' + s.year_of_scheme + '</td><td data-label="Sectors"><span class="badge badge-info">' + s.sector_count + '</span>' +
                         '<span class="cell-sub truncate" title="' + e(s.sector_names) + '">' + e(s.sector_names || '—') + '</span></td>' +
@@ -60,7 +59,7 @@
                         '<input type="hidden" name="key" value="schemes"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' + s.scheme_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' : '') + '</div></td></tr>';
-                }).join('') : P.empty_state(11, p.hasFilters(), 'No schemes yet — create the first one')) +
+                }).join('') : P.empty_state(10, p.hasFilters(), 'No schemes yet — create the first one')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }
@@ -73,7 +72,7 @@
             'autocomplete="off" role="combobox" aria-expanded="false" aria-autocomplete="list" data-sector-entry>' +
             '<button type="button" class="tag-caret" tabindex="-1" aria-label="Show sectors" data-tag-caret>' + icon('fa-chevron-down') + '</button></div>' +
             '<ul class="tag-suggest" role="listbox" aria-label="Sector suggestions" hidden data-tag-suggest></ul>' +
-            '<div class="form-hint">Click to pick from the Area’s sectors, or type a new name and press Enter.</div>' +
+            '<div class="form-hint">Click to pick from existing sectors, or type a new name and press Enter.</div>' +
             '<div class="invalid-feedback" data-tag-error></div></div>';
     }
     function schemeForm(scheme, base, crumbs) {
@@ -101,8 +100,6 @@
             '<div class="form-hint">' + (isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.') + '</div><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="scheme_type">Scheme type <span class="required">*</span></label>' +
             '<select id="scheme_type" name="scheme_type" class="form-select" data-rules="required" data-label="Scheme type">' + L.options(L.SCHEME_TYPES, v('scheme_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="area_id">Area <span class="required">*</span></label>' +
-            '<select id="area_id" name="area_id" class="form-select" data-rules="required" data-label="Area">' + L.options(L.AREAS, v('area_id'), 'Select area') + '</select><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="year_of_scheme">Year of scheme <span class="required">*</span></label>' +
             '<input type="number" id="year_of_scheme" name="year_of_scheme" class="form-control" min="1950" max="2100" value="' + e(v('year_of_scheme')) + '" placeholder="e.g. 2019" data-rules="required|year" data-label="Year of scheme"><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
@@ -223,7 +220,7 @@
             const round = p.current_round_id ? DB.find('rounds', p.current_round_id) : null;
             const tasks = round ? DB.where('tasks', { round_id: round.round_id }) : [];
             return Object.assign({}, p, {
-                scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, sector_name: se.sector_name,
+                scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, sector_name: se ? se.sector_name : '—',
                 area: sc ? DB.areaName(sc.area_id) : '—',
                 role_count: new Set(ru.map(function (x) { return x.role_id; })).size,
                 role_users: ru.map(function (x) { return x.role_name + ': ' + x.name; }).join(', '),
@@ -277,8 +274,8 @@
                     return '<tr><td data-label="Code"><a href="' + P.BASE + '/data-entry/properties/' + r.property_id + '" class="mono">' + e(r.property_code) + '</a></td>' +
                         '<td data-label="Scheme">' + e(r.scheme_name) + '<span class="cell-sub">' + e(r.scheme_code) + '</span></td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
                         '<td data-label="Plot no."><strong>' + e(r.plot_no) + '</strong></td><td data-label="Type">' + e(L.PROPERTY_TYPES[r.property_type]) + '</td>' +
-                        '<td data-label="Area" class="nowrap">' + P.fmt_num(r.area_value, 2) + ' ' + e(L.unitSymbol(r.area_unit)) +
-                        (r.area_unit !== L.BASE_UNIT ? '<span class="cell-sub">= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '</span>' : '') + '</td>' +
+                        '<td data-label="Area" class="nowrap">' + (r.area_value == null ? '—' : P.fmt_num(r.area_value, 2) + ' ' + e(L.unitSymbol(r.area_unit)) +
+                        (r.area_unit !== L.BASE_UNIT ? '<span class="cell-sub">= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '</span>' : '')) + '</td>' +
                         '<td data-label="Role users"><span class="badge badge-muted" title="' + e(r.role_users) + '">' + icon('fa-user-tie') + ' ' + r.role_count + ' roles</span></td>' +
                         '<td data-label="Status">' + P.status_badge(r.current_status) + '</td>' +
                         '<td data-label="Created">' + e(P.fmt_date(r.created_at)) + '<span class="cell-sub">' + e(r.created_by_name) + '</span></td><td class="actions">' +
@@ -304,64 +301,101 @@
             '<dt>Site plan</dt><dd>' + (plan ? P.attachmentChips([plan]) : '<span class="text-muted">—</span>') + '</dd>';
     };
 
+    /* Edit one property (only while Listed). New properties come from the Add Property grid below. */
     function propertyForm(prop) {
-        const isEdit = !!prop;
-        const v = function (k, d) { return isEdit ? (prop[k] == null ? '' : prop[k]) : (d || ''); };
-        const schemes = isEdit ? [] : DB.Scheme.eligible();
-        const sc = isEdit ? DB.find('schemes', prop.scheme_id) : null;
-        let html = P.pageHeader(icon('fa-building-circle-check') + ' ' + (isEdit ? 'Edit Property' : 'Add Property'),
-            isEdit ? e(prop.property_code + ' · ' + sc.scheme_name + ' · ' + P.label(prop.current_status)) : 'Step 1 select scheme → Step 2 select sector → Step 3 confirm → plot details, reserve price and site plan.',
+        const v = function (k, d) { return prop[k] == null ? (d || '') : prop[k]; };
+        const sc = DB.find('schemes', prop.scheme_id);
+        const optional = ' <span class="pb-opt">(optional)</span>';
+        const sectors = DB.Scheme.sectors(prop.scheme_id, true);
+        let html = P.pageHeader(icon('fa-building-circle-check') + ' Edit Property', e(prop.property_code + ' · ' + sc.scheme_name + ' · ' + P.label(prop.current_status)),
             '<a href="' + P.BASE + '/data-entry/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>');
-        if (!isEdit && !schemes.length) {
-            return {
-                title: 'Add Property',
-                html: html + '<div class="card"><div class="card-body"><div class="empty-state">' + icon('fa-map-location-dot', 'fa-bounce empty-icon') +
-                    '<p class="empty-title">No scheme is ready for property entry</p><p class="text-muted mb-3">A scheme appears here only when it is active and has at least one active sector.</p>' +
-                    '<a href="' + P.BASE + '/data-entry/schemes/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a></div></div></div>'
-            };
-        }
-        const sectorOpts = isEdit ? '<option value="">Select sector</option>' + DB.Scheme.sectors(prop.scheme_id, true).map(function (s) {
-            return '<option value="' + s.sector_id + '"' + (s.sector_id === prop.sector_id ? ' selected' : '') + '>' + e(s.sector_name) + '</option>';
-        }).join('') : '<option value="">Select scheme first</option>';
-        const roleUsers = isEdit ? DB.Property.roleUsers(prop.property_id) : [];
-        const doc = function (context) { return isEdit ? P.propertyDoc(prop.property_id, context) : null; };
-        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form>' + (isEdit ? '<input type="hidden" name="id" value="' + prop.property_id + '">' : '') +
+        const roleUsers = DB.Property.roleUsers(prop.property_id);
+        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form><input type="hidden" name="id" value="' + prop.property_id + '">' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-location-dot') + ' Location</h3></div><div class="card-body"><div class="form-grid">' +
-            '<div class="form-group"><label class="form-label" for="scheme_id"><span class="step-no">1</span> Scheme <span class="required">*</span></label>' +
-            (isEdit ? '<input type="text" class="form-control" value="' + e(sc.scheme_name + ' (' + sc.scheme_code + ')') + '" readonly id="scheme_id" data-scheme-label="' + e(sc.scheme_name) + '">' +
-                '<div class="form-hint">Scheme cannot be changed after creation (role users were assigned from it).</div>'
-                : '<select id="scheme_id" name="scheme_id" class="form-select" data-rules="required" data-label="Scheme" data-sector-source="local" data-sector-target="sector_id">' +
-                '<option value="">Select scheme</option>' + schemes.map(function (s) { return '<option value="' + s.scheme_id + '">' + e(s.scheme_name + ' (' + s.scheme_code + ')') + '</option>'; }).join('') +
-                '</select><div class="form-hint">Only schemes with at least one active sector are listed.</div>') + '<div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector <span class="required">*</span></label>' +
-            '<select id="sector_id" name="sector_id" class="form-select" data-rules="required" data-label="Sector" data-selected="' + e(v('sector_id')) + '"' + (isEdit ? '' : ' disabled') + '>' + sectorOpts + '</select>' +
-            '<div class="form-hint" data-sector-hint>Sectors load from the selected scheme.</div><div class="invalid-feedback"></div></div></div>' +
-            '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property be created in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
+            '<div class="form-group"><label class="form-label" for="scheme_id"><span class="step-no">1</span> Scheme</label>' +
+            '<input type="text" class="form-control" value="' + e(sc.scheme_name + ' (' + sc.scheme_code + ')') + '" readonly id="scheme_id" data-scheme-label="' + e(sc.scheme_name) + '">' +
+            '<div class="form-hint">Scheme cannot be changed after creation (role users were assigned from it).</div><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector' + optional + '</label>' +
+            '<select id="sector_id" name="sector_id" class="form-select"' + (sectors.length ? '' : ' disabled') + '><option value="">No sector</option>' + sectors.map(function (s) {
+                return '<option value="' + s.sector_id + '"' + (s.sector_id === prop.sector_id ? ' selected' : '') + '>' + e(s.sector_name) + '</option>';
+            }).join('') + '</select><div class="invalid-feedback"></div></div></div>' +
+            '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property stay in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
             '<div class="radio-row"><label class="check"><input type="radio" name="confirm_location" value="YES" data-rules="required" data-label="the confirmation (Yes / No)"> <span><strong>Yes</strong>, that is correct</span></label>' +
             '<label class="check"><input type="radio" name="confirm_location" value="NO"> <span><strong>No</strong>, I need to change it</span></label></div><div class="invalid-feedback"></div>' +
-            '<p class="form-hint" data-confirm-no hidden>' + icon('fa-circle-info') + ' Please change the scheme / sector above. Save stays disabled until you answer <strong>Yes</strong>.</p></div></div></div>' +
+            '<p class="form-hint" data-confirm-no hidden>' + icon('fa-circle-info') + ' Please change the sector above. Save stays disabled until you answer <strong>Yes</strong>.</p></div></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-ruler-combined') + ' Plot details</h3></div><div class="card-body"><div class="form-grid">' +
             '<div class="form-group"><label class="form-label" for="plot_no">Plot no. <span class="required">*</span></label><input type="text" id="plot_no" name="plot_no" class="form-control" maxlength="30" value="' + e(v('plot_no')) + '" placeholder="e.g. 112-A" data-uppercase data-rules="required|plotno" data-label="Plot no."><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="property_type">Plot type <span class="required">*</span></label><select id="property_type" name="property_type" class="form-select" data-rules="required" data-label="Plot type">' + L.options(L.activeMap('plot_types', 'code', 'name', v('property_type')), v('property_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="area_value">Area <span class="required">*</span></label><input type="text" id="area_value" name="area_value" class="form-control" inputmode="decimal" maxlength="13" value="' + e(v('area_value')) + '" placeholder="e.g. 150.50" data-rules="required|decimal:2|positive" data-label="Area" data-area-value><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="area_unit">Area unit <span class="required">*</span></label><select id="area_unit" name="area_unit" class="form-select" data-rules="required" data-label="Area unit" data-area-unit>' + L.options(L.activeMap('units', 'code', 'name', v('area_unit')), v('area_unit', L.BASE_UNIT), 'Select unit') + '</select><div class="form-hint" data-area-preview></div><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="reserve_price">Reserve price (₹) <span class="required">*</span></label>' +
-            '<div class="input-affix"><span class="affix" aria-hidden="true">₹</span><input type="text" id="reserve_price" name="reserve_price" class="form-control" inputmode="decimal" maxlength="15" value="' + e(v('reserve_price')) + '" placeholder="e.g. 1250000" data-rules="required|decimal:2|positive" data-label="Reserve price" data-rupee></div>' +
+            '<div class="form-group"><label class="form-label" for="property_type">Property type <span class="required">*</span></label><select id="property_type" name="property_type" class="form-select" data-rules="required" data-label="Property type">' + L.options(L.activeMap('plot_types', 'code', 'name', v('property_type')), v('property_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="area_value">Area' + optional + '</label>' +
+            '<div class="pb-area"><input type="text" id="area_value" name="area_value" class="form-control" inputmode="decimal" maxlength="13" value="' + e(v('area_value')) + '" placeholder="e.g. 150.50" data-decimals="2" data-rules="decimal:2|positive" data-label="Area" data-area-value>' +
+            '<select id="area_unit" name="area_unit" class="form-select" aria-label="Area unit" data-area-unit>' + L.options(L.activeMap('units', 'code', 'name', v('area_unit')), v('area_unit', L.BASE_UNIT)) + '</select></div>' +
+            '<div class="form-hint" data-area-preview></div><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="reserve_price">Reserve price (₹)' + optional + '</label>' +
+            '<div class="input-affix"><span class="affix" aria-hidden="true">₹</span><input type="text" id="reserve_price" name="reserve_price" class="form-control" inputmode="decimal" maxlength="15" value="' + e(v('reserve_price')) + '" placeholder="e.g. 1250000" data-rules="decimal:2|positive" data-label="Reserve price" data-rupee></div>' +
             '<div class="form-hint" data-rupee-preview></div><div class="invalid-feedback"></div></div>' +
-            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)', current: doc('SITE_PLAN') }) +
-            '<div class="form-group span-2"><label class="form-label" for="remarks">Remarks</label><textarea id="remarks" name="remarks" class="form-control" maxlength="500" rows="2" placeholder="Optional notes" data-rules="max:500|text" data-label="Remarks">' + e(v('remarks')) + '</textarea><div class="invalid-feedback"></div></div>' +
+            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)', current: P.propertyDoc(prop.property_id, 'SITE_PLAN') }) +
+            '<div class="form-group"><span class="form-label">Corner plot</span><label class="check"><input type="checkbox" name="is_corner" value="1"' + (prop.is_corner ? ' checked' : '') + '> <span>This is a <strong>corner</strong> plot</span></label></div>' +
+            '<div class="form-group span-2"><label class="form-label" for="remarks">Description' + optional + '</label><textarea id="remarks" name="remarks" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot" data-rules="max:500|text" data-label="Description">' + e(v('remarks')) + '</textarea><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
             (roleUsers.length ? '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users (snapshot)</h3></div><div class="card-body"><div class="chip-list">' +
                 roleUsers.map(function (ru) { return '<span class="chip"><strong>' + e(ru.role_name) + ':</strong> ' + e(ru.name) + '</span>'; }).join('') + '</div></div></div>' : '') +
-            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Property' : 'Save Property') + '</span></button>' +
-            (isEdit ? '' : '<button type="submit" name="save_and_new" value="1" class="btn btn-gold btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-plus') + ' <span>Save &amp; add another</span></button>') +
+            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-floppy-disk') + ' <span>Update Property</span></button>' +
             '<a href="' + P.BASE + '/data-entry/properties" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
-        return {
-            title: isEdit ? 'Edit Property' : 'Add Property', html: html,
-            after: null
-        };
+        return { title: 'Edit Property', html: html };
     }
-    P.route('/data-entry/properties/create', PANEL, function () { return propertyForm(null); }, 'property.create');
+    /* Add Property: details once → plot numbers (ranges, or one by one with prefix / postfix) → grid to fix corners and amounts → save all */
+    function propertyBulkForm() {
+        const schemes = DB.where('schemes', { is_active: 1 }).sort(P.by(function (s) { return s.scheme_name; }));
+        let html = P.pageHeader(icon('fa-building-circle-check') + ' Add Property',
+            'Choose the scheme and plot details, enter the plot numbers, then check the grid and save all properties at once.',
+            '<a href="' + P.BASE + '/data-entry/properties" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>');
+        if (!schemes.length) {
+            return {
+                title: 'Add Property',
+                html: html + '<div class="card"><div class="card-body"><div class="empty-state">' + icon('fa-map-location-dot', 'fa-bounce empty-icon') +
+                    '<p class="empty-title">No active scheme</p><p class="text-muted mb-3">Create or activate a scheme first; its properties are added here.</p>' +
+                    '<a href="' + P.BASE + '/data-entry/schemes/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Create Scheme</span></a></div></div></div>'
+            };
+        }
+        const optional = ' <span class="pb-opt">(optional)</span>';
+        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-bulk data-confirm="Save these properties?" data-confirm-title="Save properties" data-confirm-ok="Yes, save all">' +
+            '<input type="hidden" name="plots" value="[]" data-pb-plots>' +
+            '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-location-dot') + ' Property details</h3></div><div class="card-body"><div class="form-grid">' +
+            '<div class="form-group"><label class="form-label" for="scheme_id"><span class="step-no">1</span> Scheme <span class="required">*</span></label>' +
+            '<select id="scheme_id" name="scheme_id" class="form-select" data-rules="required" data-label="Scheme">' +
+            '<option value="">Select scheme</option>' + schemes.map(function (s) { return '<option value="' + s.scheme_id + '">' + e(s.scheme_name + ' (' + s.scheme_code + ')') + '</option>'; }).join('') +
+            '</select><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector' + optional + '</label>' +
+            '<select id="sector_id" name="sector_id" class="form-select" disabled><option value="">Select scheme first</option></select>' +
+            '<div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="pb_type"><span class="step-no">3</span> Property type <span class="required">*</span></label>' +
+            '<select id="pb_type" name="property_type" class="form-select" data-rules="required" data-label="Property type" data-pb-default="property_type">' + L.options(L.activeMap('plot_types', 'code', 'name'), '', 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group"><label class="form-label" for="pb_area"><span class="step-no">4</span> Area' + optional + '</label>' +
+            '<div class="pb-area"><input type="text" id="pb_area" name="area_value" class="form-control" inputmode="decimal" maxlength="13" placeholder="e.g. 150.50" data-decimals="2" data-rules="decimal:2|positive" data-label="Area" data-pb-default="area_value">' +
+            '<select name="area_unit" class="form-select" aria-label="Area unit" data-pb-default="area_unit">' + L.options(L.activeMap('units', 'code', 'name'), L.BASE_UNIT) + '</select></div><div class="invalid-feedback"></div></div>' +
+            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)' }) +
+            '</div></div></div>' +
+            '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-list-ol') + ' Plot numbers</h3></div><div class="card-body">' +
+            '<div class="form-group pb-question"><p class="confirm-question"><span class="step-no">5</span> Are the plot numbers in a running range?</p>' +
+            '<div class="radio-row"><label class="check"><input type="radio" name="pb_range" value="YES" checked> <span><strong>Yes</strong>, from – to (e.g. 1 to 50)</span></label>' +
+            '<label class="check"><input type="radio" name="pb_range" value="NO"> <span><strong>No</strong>, I will enter each plot no.</span></label></div></div>' +
+            '<div data-pb-mode="YES"><div class="pb-rows" data-pb-rows></div>' +
+            '<p class="form-hint">Leading zeros are kept: 001 to 050 gives 001, 002 … 050.</p></div>' +
+            '<div data-pb-mode="NO" hidden><div class="pb-rows" data-pb-rows></div>' +
+            '<p class="form-hint">Prefix and postfix are joined exactly as typed: <span class="mono">A-</span> + <span class="mono">12</span> + <span class="mono">/B</span> → <span class="mono">A-12/B</span>.</p></div>' +
+            '<div class="pb-row-actions"><button type="button" class="btn btn-light btn-sm" data-pb-add>' + icon('fa-plus') + ' <span>Add more</span></button>' +
+            '<button type="button" class="btn btn-primary" data-pb-generate>' + icon('fa-table-cells') + ' <span>Generate Property Grid</span></button></div>' +
+            '</div></div>' +
+            '<div class="card pb-grid-card" data-pb-grid-card hidden><div class="card-header"><h3 class="card-title">' + icon('fa-table-cells') + ' Property Grid</h3>' +
+            '<span class="text-muted pb-grid-tip">Choose Edit to change a plot; use Mark Corner for corner plots</span></div>' +
+            '<div class="pb-legend"><span><i class="pb-swatch"></i> Normal</span><span><i class="pb-swatch is-corner"></i> Corner</span></div>' +
+            '<div class="pb-grid" data-pb-grid></div><div class="pb-grid-foot" data-pb-count></div></div>' +
+            '<div class="form-actions pb-actions"><a href="' + P.BASE + '/data-entry/properties" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a>' +
+            '<button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-pb-save disabled>' + icon('fa-check-double') + ' <span>Review &amp; Save Properties</span></button></div>' +
+            '</form>';
+        return { title: 'Add Property', html: html };
+    }
+    P.route('/data-entry/properties/create', PANEL, propertyBulkForm, 'property.create');
     P.route('/data-entry/properties/{id}', PANEL, function (ctx) {
         const prop = P.propertyRows().find(function (r) { return r.property_id === ctx.params.id; });
         if (!prop) { return P.notFound('Property not found.'); }
@@ -373,8 +407,9 @@
                 (prop.current_status === 'LISTED' && Auth.can('property.edit') ? '<a href="' + P.BASE + '/data-entry/properties/' + prop.property_id + '/edit" class="btn btn-primary">' + icon('fa-pen') + ' <span>Edit</span></a>' : '')) +
                 '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
                 '<dt>Property code</dt><dd class="mono">' + e(prop.property_code) + '</dd><dt>Scheme</dt><dd>' + e(prop.scheme_name + ' (' + prop.scheme_code + ')') + '</dd>' +
-                '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' +
+                (prop.area && prop.area !== '—' ? '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' : '') +
                 '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[prop.property_type] || prop.property_type) + '</dd>' +
+                '<dt>Corner plot</dt><dd>' + (prop.is_corner ? '<span class="badge badge-warning">Corner</span>' : 'No') + '</dd>' +
                 '<dt>Plot area</dt><dd>' + e(L.area(prop.area_value, prop.area_unit, prop.area_sqm)) + '</dd><dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
                 P.propertyPriceRows(prop) + (prop.remarks ? '<dt>Remarks</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>' +
                 '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users</h3></div><div class="card-body"><div class="chip-list">' +

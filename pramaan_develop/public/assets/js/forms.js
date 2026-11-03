@@ -6,6 +6,7 @@
      • data-panel-select        User Master: show Role only for Role Users
      • data-scheme-form         sector tag input (chips + search), active count, mandatory-role check
      • data-property-form       scheme → sectors (local DB), Yes/No confirmation, area preview
+     • data-property-bulk       Add Property: plot ranges / single plots → property grid (corner, edit) → save all
      • data-bulk-form           OIC bulk send: reason required for Not Ready rows
      • data-simulate-form       Reject needs a remark
    ===================================================================== */
@@ -93,7 +94,8 @@
             const areaId = areaSel ? Number(areaSel.value) : 0;
             DB.all('sectors').forEach(function (s) {
                 const sc = DB.find('schemes', s.scheme_id);
-                if (!areaId || !sc || s.scheme_id === schemeId || sc.area_id !== areaId) { return; }
+                if (!sc || s.scheme_id === schemeId) { return; }
+                if (areaId && sc.area_id && sc.area_id !== areaId) { return; }
                 const k = s.sector_name.trim();
                 (used[k] = used[k] || []).push(sc.scheme_name);
             });
@@ -164,16 +166,16 @@
             if (q && !exact && !have[q] && q.indexOf(',') === -1) {
                 html += '<li class="tag-option tag-option-new" role="option" data-value="' + e(entry.value.trim()) + '"><i class="fa-solid fa-plus" aria-hidden="true"></i><span>Add “<strong>' + e(entry.value.trim()) + '</strong>” as a new sector</span></li>';
             }
-            if (!areaName) {
+            if (areaSel && !areaName) {
                 html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Select the <strong>Area</strong> above to pick from its sectors.</li>';
             } else if (!names.length) {
-                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No other scheme in ' + e(areaName) + ' has sectors yet — type new names.</li>';
+                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> No other scheme has sectors yet — type new names.</li>';
             } else if (!q && hits.length > 1) {
                 html += '<li class="tag-option tag-option-all" role="option" data-value="' + ALL + '"><i class="fa-solid fa-layer-group" aria-hidden="true"></i>' +
-                    '<span>Add all <strong>' + hits.length + '</strong> sectors of ' + e(areaName) + '</span></li>';
+                    '<span>Add all <strong>' + hits.length + '</strong> sectors' + (areaName ? ' of ' + e(areaName) : '') + '</span></li>';
             }
-            if (areaName && names.length && !hits.length && !q) {
-                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-check" aria-hidden="true"></i> All sectors of ' + e(areaName) + ' are added.</li>';
+            if (names.length && !hits.length && !q) {
+                html += '<li class="tag-note" role="presentation"><i class="fa-solid fa-check" aria-hidden="true"></i> All sectors' + (areaName ? ' of ' + e(areaName) : '') + ' are added.</li>';
             }
             hits.forEach(function (n) {
                 const k = q ? n.toLowerCase().indexOf(q) : -1;
@@ -315,14 +317,14 @@
             if (scheme.tagName !== 'SELECT') { return scheme.getAttribute('data-scheme-label') || scheme.value; }
             return scheme.value ? scheme.options[scheme.selectedIndex].text : '—';
         }
-        function sectorText() { return sector && sector.value ? sector.options[sector.selectedIndex].text : '—'; }
+        function sectorText() { return sector && sector.value ? sector.options[sector.selectedIndex].text : 'No sector'; }
 
         function updateConfirm() {
             box.querySelector('[data-confirm-scheme]').textContent = '[' + schemeText() + ']';
             box.querySelector('[data-confirm-sector]').textContent = '[' + sectorText() + ']';
             const choice = form.querySelector('input[name="confirm_location"]:checked');
             const yes = choice && choice.value === 'YES';
-            const ready = !!(sector && sector.value) && (!scheme || scheme.tagName !== 'SELECT' || !!scheme.value);
+            const ready = !scheme || scheme.tagName !== 'SELECT' || !!scheme.value; // sector is optional
             form.querySelectorAll('[data-requires-yes]').forEach(function (b) { b.disabled = !(yes && ready); });
             if (noHint) { noHint.hidden = !(choice && choice.value === 'NO'); }
         }
@@ -405,6 +407,282 @@
             });
         }
         updateConfirm();
+    }
+
+    /* ---------- Add Property: plot numbers → property grid ---------- */
+    const PB_MAX = 500; // same limit as the server
+    function initPropertyBulk(form) {
+        const L = Praman.Lookups, esc = Praman.e;
+        const scheme = form.querySelector('#scheme_id');
+        const sector = form.querySelector('#sector_id');
+        const out = form.querySelector('[data-pb-plots]');
+        const card = form.querySelector('[data-pb-grid-card]');
+        const grid = form.querySelector('[data-pb-grid]');
+        const count = form.querySelector('[data-pb-count]');
+        const saveBtn = form.querySelector('[data-pb-save]');
+        const KEYS = ['property_type', 'area_value', 'area_unit'];
+        // each plot: {plot_no, corner, own: {key: value}} — keys not in own follow the defaults above
+        let plots = [];
+
+        const mode = function () { const r = form.querySelector('input[name="pb_range"]:checked'); return r ? r.value : 'YES'; };
+        const modeBox = function (m) { return form.querySelector('[data-pb-mode="' + m + '"]'); };
+        const defaults = function () {
+            const d = {};
+            form.querySelectorAll('[data-pb-default]').forEach(function (el) { d[el.getAttribute('data-pb-default')] = el.value.trim(); });
+            return d;
+        };
+        const value = function (p, k) { return Object.prototype.hasOwnProperty.call(p.own, k) ? p.own[k] : defaults()[k]; };
+
+        /* --- plot number rows --- */
+        function rowHtml(m) {
+            const del = '<button type="button" class="btn-icon pb-del" data-pb-del aria-label="Remove row" title="Remove row"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>';
+            if (m === 'YES') {
+                return '<div class="pb-row" data-pb-row><input type="text" class="form-control" data-pb-from inputmode="numeric" maxlength="6" placeholder="From e.g. 1" aria-label="From plot no." data-digits-only>' +
+                    '<span class="pb-dash" aria-hidden="true">–</span><input type="text" class="form-control" data-pb-to inputmode="numeric" maxlength="6" placeholder="To e.g. 50" aria-label="To plot no." data-digits-only>' +
+                    '<span class="pb-row-note" data-pb-note></span>' + del + '</div>';
+            }
+            return '<div class="pb-row is-single" data-pb-row><input type="text" class="form-control" data-pb-prefix maxlength="10" placeholder="Prefix (A-)" aria-label="Prefix" data-uppercase>' +
+                '<input type="text" class="form-control" data-pb-no maxlength="20" placeholder="Plot no. e.g. 12" aria-label="Plot no." data-uppercase>' +
+                '<input type="text" class="form-control" data-pb-postfix maxlength="10" placeholder="Postfix (/B)" aria-label="Postfix" data-uppercase>' +
+                '<input type="text" class="form-control" data-pb-desc maxlength="500" placeholder="Description (optional)" aria-label="Description">' +
+                '<span class="pb-row-note" data-pb-note></span>' + del + '</div>';
+        }
+        function addRow(m) {
+            const rows = modeBox(m).querySelector('[data-pb-rows]');
+            rows.insertAdjacentHTML('beforeend', rowHtml(m));
+            syncDel(rows);
+            return rows.lastElementChild;
+        }
+        function syncDel(rows) {
+            const all = rows.querySelectorAll('[data-pb-row]');
+            all.forEach(function (r) { r.querySelector('[data-pb-del]').disabled = all.length === 1; });
+        }
+        function noteRow(row) {
+            const n = row.querySelector('[data-pb-note]');
+            const r = readRow(row);
+            n.classList.toggle('is-error', !!r.error);
+            n.textContent = r.error || (r.list.length ? (row.querySelector('[data-pb-from]') ? r.list.length + ' plot(s)' : '→ ' + r.list[0]) : '');
+        }
+        /** Plot numbers one row stands for, or an error. */
+        function readRow(row) {
+            const from = row.querySelector('[data-pb-from]');
+            if (from) {
+                const a = from.value.trim(), b = row.querySelector('[data-pb-to]').value.trim();
+                if (a === '' && b === '') { return { list: [] }; }
+                if (a === '' || b === '') { return { list: [], error: 'Enter both From and To' }; }
+                const x = parseInt(a, 10), y = parseInt(b, 10);
+                if (x > y) { return { list: [], error: 'From is more than To' }; }
+                if (y - x + 1 > PB_MAX) { return { list: [], error: 'At most ' + PB_MAX + ' plots' }; }
+                const width = /^0/.test(a) && a.length > 1 ? a.length : 0; // 001 → keep three digits
+                const list = [];
+                for (let i = x; i <= y; i++) { list.push(width ? String(i).padStart(width, '0') : String(i)); }
+                return { list: list };
+            }
+            const no = row.querySelector('[data-pb-no]').value.trim();
+            if (no === '') { return { list: [] }; }
+            const plot = (row.querySelector('[data-pb-prefix]').value.trimStart() + no + row.querySelector('[data-pb-postfix]').value.trimEnd()).toUpperCase(); // a space typed next to the plot no. is kept
+            if (!/^[A-Za-z0-9][A-Za-z0-9\/_ -]{0,29}$/.test(plot)) { return { list: [], error: 'Only letters, digits, space, / _ - (max 30)' }; }
+            const desc = row.querySelector('[data-pb-desc]').value.trim();
+            if (/[<>]/.test(desc)) { return { list: [], error: 'Description may not contain < or >' }; }
+            return { list: [plot], desc: desc };
+        }
+
+        function generate() {
+            const rows = modeBox(mode()).querySelectorAll('[data-pb-row]');
+            const list = [];
+            const descs = {};
+            let bad = null;
+            rows.forEach(function (row) {
+                noteRow(row);
+                const r = readRow(row);
+                if (r.error && !bad) { bad = row; }
+                Array.prototype.push.apply(list, r.list);
+                if (r.list.length && r.desc !== undefined) { descs[r.list[0]] = r.desc; }
+            });
+            if (bad) {
+                Praman.toast('error', 'Please fix the highlighted plot number row.');
+                bad.querySelector('input').focus();
+                return;
+            }
+            if (!list.length) {
+                Praman.toast('error', mode() === 'YES' ? 'Enter at least one From – To range.' : 'Enter at least one plot no.');
+                rows[0].querySelector('input').focus();
+                return;
+            }
+            const dup = list.filter(function (p, i) { return list.indexOf(p) !== i; });
+            if (dup.length) {
+                Praman.toast('error', 'Plot no. ' + dup.slice(0, 5).join(', ') + (dup.length > 5 ? ' …' : '') + ' is repeated — the rows overlap.');
+                return;
+            }
+            if (list.length > PB_MAX) {
+                Praman.toast('error', 'At most ' + PB_MAX + ' properties can be added at once (you entered ' + list.length + ').');
+                return;
+            }
+            // keep corner marks and edits of plots that are generated again
+            const old = {};
+            plots.forEach(function (p) { old[p.plot_no] = p; });
+            plots = list.map(function (no) {
+                const p = old[no] || { plot_no: no, corner: false, own: {}, remarks: '' };
+                if (Object.prototype.hasOwnProperty.call(descs, no)) { p.remarks = descs[no]; } // the row's description wins over an older edit
+                return p;
+            });
+            render();
+            card.hidden = false;
+            card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        /* --- grid --- */
+        function render() {
+            const types = L.PROPERTY_TYPES;
+            grid.innerHTML = plots.map(function (p, i) {
+                const area = value(p, 'area_value');
+                return '<div class="pb-card' + (p.corner ? ' is-corner' : '') + '" data-pb-i="' + i + '">' +
+                    '<div class="pb-no">' + esc(p.plot_no) + '</div><div class="pb-kind">' + (p.corner ? 'Corner' : 'Normal') + '</div>' +
+                    '<div class="pb-meta">' + esc(types[value(p, 'property_type')] || 'No type') + (area ? ' · ' + esc(area + ' ' + L.unitSymbol(value(p, 'area_unit'))) : '') + '</div>' +
+                    (p.remarks ? '<div class="pb-desc" title="' + esc(p.remarks) + '">' + esc(p.remarks) + '</div>' : '') +
+                    '<div class="pb-card-actions"><button type="button" class="btn btn-light btn-sm" data-pb-edit>Edit</button>' +
+                    '<button type="button" class="btn btn-light btn-sm" data-pb-corner aria-pressed="' + p.corner + '">' + (p.corner ? 'Unmark Corner' : 'Mark Corner') + '</button></div></div>';
+            }).join('');
+            const corners = plots.filter(function (p) { return p.corner; }).length;
+            count.innerHTML = '<span><strong>' + plots.length + '</strong> propert' + (plots.length === 1 ? 'y' : 'ies') + ' ready to save' + (corners ? ' · ' + corners + ' corner' : '') + '</span>';
+            card.hidden = !plots.length;
+            sync();
+        }
+        function sync() {
+            out.value = JSON.stringify(plots.map(function (p) {
+                return { plot_no: p.plot_no, property_type: value(p, 'property_type'), area_value: value(p, 'area_value'), area_unit: value(p, 'area_unit'),
+                    remarks: p.remarks || '', corner: p.corner ? 1 : 0 };
+            }));
+            saveBtn.disabled = !plots.length;
+            const where = (scheme.value ? scheme.options[scheme.selectedIndex].text : 'the scheme') + (sector.value ? ' · Sector ' + sector.options[sector.selectedIndex].text : '');
+            form.setAttribute('data-confirm', 'Save ' + plots.length + ' propert' + (plots.length === 1 ? 'y' : 'ies') + ' in ' + where + '? They will be created with status Listed.');
+        }
+
+        /* --- edit one property --- */
+        function edit(i) {
+            const p = plots[i];
+            const old = document.getElementById('pb-modal');
+            if (old) { old.remove(); }
+            const m = document.createElement('div');
+            m.id = 'pb-modal';
+            m.className = 'modal-backdrop pb-modal';
+            m.innerHTML = '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="pb-modal-title"><div class="modal-header">' +
+                '<span class="modal-icon"><i class="fa-solid fa-pen" aria-hidden="true"></i></span><div><h2 class="modal-title" id="pb-modal-title">Edit plot ' + esc(p.plot_no) + '</h2>' +
+                '<p>Changes here apply to this property only.</p></div></div><div class="modal-body"><div class="form-grid">' +
+                '<div class="form-group"><label class="form-label" for="pbm_no">Plot no. <span class="required">*</span></label><input type="text" id="pbm_no" class="form-control" maxlength="30" value="' + esc(p.plot_no) + '" data-uppercase><div class="invalid-feedback"></div></div>' +
+                '<div class="form-group"><label class="form-label" for="pbm_type">Property type</label><select id="pbm_type" class="form-select">' + L.options(L.activeMap('plot_types', 'code', 'name', value(p, 'property_type')), value(p, 'property_type'), 'Select type') + '</select></div>' +
+                '<div class="form-group span-2"><label class="form-label" for="pbm_area">Area</label><div class="pb-area"><input type="text" id="pbm_area" class="form-control" inputmode="decimal" maxlength="13" value="' + esc(value(p, 'area_value')) + '" data-decimals="2">' +
+                '<select id="pbm_unit" class="form-select" aria-label="Area unit">' + L.options(L.activeMap('units', 'code', 'name', value(p, 'area_unit')), value(p, 'area_unit')) + '</select></div></div>' +
+                '<div class="form-group span-2"><label class="form-label" for="pbm_desc">Description</label><textarea id="pbm_desc" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot">' + esc(p.remarks || '') + '</textarea><div class="invalid-feedback"></div></div>' +
+                '<div class="form-group span-2"><label class="check"><input type="checkbox" id="pbm_corner"' + (p.corner ? ' checked' : '') + '> <span><strong>Corner plot</strong></span></label></div>' +
+                '</div></div><div class="modal-footer"><button type="button" class="btn btn-light pb-remove" data-pbm-remove><i class="fa-solid fa-trash-can" aria-hidden="true"></i> <span>Remove</span></button>' +
+                '<button type="button" class="btn btn-light" data-pbm-cancel>Cancel</button><button type="button" class="btn btn-primary" data-pbm-ok><i class="fa-solid fa-check" aria-hidden="true"></i> <span>Apply</span></button></div></div>';
+            document.body.appendChild(m);
+            const $ = function (s) { return m.querySelector(s); };
+            const lastFocus = document.activeElement;
+            function close() {
+                m.classList.remove('is-open');
+                document.body.classList.remove('modal-open');
+                document.removeEventListener('keydown', onKey);
+                window.setTimeout(function () { m.remove(); }, 180);
+                if (lastFocus && lastFocus.focus) { lastFocus.focus(); }
+            }
+            function onKey(ev) { if (ev.key === 'Escape') { close(); } }
+            function fieldError(el, msg) {
+                el.classList.toggle('is-invalid', !!msg);
+                const fb = el.closest('.form-group').querySelector('.invalid-feedback');
+                if (fb) { fb.textContent = msg || ''; }
+            }
+            $('[data-pbm-ok]').addEventListener('click', function () {
+                const no = $('#pbm_no').value.trim().toUpperCase();
+                let ok = true;
+                const noErr = !/^[A-Za-z0-9][A-Za-z0-9\/_ -]{0,29}$/.test(no) ? 'Only letters, digits, space, / _ - (max 30).'
+                    : plots.some(function (x, j) { return j !== i && x.plot_no === no; }) ? 'Plot no. ' + no + ' is already in the grid.' : null;
+                fieldError($('#pbm_no'), noErr);
+                if (noErr) { ok = false; }
+                const desc = $('#pbm_desc').value.trim();
+                const descErr = /[<>]/.test(desc) ? 'Description may not contain < or > characters.' : null;
+                fieldError($('#pbm_desc'), descErr);
+                if (descErr) { ok = false; }
+                if (!ok) { return; }
+                const d = defaults();
+                const next = { property_type: $('#pbm_type').value, area_value: $('#pbm_area').value.trim(), area_unit: $('#pbm_unit').value };
+                p.plot_no = no;
+                p.corner = $('#pbm_corner').checked;
+                p.remarks = desc;
+                KEYS.forEach(function (k) { if (next[k] !== d[k]) { p.own[k] = next[k]; } else { delete p.own[k]; } });
+                close();
+                render();
+            });
+            $('[data-pbm-remove]').addEventListener('click', function () {
+                plots.splice(i, 1);
+                close();
+                render();
+            });
+            $('[data-pbm-cancel]').addEventListener('click', close);
+            document.addEventListener('keydown', onKey);
+            document.body.classList.add('modal-open');
+            window.requestAnimationFrame(function () { m.classList.add('is-open'); $('#pbm_no').focus(); });
+        }
+
+        /* --- sectors of the scheme (optional) --- */
+        function loadSectors() {
+            const list = scheme.value ? Praman.DB.Scheme.sectors(scheme.value, true) : [];
+            sector.innerHTML = '<option value="">' + (!scheme.value ? 'Select scheme first' : list.length ? 'No sector' : 'No active sector') + '</option>' +
+                list.map(function (s) { return '<option value="' + s.sector_id + '">' + esc(s.sector_name) + '</option>'; }).join('');
+            sector.disabled = !list.length;
+            sync();
+        }
+
+        scheme.addEventListener('change', loadSectors);
+        sector.addEventListener('change', sync);
+        form.addEventListener('change', function (ev) {
+            if (ev.target.name === 'pb_range') {
+                ['YES', 'NO'].forEach(function (m) { modeBox(m).hidden = m !== mode(); });
+                modeBox(mode()).querySelector('[data-pb-row] input').focus();
+            }
+        });
+        form.addEventListener('input', function (ev) {
+            const row = ev.target.closest('[data-pb-row]');
+            if (row) { noteRow(row); }
+            if (ev.target.hasAttribute('data-pb-default')) { render(); }
+        });
+        form.querySelectorAll('select[data-pb-default]').forEach(function (s) { s.addEventListener('change', render); });
+        form.addEventListener('keydown', function (ev) {
+            // Enter in a plot row adds the next row instead of submitting the form
+            const row = ev.target.closest && ev.target.closest('[data-pb-row]');
+            if (row && ev.key === 'Enter') {
+                ev.preventDefault();
+                const next = row.nextElementSibling || addRow(mode());
+                next.querySelector('input').focus();
+            }
+        });
+        form.addEventListener('click', function (ev) {
+            const t = ev.target.closest('button');
+            if (!t) { return; }
+            if (t.hasAttribute('data-pb-add')) { addRow(mode()).querySelector('input').focus(); }
+            else if (t.hasAttribute('data-pb-del')) {
+                const rows = t.closest('[data-pb-rows]');
+                t.closest('[data-pb-row]').remove();
+                syncDel(rows);
+            }
+            else if (t.hasAttribute('data-pb-generate')) { generate(); }
+            else if (t.hasAttribute('data-pb-edit')) { edit(+t.closest('[data-pb-i]').getAttribute('data-pb-i')); }
+            else if (t.hasAttribute('data-pb-corner')) {
+                const p = plots[+t.closest('[data-pb-i]').getAttribute('data-pb-i')];
+                p.corner = !p.corner;
+                render();
+            }
+        });
+        if (V()) {
+            V().addCheck(form, function () {
+                if (!plots.length) { return { field: null, message: 'Generate the property grid first.' }; }
+                return null;
+            });
+        }
+        addRow('YES');
+        addRow('NO');
+        sync();
     }
 
     /* ---------- submit pre-checks (called by app.js) ---------- */
@@ -582,6 +860,7 @@
         });
         root.querySelectorAll('form[data-scheme-form]').forEach(initSchemeForm);
         root.querySelectorAll('form[data-property-form]').forEach(initPropertyForm);
+        root.querySelectorAll('form[data-property-bulk]').forEach(initPropertyBulk);
         root.querySelectorAll('form[data-bulk-form]').forEach(initBulkForm);
         root.querySelectorAll('form[data-sector-form]').forEach(initSectorForm);
     };

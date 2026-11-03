@@ -58,6 +58,7 @@
         convert: function (v, from, to) { return from === to ? v : v * Lookups.unitFactor(from) / Lookups.unitFactor(to); },
         /** "150.00 sq ft" (+ "= 13.94 sq m" when not in sq m and withSqm is set). */
         area: function (value, code, sqm) {
+            if (value == null || value === '') { return '—'; } // area is optional on a property
             return fmt_num(value, 2) + ' ' + Lookups.unitSymbol(code) + (sqm != null && code !== Lookups.BASE_UNIT ? ' (= ' + fmt_num(sqm, 2) + ' ' + Lookups.unitSymbol(Lookups.BASE_UNIT) + ')' : '');
         },
         options: function (map, selected, placeholder) {
@@ -417,7 +418,6 @@
     // [label, icon, path, permission] — an item shows only when the panel has that permission
     const MENUS = {
         SUPER_ADMIN: [['Dashboard', 'fa-gauge-high', '/admin/dashboard'], { section: 'Masters' },
-            ['Area', 'fa-map-location-dot', '/admin/masters/areas', 'master.view'],
             ['Scheme', 'fa-map', '/admin/masters/schemes', 'scheme.view'], ['Sector', 'fa-table-cells', '/admin/masters/sectors', 'master.view'],
             ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'], ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'], ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
             ['Role', 'fa-sitemap', '/admin/roles', 'role.view'], ['User', 'fa-users', '/admin/users', 'user.view'],

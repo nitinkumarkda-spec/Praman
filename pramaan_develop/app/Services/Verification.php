@@ -81,8 +81,9 @@ final class Verification
                 return ['ok' => false, 'message' => 'Property #' . $propertyId . ' not found.'];
             }
             $sc = Scheme::find($p['scheme_id']);
-            $se = Sector::find($p['sector_id']);
-            $lbl = 'Plot ' . $p['plot_no'] . ' (' . $sc['scheme_name'] . ' / ' . $se['sector_name'] . ')';
+            $se = $p['sector_id'] ? Sector::find($p['sector_id']) : null; // sector is optional
+            $where = $sc['scheme_name'] . ($se ? ' / ' . $se['sector_name'] : '');
+            $lbl = 'Plot ' . $p['plot_no'] . ' (' . $where . ')';
             $reason = $reason !== null ? trim($reason) : null;
 
             if (!self::canSend($p)) {
@@ -149,7 +150,7 @@ final class Verification
                 Notify::send($t['users'], [
                     'type' => 'TASK', 'tone' => $roundNo > 1 ? 'warning' : 'info', 'icon' => 'fa-clipboard-list',
                     'title' => ($roundNo > 1 ? 'Re-verification task' : 'New verification task') . ' — Plot ' . $p['plot_no'],
-                    'message' => $sc['scheme_name'] . ' / ' . $se['sector_name'] . ' · Round R' . $roundNo . ' · ' . $t['role']['role_name'] . ' · due ' . dmy($t['due'])
+                    'message' => $where . ' · Round R' . $roundNo . ' · ' . $t['role']['role_name'] . ' · due ' . dmy($t['due'])
                         . ($roundNo > 1 && $reason ? ' · Reason: ' . $reason : ''),
                     'link' => '/role/tasks/' . $t['task_id'],
                 ]);

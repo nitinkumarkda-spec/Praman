@@ -74,7 +74,6 @@ class SchemeListPage extends StatelessWidget {
               subtitle: Text(str(s['scheme_code']), style: T.mono.copyWith(fontSize: 12)),
               trailing: activePill(s['is_active']),
               fields: [
-                ('Area', val(s['area'])),
                 ('Type', val(kSchemeTypes[s['scheme_type']] ?? s['scheme_type'])),
                 ('Year', val(s['year_of_scheme'])),
                 (
@@ -235,18 +234,12 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
     final db = P.db;
     final scheme = widget.scheme;
     final id = scheme == null ? null : toInt(scheme['scheme_id']);
-    final areaId = toInt(_f.value('area_id'));
-    final area = db.find('master_areas', areaId);
-    if (area == null || (id == null && !truthy(area['is_active']))) {
-      _f.fail('area_id', 'Please select an active area.');
-      return;
-    }
     final data = <String, Object?>{
       'scheme_name': _f.trimmed('scheme_name'),
       'scheme_type': _f.value('scheme_type'),
-      'area_id': areaId,
       'year_of_scheme': toInt(_f.trimmed('year_of_scheme')),
     };
+    if (id != null) { data['area_id'] = scheme?['area_id']; }
     if (db.valueExists('schemes', 'scheme_name', data['scheme_name'], id)) {
       _f.fail('scheme_name', 'A scheme with this name already exists.');
       return;
@@ -378,7 +371,6 @@ class _SchemeFormPageState extends State<SchemeFormPage> {
                 hint: isEdit ? 'Code cannot be changed.' : 'CAPITAL letters, digits, / _ - . Cannot be changed later.',
               ),
               FSelect(form: _f, name: 'scheme_type', label: 'Scheme type', options: kSchemeTypes, rules: 'required', placeholder: 'Select type'),
-              FSelect(form: _f, name: 'area_id', label: 'Area', options: areasMap(scheme?['area_id']), rules: 'required', placeholder: 'Select area'),
               FText(form: _f, name: 'year_of_scheme', label: 'Year of scheme', rules: 'required|year', placeholder: 'e.g. 2019', keyboard: TextInputType.number, maxLength: 4),
             ]),
           ),

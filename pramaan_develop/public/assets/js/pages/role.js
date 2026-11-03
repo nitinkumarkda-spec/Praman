@@ -30,7 +30,7 @@
             round_no: vr.round_no, round_status: vr.round_status, initiated_at: vr.initiated_at, resend_reason: vr.resend_reason,
             property_id: p.property_id, property_code: p.property_code, plot_no: p.plot_no, property_type: p.property_type,
             area_value: p.area_value, area_unit: p.area_unit, area_sqm: p.area_sqm, property_remarks: p.remarks,
-            scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_type: sc.scheme_type, sector_name: se.sector_name,
+            scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_type: sc.scheme_type, sector_name: se ? se.sector_name : '—',
             area: sc ? DB.areaName(sc.area_id) : '—',
             role_name: r.role_name, role_code: r.role_code, responded_by_name: ru ? ru.name : null,
             initiated_by_name: iu ? iu.name : '', initiated_by_designation: iu ? iu.designation : ''
@@ -48,6 +48,7 @@
     function inUnit(v, from, to) { return L.convert(v, from, to); }
     /** Actual vs recorded area, both expressed in the recorded unit. */
     function variance(value, unit, recValue, recUnit) {
+        if (!(recValue > 0) || !recUnit) { return { variance: null }; } // no area in the register to compare with
         const actual = Math.round(inUnit(value, unit, recUnit) * 100) / 100;
         const diff = Math.round((actual - recValue) * 100) / 100;
         return {
@@ -57,6 +58,7 @@
         };
     }
     function varianceHtml(r) {
+        if (!r.variance) { return icon('fa-circle-info') + ' <span>No area is recorded in the property register, so there is nothing to compare.</span>'; }
         if (r.variance === 'SAME') { return icon('fa-circle-check') + ' <span>Actual area <strong>matches</strong> the recorded area.</span>'; }
         return icon(r.variance === 'LESS' ? 'fa-arrow-trend-down' : 'fa-arrow-trend-up') + ' <span>Actual area is <strong>' + P.fmt_num(r.diff, 2) + ' ' +
             e(L.unitSymbol(r.unit)) + ' (' + P.fmt_num(r.pct, 2) + '%) ' + (r.variance === 'LESS' ? 'less' : 'more') + '</strong> than recorded.</span>';
@@ -76,9 +78,9 @@
                 '<div class="input-suffix"><input type="text" id="' + id + '" name="' + id + '" class="form-control" inputmode="decimal" maxlength="10" placeholder="' + ph + '" autocomplete="off" ' +
                 'data-decimals="2" data-rules="required|decimal:2|positive" data-label="' + label + '" data-site-dim><span class="suffix" data-len-sym>' + e(sym) + '</span></div><div class="invalid-feedback"></div></div>';
         };
-        return '<div class="site-check" data-site-check data-recorded-value="' + task.area_value + '" data-recorded-unit="' + e(task.area_unit) + '">' +
+        return '<div class="site-check" data-site-check data-recorded-value="' + (task.area_value == null ? '' : task.area_value) + '" data-recorded-unit="' + e(task.area_unit || '') + '">' +
             stepHtml(1, 'fa-ruler-combined', 'Area', 'as per the physical location') +
-            '<div class="site-recorded">' + icon('fa-file-lines') + ' <span>Recorded area (property register): <strong>' + e(L.area(task.area_value, task.area_unit)) + '</strong></span></div>' +
+            '<div class="site-recorded">' + icon('fa-file-lines') + ' <span>Recorded area (property register): <strong>' + e(task.area_value == null ? 'Not entered' : L.area(task.area_value, task.area_unit)) + '</strong></span></div>' +
             '<div class="dim-row">' + dim('site_length', 'Length', 'e.g. 30.00') + '<span class="dim-x" aria-hidden="true">×</span>' + dim('site_width', 'Width', 'e.g. 40.50') +
             '<div class="form-group"><label class="form-label" for="site_area_unit">Unit <span class="required">*</span></label>' +
             '<select id="site_area_unit" name="site_area_unit" class="form-select" data-rules="required" data-label="Unit" data-site-unit>' +
@@ -128,7 +130,7 @@
             if (!(l > 0) || !(w > 0)) { out.innerHTML = icon('fa-circle-info') + ' <span>Enter length and width — the area is worked out and compared with the recorded area.</span>'; return; }
             const area = Math.round(l * w * 100) / 100;
             const r = variance(area, unit.value, recValue, recUnit);
-            out.classList.add('is-' + r.variance.toLowerCase());
+            out.classList.add('is-' + (r.variance || 'none').toLowerCase());
             out.innerHTML = '<span class="site-area-calc">' + P.fmt_num(l, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(w, 2) + ' ' + e(sym) + ' = <strong>' + e(L.area(area, unit.value, L.toSqm(area, unit.value))) + '</strong></span>' + varianceHtml(r);
         }
         function syncCount() {
@@ -180,7 +182,7 @@
         const yes = function (v) { return v ? '<span class="badge badge-danger">Yes</span>' : '<span class="badge badge-success">No</span>'; };
         const photos = P.attachmentsFor({ task_id: si.task_id, context: 'SITE_PHOTO' });
         return '<dt>Actual area</dt><dd>' + (si.length_value ? P.fmt_num(si.length_value, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(si.width_value, 2) + ' ' + e(sym) + ' = ' : '') +
-            '<strong>' + e(L.area(si.area_value, si.area_unit)) + '</strong><span class="site-variance-inline is-' + si.variance.toLowerCase() + '">' + varianceHtml(r) + '</span></dd>' +
+            '<strong>' + e(L.area(si.area_value, si.area_unit)) + '</strong><span class="site-variance-inline is-' + (si.variance || 'none').toLowerCase() + '">' + varianceHtml(r) + '</span></dd>' +
             '<dt>Encroachment</dt><dd>' + (si.encroachment === 'YES' ? '<span class="badge badge-danger">Yes</span> ' + (si.encroachment_type ? '<strong>' + e(ENCROACH_TYPES[si.encroachment_type]) + '</strong> — ' : '') + e(si.encroachment_details || '')
                 : '<span class="badge badge-success">No</span>') + '</dd>' +
             (si.road_width ? '<dt>Road size</dt><dd>' + si.road_width + ' ' + (si.road_width_unit === 'M' ? 'm' : 'ft') + '</dd>' : '') +
@@ -357,7 +359,7 @@
                         '<td data-label="Property"><span class="mono">' + e(t.property_code) + '</span></td>' +
                         '<td data-label="Scheme / Sector">' + e(t.scheme_name) + '<span class="cell-sub">' + e(t.sector_name) + '</span></td>' +
                         '<td data-label="Plot"><strong>' + e(t.plot_no) + '</strong><span class="cell-sub">' + e(L.PROPERTY_TYPES[t.property_type]) + '</span></td>' +
-                        '<td data-label="Area" class="nowrap">' + P.fmt_num(t.area_sqm, 2) + ' sq m</td><td data-label="Round">R' + t.round_no + '</td>' +
+                        '<td data-label="Area" class="nowrap">' + (t.area_sqm == null ? '—' : P.fmt_num(t.area_sqm, 2) + ' sq m') + '</td><td data-label="Round">R' + t.round_no + '</td>' +
                         '<td data-label="Received">' + e(P.fmt_date(t.initiated_at)) + '</td>' +
                         '<td data-label="Due"><span class="' + (late ? 'text-danger' : '') + '">' + e(P.fmt_date(t.sla_due_date)) + '</span>' +
                         (late ? ' <span class="badge badge-danger">' + icon('fa-stopwatch') + ' Overdue</span>' : '') + '</td>' +

@@ -84,7 +84,7 @@
         m.className = 'modal-backdrop ru-modal';
         m.innerHTML = '<div class="modal" role="dialog" aria-modal="true" aria-labelledby="ru-modal-title"><div class="modal-header">' +
             '<span class="modal-icon">' + icon('fa-user-tie') + '</span><div><h2 class="modal-title" id="ru-modal-title">Assigned role users</h2>' +
-            '<p>Plot <strong>' + e(prop.plot_no) + '</strong> · ' + e(sc.scheme_name) + ' / ' + e(se.sector_name) + ' · ' + groups.length + ' roles · ' + userCount + ' users</p></div>' +
+            '<p>Plot <strong>' + e(prop.plot_no) + '</strong> · ' + e(sc.scheme_name) + (se.sector_name ? ' / ' + e(se.sector_name) : '') + ' · ' + groups.length + ' roles · ' + userCount + ' users</p></div>' +
             '<button type="button" class="btn btn-light btn-sm btn-icon-only ru-close" data-ru-close aria-label="Close">' + icon('fa-xmark') + '</button></div>' +
             '<div class="modal-body">' + body + '</div>' +
             '<div class="modal-footer"><button type="button" class="btn btn-light" data-ru-close>' + icon('fa-xmark') + ' <span>Close</span></button></div></div>';
@@ -129,8 +129,8 @@
                 '<td data-label="S.No" class="cell-no">' + (p.from() + i) + '</td>' +
                 '<td data-label="Scheme">' + e(r.scheme_name) + '</td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
                 '<td data-label="Plot"><strong>' + e(r.plot_no) + '</strong></td><td data-label="Type">' + e(L.PROPERTY_TYPES[r.property_type]) + '</td>' +
-                '<td data-label="Area"' + (r.area_unit !== L.BASE_UNIT ? ' title="= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '"' : '') + '>' +
-                P.fmt_num(r.area_value, 2) + ' ' + e(L.unitSymbol(r.area_unit)).replace(/ /g, '&nbsp;') + '</td>' +
+                '<td data-label="Area"' + (r.area_value != null && r.area_unit !== L.BASE_UNIT ? ' title="= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '"' : '') + '>' +
+                (r.area_value == null ? '—' : P.fmt_num(r.area_value, 2) + ' ' + e(L.unitSymbol(r.area_unit)).replace(/ /g, '&nbsp;')) + '</td>' +
                 '<td data-label="Role users"><button type="button" class="badge badge-muted ru-trigger" data-role-users="' + r.property_id + '" aria-haspopup="dialog" title="View assigned role users">' +
                 icon('fa-user-tie') + ' ' + r.role_count + ' roles ' + icon('fa-chevron-down', 'ru-caret') + '</button></td>' +
                 '<td data-label="Verification" class="cell-vf">' + verificationCell(r) + '</td>' +
@@ -148,7 +148,7 @@
         }).join('');
         const single = p.items.filter(function (r) { return canSend && r.current_status === 'LISTED'; }).map(function (r) {
             return '<form method="post" data-action="oic-send" id="send-' + r.property_id + '" hidden data-confirm="' +
-                e('Send plot ' + r.plot_no + ' (' + r.scheme_name + ' / ' + r.sector_name + ') for verification to ' + r.role_count + ' role(s)?') + '" data-confirm-ok="Yes, send">' +
+                e('Send plot ' + r.plot_no + ' (' + r.scheme_name + (r.sector_id ? ' / ' + r.sector_name : '') + ') for verification to ' + r.role_count + ' role(s)?') + '" data-confirm-ok="Yes, send">' +
                 '<input type="hidden" name="ids[]" value="' + r.property_id + '"></form>';
         }).join('');
         return {

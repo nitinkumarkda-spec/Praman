@@ -165,14 +165,15 @@ final class TaskController extends Controller
         $lng = $this->coordinate('longitude', 'Longitude', 3, 180);
 
         $p = Property::find($propertyId);
-        $actual = round(PropertyService::convert($value, $unit, $p['area_unit']), 2);
-        $diff = round($actual - (float) $p['area_value'], 2);
+        // a property entered without an area has nothing to compare with: difference 0, variance empty
+        $recorded = $p['area_value'] !== null;
+        $diff = $recorded ? round(round(PropertyService::convert($value, $unit, $p['area_unit']), 2) - (float) $p['area_value'], 2) : 0.0;
         return [
             'length_value' => $len, 'width_value' => $wid,
             'area_value' => $value, 'area_unit' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
             'recorded_value' => $p['area_value'], 'recorded_unit' => $p['area_unit'], 'difference' => abs($diff),
             'difference_pct' => $p['area_value'] ? round(abs($diff) / (float) $p['area_value'] * 100, 2) : 0,
-            'variance' => abs($diff) < 0.01 ? SiteCode::SAME : ($diff < 0 ? SiteCode::LESS : SiteCode::MORE),
+            'variance' => !$recorded ? null : (abs($diff) < 0.01 ? SiteCode::SAME : ($diff < 0 ? SiteCode::LESS : SiteCode::MORE)),
             'encroachment' => $enc, 'encroachment_type' => $type, 'encroachment_details' => $text !== '' ? $text : null,
             'road_width' => (int) $road, 'road_width_unit' => $roadUnit, 'is_corner' => $corner,
             'latitude' => $lat, 'longitude' => $lng, 'measured_by' => $by, 'measured_at' => now(),

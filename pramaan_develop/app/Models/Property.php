@@ -12,7 +12,7 @@ final class Property extends Model
     protected static string $table = 'properties';
     protected static string $pk = 'property_id';
     protected static array $columns = ['property_code', 'scheme_id', 'sector_id', 'plot_no', 'property_type', 'area_value', 'area_unit',
-        'area_sqm', 'remarks', 'reserve_price', 'current_status', 'current_round_id', 'ready_round_id', 'valid_till', 'is_active', 'created_by', 'updated_by'];
+        'area_sqm', 'is_corner', 'remarks', 'reserve_price', 'current_status', 'current_round_id', 'ready_round_id', 'valid_till', 'is_active', 'created_by', 'updated_by'];
     protected static array $floats = ['reserve_price'];
 
 

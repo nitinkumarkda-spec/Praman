@@ -47,7 +47,9 @@ foreach ([['notifications', 'deleted_at', 'DATETIME NULL AFTER read_at'],
              ['site_inspections', 'road_width_unit', "ENUM('FT','M') NULL AFTER road_width"],
              ['site_inspections', 'is_corner', 'TINYINT(1) NULL AFTER road_width_unit'],
              ['site_inspections', 'latitude', 'DECIMAL(10,8) NULL AFTER is_corner'],
-             ['site_inspections', 'longitude', 'DECIMAL(11,8) NULL AFTER latitude']] as [$key, $col, $def]) {
+             ['site_inspections', 'longitude', 'DECIMAL(11,8) NULL AFTER latitude'],
+             ['properties', 'sector_key', 'INT UNSIGNED AS (IFNULL(sector_id, 0)) STORED AFTER sector_id'],
+             ['properties', 'is_corner', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER area_sqm']] as [$key, $col, $def]) {
     if (!$pdo->query('SHOW COLUMNS FROM ' . Table::q($key) . ' LIKE ' . $pdo->quote($col))->fetch()) {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' ADD COLUMN `' . $col . '` ' . $def);
         echo '  + added ' . Table::name($key) . ".{$col}\n";
@@ -56,7 +58,7 @@ foreach ([['notifications', 'deleted_at', 'DATETIME NULL AFTER read_at'],
 
 // Unit Master: area units used to be ENUM('SQM','SQFT'); now they are codes of the units table
 \App\Models\Unit::seedDefaults();
-foreach ([['properties', 'area_unit', "VARCHAR(20) NOT NULL DEFAULT 'SQM'"], ['site_inspections', 'area_unit', 'VARCHAR(20) NOT NULL'],
+foreach ([['properties', 'area_unit', 'VARCHAR(20) NULL'], ['site_inspections', 'area_unit', 'VARCHAR(20) NOT NULL'],
              ['site_inspections', 'recorded_unit', 'VARCHAR(20) NOT NULL']] as [$key, $col, $def]) {
     $c = $pdo->query('SHOW COLUMNS FROM ' . Table::q($key) . ' LIKE ' . $pdo->quote($col))->fetch(PDO::FETCH_ASSOC);
     if ($c && str_starts_with(strtolower((string) $c['Type']), 'enum')) {
@@ -64,10 +66,35 @@ foreach ([['properties', 'area_unit', "VARCHAR(20) NOT NULL DEFAULT 'SQM'"], ['s
         echo '  ~ ' . Table::name($key) . ".{$col} now refers to the Unit Master\n";
     }
 }
+// Add Property grid: sector and area are optional; a site check of a plot without a recorded area has nothing to compare
+$nullable = $pdo->prepare('SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+foreach ([['properties', 'sector_id', 'INT UNSIGNED NULL'], ['properties', 'area_value', 'DECIMAL(12,2) NULL'],
+             ['properties', 'area_unit', 'VARCHAR(20) NULL'], ['properties', 'area_sqm', 'DECIMAL(14,4) NULL'],
+             ['site_inspections', 'recorded_value', 'DECIMAL(12,2) NULL'], ['site_inspections', 'recorded_unit', 'VARCHAR(20) NULL'],
+             ['site_inspections', 'variance', "ENUM('SAME','LESS','MORE') NULL"]] as [$key, $col, $def]) {
+    $nullable->execute([Table::name($key), $col]);
+    if ($nullable->fetchColumn() === 'NO') {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' MODIFY `' . $col . '` ' . $def);
+        echo '  ~ ' . Table::name($key) . ".{$col} may now be empty
+";
+    }
+}
+// checks whose rule changed: [table key, name, new definition, text the new rule contains]
+$check = $pdo->prepare('SELECT CHECK_CLAUSE FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?');
+foreach ([['properties', 'ck_properties_area', 'CHECK (area_value IS NULL OR area_value > 0)', 'is null']] as [$key, $name, $def, $has]) {
+    $check->execute([Table::name($key), $name]);
+    $clause = $check->fetchColumn();
+    if ($clause !== false && !str_contains(strtolower((string) $clause), $has)) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP CONSTRAINT ' . $name . ', ADD CONSTRAINT ' . $name . ' ' . $def);
+        echo "  ~ {$name}
+";
+    }
+}
 $fk = $pdo->prepare('SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?');
 // constraints added after the first release: [table key, name, definition]
 foreach ([['properties', 'fk_properties_unit', 'FOREIGN KEY (area_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT'],
              ['properties', 'ck_properties_price', 'CHECK (reserve_price IS NULL OR reserve_price > 0)'],
+             ['properties', 'ck_properties_area_unit', 'CHECK ((area_value IS NULL) = (area_unit IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))'],
              ['site_inspections', 'fk_site_inspections_unit', 'FOREIGN KEY (area_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT'],
              ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT']] as [$key, $name, $def]) {
     $fk->execute([Table::name($key), $name]);

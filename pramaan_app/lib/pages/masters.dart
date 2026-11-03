@@ -90,27 +90,6 @@ class MasterDef {
 Widget _sub(Object? main, Object? sub, {bool strong = true}) => cellSub(main, sub, strong: strong);
 
 final Map<String, MasterDef> kMasters = {
-  'areas': MasterDef(
-    table: 'master_areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: FA.mapLocationDot, entity: 'AREA',
-    sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
-    name: (r) => str(r['area_name']), sort: 'order',
-    fields: [
-      const MField('area_code', 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.'),
-      const MField('area_name', 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota'),
-      const MField('name_hi', 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. उत्तर कोटा'),
-      const MField('description', 'Description', rules: 'max:150|text'),
-          ],
-    columns: [
-            MColumn('code', 'Code', (r) => r['area_code'], (r) => val(r['area_code'], mono: true)),
-      MColumn('name', 'Area name', (r) => r['area_name'], (r) => _sub(r['area_name'], r['name_hi'])),
-      MColumn('desc', 'Description', (r) => r['description'], (r) => val(r['description'])),
-    ],
-    usage: (r) {
-      final n = P.db.count('schemes', {'area_id': r['area_id'], 'is_active': 1});
-      return (n, '$n scheme${n == 1 ? '' : 's'}');
-    },
-    search: (r) => [r['area_code'], r['area_name'], r['name_hi'], r['description']],
-  ),
   'plot-types': MasterDef(
     table: 'master_plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: FA.shapes, entity: 'PLOT_TYPE',
     sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',

@@ -18,23 +18,6 @@
 
     /* ---------------- config of the generic masters ---------------- */
     const MASTERS = {
-        areas: {
-            table: 'areas', pk: 'area_id', title: 'Area Master', one: 'Area', icon: 'fa-map-location-dot', entity: 'AREA',
-            sub: 'Geographical areas of Kota. Inactive areas are hidden when creating new schemes.',
-            name: function (r) { return r.area_name; }, sort: 'name',
-            fields: [
-                { name: 'area_code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.' },
-                { name: 'area_name', label: 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota' },
-                { name: 'description', label: 'Description', rules: 'max:150|text' }
-            ],
-            columns: [
-                ['code', 'Code', function (r) { return r.area_code; }, function (r) { return '<span class="mono">' + e(r.area_code) + '</span>'; }],
-                ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>'; }],
-                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
-            ],
-            usage: function (r) { const n = DB.count('schemes', { area_id: r.area_id, is_active: 1 }); return { n: n, text: n + ' scheme' + (n === 1 ? '' : 's') }; },
-            search: function (r) { return [r.area_code, r.area_name, r.description]; }
-        },
         'plot-types': {
             table: 'plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
@@ -245,7 +228,7 @@
                 Auth.can('master.create') ? '<a href="' + P.url(BASE + '/sectors/create', q.scheme_id ? { scheme_id: q.scheme_id } : null) + '" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Sector</span></a>' : '') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
-                '<div class="card">' + P.list_toolbar(p, 'Search sector, scheme or area…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search sector or scheme…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'name', 'Sector') +
                 P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {

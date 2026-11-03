@@ -68,7 +68,7 @@
         if (!p) { return null; }
         const sc = DB.find('schemes', p.scheme_id);
         const se = DB.find('sectors', p.sector_id);
-        return 'Plot ' + p.plot_no + ' (' + p.property_code + ') · ' + sc.scheme_name + ' / ' + se.sector_name;
+        return 'Plot ' + p.plot_no + ' (' + p.property_code + ') · ' + sc.scheme_name + (se ? ' / ' + se.sector_name : '');
     }
     function subjectOf(a) {
         if (a.property_id) { return propertyLabel(a.property_id); }
