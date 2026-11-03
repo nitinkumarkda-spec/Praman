@@ -62,7 +62,6 @@
         const c = {
             users_total: DB.count('users'), users_active: DB.count('users', { is_active: 1 }), users_locked: DB.count('users', isLocked),
             roles_total: DB.count('roles'), roles_active: DB.count('roles', { is_active: 1 }),
-            schemes_total: DB.count('schemes'), schemes_active: DB.count('schemes', { is_active: 1 }),
             properties_total: DB.count('properties', { is_active: 1 }),
             failed_24h: DB.count('login_attempts', function (a) { return a.success === 0 && a.attempted_at > DB.now(-1440); }),
             logs_today: DB.count('audit_logs', function (a) { return a.performed_at.slice(0, 10) === DB.today(); })
@@ -73,13 +72,12 @@
         });
         return {
             title: 'Dashboard',
-            html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'System overview — users, roles, schemes, properties, verification and activity.',
+            html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'System overview — users, roles, properties, verification and activity.',
                 (can('audit.view') ? '<a href="' + P.BASE + '/admin/audit-logs" class="btn btn-light">' + icon('fa-chart-line') + ' <span>Activity &amp; Audit</span></a>' : '') +
                 (can('user.create') ? '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('navy', 'fa-users', c.users_total, 'Users', P.fmt_num(c.users_active) + ' active', P.BASE + '/admin/users') +
                 P.statCard('gold', 'fa-sitemap', c.roles_total, 'Roles / Sections', P.fmt_num(c.roles_active) + ' active', P.BASE + '/admin/roles') +
-                P.statCard('blue', 'fa-map', c.schemes_total, 'Schemes', P.fmt_num(c.schemes_active) + ' active', P.url('/admin/audit-logs', { area: 'SCHEME', quick: 'area:SCHEME' })) +
                 P.statCard('green', 'fa-building', c.properties_total, 'Properties', 'registered', P.url('/admin/audit-logs', { area: 'PROPERTY', quick: 'area:PROPERTY' })) +
                 P.statCard('red', 'fa-user-lock', c.users_locked, 'Locked accounts', P.fmt_num(c.failed_24h) + ' failed logins (24h)', P.url('/admin/users', { status: 'locked' })) +
                 P.statCard('navy', 'fa-gavel', c.logs_today, 'Actions today', 'audit entries', P.url('/admin/audit-logs', { quick: 'today', from: DB.today(), to: DB.today() })) +
