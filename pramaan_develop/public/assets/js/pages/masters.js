@@ -25,18 +25,17 @@
             fields: [
                 { name: 'area_code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. AREA-NORTH', hint: 'CAPITAL letters, digits, hyphen, underscore. Stored on schemes — cannot be changed later.' },
                 { name: 'area_name', label: 'Area name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. North Kota' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:60|text', placeholder: 'e.g. उत्तर कोटा' },
                 { name: 'description', label: 'Description', rules: 'max:150|text' },
                 { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('areas') + 1; } }
             ],
             columns: [
                 ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.area_code; }, function (r) { return '<span class="mono">' + e(r.area_code) + '</span>'; }],
-                ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['name', 'Area name', function (r) { return r.area_name; }, function (r) { return '<strong>' + e(r.area_name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             usage: function (r) { const n = DB.count('schemes', { area_id: r.area_id, is_active: 1 }); return { n: n, text: n + ' scheme' + (n === 1 ? '' : 's') }; },
-            search: function (r) { return [r.area_code, r.area_name, r.name_hi, r.description]; }
+            search: function (r) { return [r.area_code, r.area_name, r.description]; }
         },
         'plot-types': {
             table: 'plot_types', pk: 'plot_type_id', title: 'Plot Type Master', one: 'Plot type', icon: 'fa-shapes', entity: 'PLOT_TYPE',
@@ -45,18 +44,17 @@
             fields: [
                 { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. GODOWN', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Godown' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:60|text' },
                 { name: 'description', label: 'Description', rules: 'max:150|text' },
                 { name: 'sort_order', label: 'Display order', type: 'number', rules: 'required|integer|between:0,999', def: function () { return DB.count('plot_types') + 1; } }
             ],
             columns: [
                 ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>'; }],
-                ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             usage: function (r) { const n = DB.count('properties', { property_type: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.name_hi, r.description]; }
+            search: function (r) { return [r.code, r.name, r.description]; }
         },
         units: {
             table: 'units', pk: 'unit_id', title: 'Unit Master', one: 'Unit', icon: 'fa-ruler-combined', entity: 'UNIT',
@@ -65,7 +63,6 @@
             fields: [
                 { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. SQYD', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Unit name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. Square Yard' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:40|text', placeholder: 'e.g. वर्ग गज' },
                 { name: 'symbol', label: 'Symbol', rules: 'required|max:15|text', unique: true, placeholder: 'e.g. sq yd', hint: 'Short label shown next to every area.' },
                 { name: 'to_sqm', label: '1 unit = sq m', rules: 'required|decimal:8|positive', placeholder: 'e.g. 0.83612736', inputmode: 'decimal',
                     hint: 'How many square metres make one unit. Cannot change once properties use the unit.', lockIf: function (r) { return !!r.is_system; } },
@@ -75,14 +72,14 @@
             columns: [
                 ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' base unit</span>' : ''); }],
-                ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>' + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>'; }],
                 ['factor', '1 unit =', function (r) { return Number(r.to_sqm); }, function (r) { return '<span class="mono">' + e(String(Number(r.to_sqm))) + '</span> sq m'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             locked: function (r) { return !!r.is_system; },
             lockNote: 'Base unit — every area is stored in sq m, so its code and factor (1) cannot change and it is always active. You can change its name, symbol and order.',
             usage: function (r) { const n = DB.count('properties', { area_unit: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.name_hi, r.symbol, r.description]; }
+            search: function (r) { return [r.code, r.name, r.symbol, r.description]; }
         },
         statuses: {
             table: 'statuses', pk: 'status_id', title: 'Status Master', one: 'Property status', icon: 'fa-flag', entity: 'STATUS',
@@ -91,7 +88,6 @@
             fields: [
                 { name: 'code', label: 'Status code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. ON_HOLD', hint: 'CAPITAL letters, digits, underscore. Cannot be changed later.' },
                 { name: 'name', label: 'Display name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. On Hold' },
-                { name: 'name_hi', label: 'Name (Hindi)', rules: 'max:40|text' },
                 { name: 'color', label: 'Badge colour', type: 'select', rules: 'required', options: COLOR_OPTS, def: function () { return 'info'; }, preview: true },
                 { name: 'icon', label: 'Icon', type: 'select', rules: 'required', options: ICON_OPTS, def: function () { return 'fa-flag'; }, preview: true },
                 { name: 'description', label: 'Meaning', rules: 'max:150|text' },
@@ -100,12 +96,12 @@
             columns: [
                 ['order', '#', function (r) { return r.sort_order; }, function (r) { return String(r.sort_order); }],
                 ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' system</span>' : '<span class="cell-sub">custom</span>'); }],
-                ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.code) + (r.name_hi ? '<span class="cell-sub">' + e(r.name_hi) + '</span>' : ''); }],
+                ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.code); }],
                 ['desc', 'Meaning', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             locked: function (r) { return !!r.is_system; },
             usage: function (r) { const n = DB.count('properties', { current_status: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.name_hi, r.description]; }
+            search: function (r) { return [r.code, r.name, r.description]; }
         }
     };
     P.MASTERS = MASTERS;
@@ -140,12 +136,12 @@
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
                         (Auth.can('master.edit') ? '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' : '') +
                         (!Auth.can('master.toggle') ? '' : locked ?'<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
-                            '<form method="post" data-action="master-toggle" data-confirm="' + e(on ? 'Deactivate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"? It will be hidden from new entries; existing records keep it.' : 'Activate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
-                            '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="id" value="' + id + '">' +
+                            '<form method="post" data-action="master" data-confirm="' + e(on ? 'Deactivate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"? It will be hidden from new entries; existing records keep it.' : 'Activate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                            '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' + id + '">' +
                             (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                                 : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>') +
-                        (!locked && !r._usage.n && Auth.can('master.delete') ? '<form method="post" data-action="master-delete" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
-                            '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="id" value="' + id + '">' +
+                        (!locked && !r._usage.n && Auth.can('master.delete') ? '<form method="post" data-action="master" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
+                            '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="' + id + '">' +
                             '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
                 }).join('') : P.empty_state(m.columns.length + 3, p.hasFilters(), 'No records yet')) +
@@ -182,8 +178,8 @@
                 (usage && usage.n ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This ' + e(m.one.toLowerCase()) + ' is used in <strong>' + e(usage.text) + '</strong>. Changes show everywhere it is used.</span></div>' : '') +
                 (locked ? '<div class="alert alert-warning">' + icon('fa-lock') + '<span>' + (m.lockNote ? e(m.lockNote)
                     : 'System status — the workflow depends on code <strong>' + e(row.code) + '</strong>. You can change its name, colour, icon and order.') + '</span></div>' : '') +
-                '<div class="card"><div class="card-body"><form method="post" data-action="master-save" novalidate data-validate>' +
-                '<input type="hidden" name="key" value="' + key + '">' + (isEdit ? '<input type="hidden" name="id" value="' + row[m.pk] + '">' : '') +
+                '<div class="card"><div class="card-body"><form method="post" data-action="master" data-master-form novalidate data-validate>' +
+                '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="save">' + (isEdit ? '<input type="hidden" name="id" value="' + row[m.pk] + '">' : '') +
                 '<div class="form-grid">' + m.fields.map(field).join('') +
                 (previewField ? '<div class="form-group"><label class="form-label">Preview</label><div class="master-preview" data-preview-box></div></div>' : '') +
                 (locked ? '' : '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || row.is_active ? ' checked' : '') + '>' +
@@ -191,7 +187,7 @@
                 '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update' : 'Create') + ' ' + e(m.one) + '</span></button>' +
                 '<a href="' + P.BASE + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>',
             after: previewField ? function (root) {
-                const form = root.querySelector('form[data-action="master-save"]');
+                const form = root.querySelector('form[data-master-form]');
                 const box = form.querySelector('[data-preview-box]');
                 function draw() {
                     const name = (form.querySelector('[name="name"]').value || 'Status name').trim();
@@ -269,11 +265,11 @@
                             : '<span class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</span>') + '</td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
                         (Auth.can('master.edit') ? '<a href="' + P.BASE + BASE + '/sectors/' + r.sector_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit sector" aria-label="Edit sector">' + icon('fa-pen') + '</a>' : '') +
-                        (Auth.can('master.toggle') ? '<form method="post" data-action="sector-toggle" data-confirm="' + e(on ? 'Deactivate sector "' + r.sector_name + '"? Existing properties stay; no new property can be added in it.' : 'Activate sector "' + r.sector_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
-                        '<input type="hidden" name="id" value="' + r.sector_id + '">' + (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
+                        (Auth.can('master.toggle') ? '<form method="post" data-action="master" data-confirm="' + e(on ? 'Deactivate sector "' + r.sector_name + '"? Existing properties stay; no new property can be added in it.' : 'Activate sector "' + r.sector_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                        '<input type="hidden" name="key" value="sectors"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' + r.sector_id + '">' + (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>' : '') +
-                        (!r.props && Auth.can('master.delete') ? '<form method="post" data-action="sector-delete" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
-                            '<input type="hidden" name="id" value="' + r.sector_id + '"><button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
+                        (!r.props && Auth.can('master.delete') ? '<form method="post" data-action="master" data-confirm="' + e('Delete sector "' + r.sector_name + '" permanently?') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
+                            '<input type="hidden" name="key" value="sectors"><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="' + r.sector_id + '"><button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
                 }).join('') : P.empty_state(6, p.hasFilters(), 'No sectors yet')) + '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
@@ -290,7 +286,7 @@
                 isEdit ? e(row.sector_name + ' · ' + sc.scheme_name) : 'Add one or more sectors to a scheme. Each name must be unique inside its scheme.',
                 '<a href="' + P.BASE + BASE + '/sectors" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
                 (props ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>' + props + ' propert' + (props === 1 ? 'y is' : 'ies are') + ' registered in this sector. Renaming shows the new name on them too.</span></div>' : '') +
-                '<div class="card"><div class="card-body"><form method="post" data-action="sector-save" novalidate data-validate>' + (isEdit ? '<input type="hidden" name="id" value="' + row.sector_id + '">' : '') +
+                '<div class="card"><div class="card-body"><form method="post" data-action="master" data-sector-form novalidate data-validate><input type="hidden" name="key" value="sectors"><input type="hidden" name="do" value="save">' + (isEdit ? '<input type="hidden" name="id" value="' + row.sector_id + '">' : '') +
                 '<div class="form-grid"><div class="form-group"><label class="form-label" for="scheme_id">Scheme <span class="required">*</span></label>' +
                 (isEdit ? '<input type="text" class="form-control" readonly value="' + e(sc.scheme_name + ' (' + sc.scheme_code + ')') + '"><div class="form-hint">A sector cannot move to another scheme.</div>'
                     : '<select id="scheme_id" name="scheme_id" class="form-select" data-rules="required" data-label="Scheme">' + L.options(schemes, ctx.query.scheme_id, 'Select scheme') + '</select>') +
