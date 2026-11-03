@@ -297,8 +297,8 @@
     };
     P.propertyPriceRows = function (prop) {
         const plan = P.propertyDoc(prop.property_id, 'SITE_PLAN');
-        return '<dt>Reserve price</dt><dd>' + e(P.fmt_rupees(prop.reserve_price)) + '</dd>' +
-            '<dt>Site plan</dt><dd>' + (plan ? P.attachmentChips([plan]) : '<span class="text-muted">—</span>') + '</dd>';
+        const priceRow = (prop && prop.reserve_price) ? '<dt>Reserve price</dt><dd>' + e(P.fmt_rupees(prop.reserve_price)) + '</dd>' : '';
+        return priceRow + '<dt>Site plan</dt><dd>' + (plan ? P.attachmentChips([plan]) : '<span class="text-muted">—</span>') + '</dd>';
     };
 
     /* Edit one property (only while Listed). New properties come from the Add Property grid below. */
@@ -330,9 +330,6 @@
             '<div class="pb-area"><input type="text" id="area_value" name="area_value" class="form-control" inputmode="decimal" maxlength="13" value="' + e(v('area_value')) + '" placeholder="e.g. 150.50" data-decimals="2" data-rules="decimal:2|positive" data-label="Area" data-area-value>' +
             '<select id="area_unit" name="area_unit" class="form-select" aria-label="Area unit" data-area-unit>' + L.options(L.activeMap('units', 'code', 'name', v('area_unit')), v('area_unit', L.BASE_UNIT)) + '</select></div>' +
             '<div class="form-hint" data-area-preview></div><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="reserve_price">Reserve price (₹)' + optional + '</label>' +
-            '<div class="input-affix"><span class="affix" aria-hidden="true">₹</span><input type="text" id="reserve_price" name="reserve_price" class="form-control" inputmode="decimal" maxlength="15" value="' + e(v('reserve_price')) + '" placeholder="e.g. 1250000" data-rules="decimal:2|positive" data-label="Reserve price" data-rupee></div>' +
-            '<div class="form-hint" data-rupee-preview></div><div class="invalid-feedback"></div></div>' +
             P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)', current: P.propertyDoc(prop.property_id, 'SITE_PLAN') }) +
             '<div class="form-group"><span class="form-label">Corner plot</span><label class="check"><input type="checkbox" name="is_corner" value="1"' + (prop.is_corner ? ' checked' : '') + '> <span>This is a <strong>corner</strong> plot</span></label></div>' +
             '<div class="form-group span-2"><label class="form-label" for="remarks">Description' + optional + '</label><textarea id="remarks" name="remarks" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot" data-rules="max:500|text" data-label="Description">' + e(v('remarks')) + '</textarea><div class="invalid-feedback"></div></div>' +
