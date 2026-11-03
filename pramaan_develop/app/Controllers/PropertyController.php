@@ -63,8 +63,8 @@ final class PropertyController extends Controller
 
         // the plots to save: the whole grid, or the one property being edited
         if ($prop) {
-            $plots = [['plot_no' => $in->str('plot_no'), 'property_type' => $in->str('property_type'), 'area_value' => $in->str('area_value'),
-                'area_unit' => $in->str('area_unit'), 'reserve_price' => $in->str('reserve_price'), 'remarks' => $in->str('remarks'),
+            $plots = [['plot_no' => $in->str('plot_no'), 'property_type' => $in->str('property_type') ?: $in->str('plot_type_id'), 'area_value' => $in->str('area_value'),
+                'area_unit' => $in->str('area_unit') ?: $in->str('unit_id'), 'reserve_price' => $in->str('reserve_price'), 'remarks' => $in->str('remarks'),
                 'corner' => $in->input('is_corner') === '1']];
         } else {
             $plots = json_decode($in->str('plots'), true);
@@ -95,9 +95,18 @@ final class PropertyController extends Controller
             if (Property::valueExists('plot_no', $plot, $id, ['scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'] ?? null])) {
                 $err(($prop ? 'Plot no. ' . $plot . ' ' : '') . 'already exists in ' . $where . '.', 'plot_no', $tag);
             }
-            $pt = PlotType::first(['code' => (string) ($p['property_type'] ?? '')]);
+            $rawType = trim((string) ($p['property_type'] ?? $p['plot_type_id'] ?? ''));
+            $pt = null;
+            if (is_numeric($rawType) && (int) $rawType > 0) {
+                $pt = PlotType::find((int) $rawType);
+            }
+            if (!$pt && $rawType !== '') {
+                $pt = PlotType::first(['code' => strtoupper($rawType)])
+                    ?: PlotType::first(['code' => $rawType])
+                    ?: PlotType::first(['name' => $rawType]);
+            }
             if (!$pt || (!$pt['is_active'] && $pt['code'] !== ($prop['property_type'] ?? null))) {
-                $err('Please select an active property type.', 'property_type', $tag);
+                $err('Please select an active plot type.', 'property_type', $tag);
             }
             $area = str_replace(',', '', trim((string) ($p['area_value'] ?? '')));
             $unit = null;
@@ -105,7 +114,12 @@ final class PropertyController extends Controller
                 if (!preg_match('/^\d{1,10}(\.\d{1,2})?$/', $area) || (float) $area <= 0) {
                     $err('Area must be a number greater than zero (up to 2 decimals).', 'area_value', $tag);
                 }
-                $unit = PropertyService::validUnit((string) ($p['area_unit'] ?? ''), $prop['area_unit'] ?? null);
+                $rawUnit = trim((string) ($p['area_unit'] ?? $p['unit_id'] ?? ''));
+                if (is_numeric($rawUnit) && (int) $rawUnit > 0) {
+                    $uRow = Unit::find((int) $rawUnit);
+                    $rawUnit = $uRow ? $uRow['code'] : '';
+                }
+                $unit = PropertyService::validUnit($rawUnit, $prop['area_unit'] ?? null);
                 if (!$unit) {
                     $err('Please select an active area unit.', 'area_unit', $tag);
                 }
