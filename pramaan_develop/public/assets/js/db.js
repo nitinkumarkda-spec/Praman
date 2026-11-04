@@ -11,24 +11,23 @@
 
     /* ---------- Table registry: key => primary key (same tables as database/schema.sql) ---------- */
     const TABLES = {
-        roles:          'role_id',
-        users:          'user_id',
-        schemes:        'scheme_id',
-        sectors:        'sector_id',
-        scheme_users:   'map_id',
-        properties:     'property_id',
-        property_users: 'pru_id',
-        rounds:         'round_id',
-        tasks:          'task_id',
+        roles: 'role_id',
+        users: 'user_id',
+        schemes: 'scheme_id',
+        sectors: 'sector_id',
+        scheme_users: 'map_id',
+        properties: 'property_id',
+        rounds: 'round_id',
+        tasks: 'task_id',
         task_assignees: 'assignee_id',
-        audit_logs:     'log_id',
+        audit_logs: 'log_id',
         login_attempts: 'attempt_id',
-        notifications:  'notification_id',
-        plot_types:     'plot_type_id',
-        units:          'unit_id',
-        statuses:       'status_id',
-        areas:          'area_id',
-        attachments:    'attachment_id'
+        notifications: 'notification_id',
+        plot_types: 'plot_type_id',
+        units: 'unit_id',
+        statuses: 'status_id',
+        areas: 'area_id',
+        attachments: 'attachment_id'
     };
 
     let data = {};
@@ -133,17 +132,19 @@
     /* =================================================================
        Verification rules used for display (the server enforces them)
        ================================================================= */
-    const SENDABLE = ['LISTED', 'NOT_READY', 'EXPIRED'];
+    /** Fixed ids of the workflow's statuses in the Status Master (same as App\Codes\PropertyStatus). */
+    const ST = DB.ST = { LISTED: 1, UNDER_VERIFICATION: 2, AUCTION_READY: 3, NOT_READY: 4, EXPIRED: 5, SENT_FOR_AUCTION: 6, SOLD: 7, WITHHELD: 8, ARCHIVED: 9 };
+    const SENDABLE = [ST.LISTED, ST.NOT_READY, ST.EXPIRED];
     DB.Verification = {
         SENDABLE: SENDABLE,
         get REVERIFY_ALERT_DAYS() { return Number(DB.setting('reverify_alert_days', 15)); },
         /** Last date of the re-verification window: Auction Ready valid till this date or earlier is "due". */
         horizon: function () { return today(DB.Verification.REVERIFY_ALERT_DAYS); },
         isDue: function (p) {
-            return p.current_status === 'AUCTION_READY' && !!p.valid_till && p.valid_till <= DB.Verification.horizon();
+            return p.status_id === ST.AUCTION_READY && !!p.valid_till && p.valid_till <= DB.Verification.horizon();
         },
         /** Can OIC start a new round now? Listed / Not Ready / Expired, or Auction Ready inside the window. */
-        canSend: function (p) { return SENDABLE.indexOf(p.current_status) !== -1 || DB.Verification.isDue(p); }
+        canSend: function (p) { return SENDABLE.indexOf(p.status_id) !== -1 || DB.Verification.isDue(p); }
     };
 
     DB.areaName = function (id) {
@@ -164,16 +165,6 @@
                         return u && u.is_active && u.panel === 'ROLE_USER' && u.role_id === r.role_id;
                     });
                 }).map(function (r) { return r.role_name; });
-        },
-        roleUsers: function (propertyId) {
-            return DB.where('property_users', { property_id: propertyId, is_active: 1 }).map(function (x) {
-                const r = DB.find('roles', x.role_id) || {};
-                const u = DB.find('users', x.user_id) || {};
-                return {
-                    role_id: r.role_id, role_name: r.role_name, sort_order: r.sort_order, is_mandatory: r.is_mandatory,
-                    role_active: r.is_active, user_id: u.user_id, name: u.name || '', designation: u.designation, user_active: u.is_active
-                };
-            }).sort(function (a, b) { return a.sort_order - b.sort_order || a.name.localeCompare(b.name); });
         }
     };
 
@@ -183,9 +174,9 @@
                 return s.scheme_id === Number(schemeId) && (!activeOnly || s.is_active === 1);
             }).sort(function (a, b) { return a.sort_order - b.sort_order; });
         },
-        /** Active schemes having at least one active sector (eligible for property entry). */
+        /** Active schemes (eligible for property entry; a sector is optional). */
         eligible: function () {
-            return DB.where('schemes', { is_active: 1 }).filter(function (s) { return DB.Scheme.sectors(s.scheme_id, true).length > 0; })
+            return DB.where('schemes', { is_active: 1 })
                 .sort(function (a, b) { return a.scheme_name.localeCompare(b.scheme_name); });
         },
         /** role_id => user_ids currently mapped */

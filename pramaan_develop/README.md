@@ -83,13 +83,13 @@ draws the screens (same code as the HTML prototype). Forms post to `POST /api/<a
 the controller validates, applies the business rules inside a DB transaction, writes the audit trail and
 notifications, and answers with fresh data. `GET /api/state` is polled every minute for new notifications.
 
-## 4. Database `pramaan_db` (23 tables)
+## 4. Database `pramaan_db` (22 tables)
 | Area | Tables |
 |---|---|
 | Access | `roles`, `users`, `login_attempts`, `panel_permissions` (what each panel may do), `user_permissions` (one user's Allow / Deny exceptions) |
 | Masters | `zones`, `wards`, `assemblies`, `plot_types`, `statuses` |
 | Schemes | `schemes`, `sectors`, `scheme_users` (role users mapped to a scheme) |
-| Properties | `properties`, `property_users` (snapshot of the scheme's role users) |
+| Properties | `properties` |
 | Verification | `rounds`, `tasks` (one per role), `task_assignees`, `site_inspections` (Engineering), `sale_checks` (Sale), `attachments` |
 | Tracking | `notifications`, `audit_logs` (insert-only) |
 | Settings | `settings` (key / value), `slides` (landing page photos) |

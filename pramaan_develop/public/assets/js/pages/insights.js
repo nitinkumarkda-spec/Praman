@@ -68,16 +68,16 @@
         if (!p) { return null; }
         const sc = DB.find('schemes', p.scheme_id);
         const se = DB.find('sectors', p.sector_id);
-        return 'Plot ' + p.plot_no + ' (' + p.property_code + ') · ' + sc.scheme_name + (se ? ' / ' + se.sector_name : '');
+        return 'Plot ' + p.plot_no + ' · ' + sc.scheme_name + (se ? ' / ' + se.sector_name : '');
     }
     function subjectOf(a) {
         if (a.property_id) { return propertyLabel(a.property_id); }
         const t = a.entity_type;
         const row = t === 'SCHEME' ? DB.find('schemes', a.entity_id) : t === 'ROLE' ? DB.find('roles', a.entity_id) : t === 'USER' ? DB.find('users', a.entity_id) : null;
         if (!row) { return null; }
-        if (t === 'SCHEME') { return row.scheme_name + ' (' + row.scheme_code + ')'; }
-        if (t === 'ROLE') { return row.role_name + ' (' + row.role_code + ')'; }
-        return row.name + ' (' + row.username + ')';
+        if (t === 'SCHEME') { return row.scheme_name; }
+        if (t === 'ROLE') { return row.role_name; }
+        return row.name + (row.mobile ? ' (' + row.mobile + ')' : '');
     }
     function titleOf(a) {
         const crud = { CREATED: 'Created', UPDATED: 'Updated', ACTIVATED: 'Activated', DEACTIVATED: 'Deactivated' };
@@ -207,10 +207,10 @@
         }).join('') + '</div>';
         const userOpts = {};
         Object.keys(um).map(function (k) { return um[k]; }).sort(P.by(function (u) { return u.name; }))
-            .forEach(function (u) { userOpts[u.user_id] = u.name + ' (' + P.PANELS[u.panel] + ')'; });
+            .forEach(function (u) { const r = u.role_id ? DB.find('roles', u.role_id) : null; userOpts[u.user_id] = u.name + (r ? ' (' + r.role_name + ')' : ''); });
         const roleOpts = {};
-        Object.keys(P.PANELS).forEach(function (k) { if (k !== 'ROLE_USER') { roleOpts['P:' + k] = P.PANELS[k] + ' panel'; } });
-        DB.all('roles').sort(P.by(function (r) { return r.sort_order; })).forEach(function (r) { roleOpts['R:' + r.role_id] = r.role_name + ' (Role User)'; });
+        // panels removed
+        DB.all('roles').sort(P.by(function (r) { return r.sort_order; })).forEach(function (r) { roleOpts['R:' + r.role_id] = r.role_name; });
         const areaOpts = {};
         Object.keys(AREAS).forEach(function (k) { areaOpts[k] = AREAS[k][0]; });
         const field = function (lbl, html) { return '<div class="ins-field"><label class="form-label">' + lbl + '</label>' + html + '</div>'; };
@@ -327,7 +327,7 @@
         return '<article class="ins-item' + tone + '"><div class="ins-item-main"><h4 class="ins-item-title">' + e(titleOf(a)) +
             (a.entity_id != null && a.entity_type !== 'AUTH' ? ' <span class="ins-id">#' + a.entity_id + '</span>' : '') + '</h4>' +
             '<div class="ins-meta"><span>' + icon('fa-user') + ' ' + e(a.performed_by_name || 'System') + (a.performed_by_designation ? ' (' + e(a.performed_by_designation) + ')' : '') + '</span>' +
-            (u ? '<span>' + icon('fa-shield-halved') + ' ' + e(P.PANELS[u.panel]) + (u.role_id ? ' · ' + e(DB.find('roles', u.role_id).role_name) : '') + '</span>' : '') +
+            (u ? '<span>' + icon('fa-shield-halved') + ' ' + (u.role_id ? e((DB.find('roles', u.role_id) || {}).role_name || 'Admin') : 'Admin') + '</span>' : '') +
             '<span>' + icon(area[1]) + ' ' + e(area[0]) + '</span></div>' +
             '<div class="ins-details"><p class="ins-details-title">' + e(titleOf(a)) + ' - ' + (subject ? 'Activity details for ' + e(subject) : 'Activity Details') + '</p>' +
             ((isChange || isCreate) && desc ? '<p class="ins-desc">' + e(desc) + '</p>' : '') + body + '</div></div>' +
@@ -486,7 +486,7 @@
         const list = Object.keys(m).sort(function (a, b) { return m[b].n - m[a].n; }).slice(0, 6);
         const body = list.length ? '<ul class="ins-users">' + list.map(function (id) {
             const u = um[id];
-            return '<li><div><strong>' + e(u ? u.name : 'User #' + id) + '</strong><small>' + e((u ? u.designation : '') + ' · ' + dayLabel(m[id].last).slice(0, 6) + ', ' + timeOnly(m[id].last)) + '</small></div>' +
+            return '<li><div><strong>' + e(u ? u.name : 'User #' + id) + '</strong><small>' + e((u ? (u.mobile || '') : '') + ' · ' + dayLabel(m[id].last).slice(0, 6) + ', ' + timeOnly(m[id].last)) + '</small></div>' +
                 '<a class="ins-count" href="' + P.url('/admin/audit-logs', { user: id }) + '" title="Show this user\'s activity">' + m[id].n + '</a></li>';
         }).join('') + '</ul>' : '<p class="text-muted small">No user activity in this period.</p>';
         return sideCard('Most Active Users', 'fa-user-clock', body, false);

@@ -208,7 +208,7 @@ abstract class Model
     /* ======================= helpers ======================= */
 
     /** Columns that are numbers in every table. */
-    private const INTS = ['sort_order', 'sla_days', 'round_no', 'year_of_scheme', 'failed_attempts',
+    private const INTS = ['sort_order', 'sla_days', 'round_no', 'failed_attempts',
         'size', 'success', 'must_change_password', 'entity_id'];
     private const FLOATS = ['area_value', 'area_sqm', 'recorded_value', 'difference', 'difference_pct'];
 

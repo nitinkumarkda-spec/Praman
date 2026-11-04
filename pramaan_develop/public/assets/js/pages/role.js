@@ -28,12 +28,12 @@
         return Object.assign({}, t, {
             view_status: t.task_status === 'PENDING' && vr.round_status !== 'OPEN' ? 'NOT_REQUIRED' : t.task_status,
             round_no: vr.round_no, round_status: vr.round_status, initiated_at: vr.initiated_at, resend_reason: vr.resend_reason,
-            property_id: p.property_id, property_code: p.property_code, plot_no: p.plot_no, property_type: p.property_type,
-            area_value: p.area_value, area_unit: p.area_unit, area_sqm: p.area_sqm, property_remarks: p.remarks,
-            scheme_name: sc.scheme_name, scheme_code: sc.scheme_code, scheme_type: sc.scheme_type, sector_name: se ? se.sector_name : '—',
+            property_id: p.property_id, plot_no: p.plot_no, plot_type_id: p.plot_type_id, type_name: L.PROPERTY_TYPES[p.plot_type_id] || '—', is_corner: p.is_corner,
+            area_value: p.area_value, unit_id: p.unit_id, area_sqm: p.area_sqm, property_remarks: p.remarks,
+            scheme_name: sc.scheme_name, scheme_type: sc.scheme_type, sector_name: se ? se.sector_name : '—',
             area: sc ? DB.areaName(sc.area_id) : '—',
-            role_name: r.role_name, role_code: r.role_code, responded_by_name: ru ? ru.name : null,
-            initiated_by_name: iu ? iu.name : '', initiated_by_designation: iu ? iu.designation : ''
+            role_name: r.role_name, form: r.verification_form, responded_by_name: ru ? ru.name : null,
+            initiated_by_name: iu ? iu.name : '', initiated_by_mobile: iu ? iu.mobile : ''
         });
     }
     const isPendingOpen = function (t) { return t.view_status === 'PENDING'; };
@@ -41,7 +41,7 @@
     /* ================= Engineering Cell: physical site check (filled before the decision) =================
        1 area as length × width (unit from the Unit Master) · 2 encroachment (partial / complete + details)
        3 road size + corner plot · 4 site photos · 5 geo coordinates. Server: TaskController::siteCheck(). */
-    const SITE_ROLE = 'ENGINEERING_CELL';
+    const SITE_ROLE = 'SITE'; // roles.verification_form
     const ENCROACH_MAX = 300;
     const ENCROACH_TYPES = { PARTIAL: 'Partial encroachment', COMPLETE: 'Complete encroachment' };
     const ROAD_UNITS = { FT: 'Feet (ft)', M: 'Meter (m)' };
@@ -72,20 +72,20 @@
             }).join('') + '</div><div class="invalid-feedback"></div></div>';
     }
     function siteCheckHtml(task) {
-        const sym = lengthSymbol(task.area_unit);
+        const sym = lengthSymbol(task.unit_id || L.BASE_UNIT);
         const dim = function (id, label, ph) {
             return '<div class="form-group"><label class="form-label" for="' + id + '">' + label + ' <span class="required">*</span></label>' +
                 '<div class="input-suffix"><input type="text" id="' + id + '" name="' + id + '" class="form-control" inputmode="decimal" maxlength="10" placeholder="' + ph + '" autocomplete="off" ' +
                 'data-decimals="2" data-rules="required|decimal:2|positive" data-label="' + label + '" data-site-dim><span class="suffix" data-len-sym>' + e(sym) + '</span></div><div class="invalid-feedback"></div></div>';
         };
-        return '<div class="site-check" data-site-check data-recorded-value="' + (task.area_value == null ? '' : task.area_value) + '" data-recorded-unit="' + e(task.area_unit || '') + '">' +
+        return '<div class="site-check" data-site-check data-recorded-value="' + (task.area_value == null ? '' : task.area_value) + '" data-recorded-unit="' + (task.unit_id || '') + '">' +
             stepHtml(1, 'fa-ruler-combined', 'Area', 'as per the physical location') +
-            '<div class="site-recorded">' + icon('fa-file-lines') + ' <span>Recorded area (property register): <strong>' + e(task.area_value == null ? 'Not entered' : L.area(task.area_value, task.area_unit)) + '</strong></span></div>' +
+            '<div class="site-recorded">' + icon('fa-file-lines') + ' <span>Recorded area (property register): <strong>' + e(task.area_value == null ? 'Not entered' : L.area(task.area_value, task.unit_id)) + '</strong></span></div>' +
             '<div class="dim-row">' + dim('site_length', 'Length', 'e.g. 30.00') + '<span class="dim-x" aria-hidden="true">×</span>' + dim('site_width', 'Width', 'e.g. 40.50') +
             '<div class="form-group"><label class="form-label" for="site_area_unit">Unit <span class="required">*</span></label>' +
             '<select id="site_area_unit" name="site_area_unit" class="form-select" data-rules="required" data-label="Unit" data-site-unit>' +
-            Object.keys(L.activeMap('units', 'code', 'name', task.area_unit)).map(function (u) {
-                return '<option value="' + e(u) + '"' + (u === task.area_unit ? ' selected' : '') + '>' + e(L.unitName(u)) + ' (' + e(L.unitSymbol(u)) + ')</option>';
+            Object.keys(L.activeMap('units', 'unit_id', 'name', task.unit_id)).map(Number).map(function (u) {
+                return '<option value="' + u + '"' + (u === (task.unit_id || L.BASE_UNIT) ? ' selected' : '') + '>' + e(L.unitName(u)) + ' (' + e(L.unitSymbol(u)) + ')</option>';
             }).join('') + '</select><div class="form-hint">From the Unit Master.</div><div class="invalid-feedback"></div></div></div>' +
             '<div class="site-variance" data-site-variance aria-live="polite"></div>' +
 
@@ -121,7 +121,7 @@
         const box = form.querySelector('[data-site-check]');
         const len = box.querySelector('#site_length'), wid = box.querySelector('#site_width'), unit = box.querySelector('[data-site-unit]'), out = box.querySelector('[data-site-variance]');
         const details = box.querySelector('[data-encroach-details]'), counter = box.querySelector('[data-char-count]');
-        const recValue = Number(box.getAttribute('data-recorded-value')), recUnit = box.getAttribute('data-recorded-unit');
+        const recValue = Number(box.getAttribute('data-recorded-value')), recUnit = Number(box.getAttribute('data-recorded-unit')) || null;
         function syncArea() {
             const sym = lengthSymbol(unit.value);
             box.querySelectorAll('[data-len-sym]').forEach(function (s) { s.textContent = sym; });
@@ -129,9 +129,9 @@
             out.className = 'site-variance';
             if (!(l > 0) || !(w > 0)) { out.innerHTML = icon('fa-circle-info') + ' <span>Enter length and width — the area is worked out and compared with the recorded area.</span>'; return; }
             const area = Math.round(l * w * 100) / 100;
-            const r = variance(area, unit.value, recValue, recUnit);
+            const r = variance(area, Number(unit.value), recValue, recUnit);
             out.classList.add('is-' + (r.variance || 'none').toLowerCase());
-            out.innerHTML = '<span class="site-area-calc">' + P.fmt_num(l, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(w, 2) + ' ' + e(sym) + ' = <strong>' + e(L.area(area, unit.value, L.toSqm(area, unit.value))) + '</strong></span>' + varianceHtml(r);
+            out.innerHTML = '<span class="site-area-calc">' + P.fmt_num(l, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(w, 2) + ' ' + e(sym) + ' = <strong>' + e(L.area(area, Number(unit.value), L.toSqm(area, Number(unit.value)))) + '</strong></span>' + varianceHtml(r);
         }
         function syncCount() {
             counter.textContent = details.value.length;
@@ -165,7 +165,7 @@
     }
     /** On top of the Engineering task: what the Sale Cell found in this round. */
     function saleResultAlert(task) {
-        const role = DB.first('roles', { role_code: SALE_ROLE });
+        const role = DB.first('roles', { verification_form: SALE_ROLE });
         const sale = role ? DB.first('tasks', { round_id: task.round_id, role_id: role.role_id }) : null;
         if (!sale) { return ''; }
         const by = sale.responded_by ? DB.find('users', sale.responded_by) : null;
@@ -177,12 +177,12 @@
     }
     /** Read-only rows shown on the task after the Engineering response. */
     function siteSummaryRows(si) {
-        const r = { variance: si.variance, diff: si.difference, pct: si.difference_pct, unit: si.recorded_unit };
-        const sym = lengthSymbol(si.area_unit);
+        const r = { variance: si.variance, diff: si.difference, pct: si.difference_pct, unit: si.recorded_unit_id };
+        const sym = lengthSymbol(si.unit_id);
         const yes = function (v) { return v ? '<span class="badge badge-danger">Yes</span>' : '<span class="badge badge-success">No</span>'; };
         const photos = P.attachmentsFor({ task_id: si.task_id, context: 'SITE_PHOTO' });
         return '<dt>Actual area</dt><dd>' + (si.length_value ? P.fmt_num(si.length_value, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(si.width_value, 2) + ' ' + e(sym) + ' = ' : '') +
-            '<strong>' + e(L.area(si.area_value, si.area_unit)) + '</strong><span class="site-variance-inline is-' + (si.variance || 'none').toLowerCase() + '">' + varianceHtml(r) + '</span></dd>' +
+            '<strong>' + e(L.area(si.area_value, si.unit_id)) + '</strong><span class="site-variance-inline is-' + (si.variance || 'none').toLowerCase() + '">' + varianceHtml(r) + '</span></dd>' +
             '<dt>Encroachment</dt><dd>' + (si.encroachment === 'YES' ? '<span class="badge badge-danger">Yes</span> ' + (si.encroachment_type ? '<strong>' + e(ENCROACH_TYPES[si.encroachment_type]) + '</strong> — ' : '') + e(si.encroachment_details || '')
                 : '<span class="badge badge-success">No</span>') + '</dd>' +
             (si.road_width ? '<dt>Road size</dt><dd>' + si.road_width + ' ' + (si.road_width_unit === 'M' ? 'm' : 'ft') + '</dd>' : '') +
@@ -194,7 +194,7 @@
 
     /* ================= Department-wise section: Sale (Sale Cell), Auction (Auction Cell), General (every other cell) =================
        Engineering has its site inspection instead. Any "Yes" means the property is not available (auto-recorded as Objection). */
-    const SALE_ROLE = 'SALE_CELL', AUCTION_ROLE = 'AUCTION_CELL';
+    const SALE_ROLE = 'SALE', AUCTION_ROLE = 'AUCTION'; // roles.verification_form
     const OWN_SECTION_ROLES = [SALE_ROLE, AUCTION_ROLE, SITE_ROLE]; // every other cell answers the General section
     function stepHtml(n, ic, title, sub) {
         return '<p class="site-step"><span class="step-no">' + n + '</span> ' + icon(ic) + ' ' + title + (sub ? ' <small class="text-muted step-sub">' + sub + '</small>' : '') + '</p>';
@@ -211,9 +211,9 @@
     /** n = number of steps already shown above (Engineering site check). */
     function sectionChecksHtml(task, n) {
         const today = DB.today();
-        if (task.role_code === SITE_ROLE) { return ''; }
+        if (task.form === SITE_ROLE) { return ''; }
         let h = '<div class="site-check section-check" data-section-check>';
-        if (task.role_code === SALE_ROLE) {
+        if (task.form === SALE_ROLE) {
             h += stepHtml(++n, 'fa-file-signature', 'Sale', 'allotment to a person, or mutation if sold on') +
                 P.yesNoField({ name: 'is_sale_allotted', label: 'Allotted?' }) +
                 '<div class="reveal-box" data-reveal="is_sale_allotted=YES"><div class="form-grid">' +
@@ -221,13 +221,13 @@
                 P.dateField({ id: 'allotment_date', name: 'allotment_date', label: 'Date of allotment / mutation', required: true, max: today }) +
                 '<div class="span-2">' + P.pdfField({ name: 'allotment_letter', label: 'Allotment letter / mutation letter (PDF)', required: true }) + '</div></div></div>';
         }
-        if (task.role_code === AUCTION_ROLE) {
+        if (task.form === AUCTION_ROLE) {
             h += stepHtml(++n, 'fa-gavel', 'Auction', 'whether the property is already auctioned') +
                 P.yesNoField({ name: 'is_auctioned', label: 'Auctioned?' }) +
                 '<div class="reveal-box" data-reveal="is_auctioned=YES"><div class="form-grid">' +
                 P.dateField({ id: 'auction_date', name: 'auction_date', label: 'Date on which the property was auctioned', required: true, max: today }) + '</div></div>';
         }
-        if (OWN_SECTION_ROLES.indexOf(task.role_code) === -1) {
+        if (OWN_SECTION_ROLES.indexOf(task.form) === -1) {
             h += stepHtml(++n, 'fa-building-columns', 'General', 'allotment to an organisation / institution') +
                 P.yesNoField({ name: 'is_inst_allotted', label: 'Allotment (to an organisation / institution)?' }) +
                 // Yes = occupied. "In progress" has no exact allotment date yet, so the date is asked only when it is not ticked.
@@ -332,14 +332,14 @@
         if (q.scheme_id) { rows = rows.filter(function (t) { return String(DB.find('properties', t.property_id).scheme_id) === q.scheme_id; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'due', dir: 'asc', filters: ['status', 'scheme_id'],
-            search: function (t) { return [t.plot_no, t.property_code, t.scheme_name, t.sector_name]; },
+            search: function (t) { return [t.plot_no, t.type_name, t.scheme_name, t.sector_name]; },
             sortable: {
                 due: function (t) { return t.sla_due_date; }, sent: function (t) { return t.initiated_at; }, plot: function (t) { return t.plot_no; },
                 scheme: function (t) { return t.scheme_name; }, status: function (t) { return t.view_status; }
             }
         });
         const schemes = {};
-        DB.all('schemes').forEach(function (s) { schemes[s.scheme_id] = s.scheme_name + ' (' + s.scheme_code + ')'; });
+        DB.all('schemes').forEach(function (s) { schemes[s.scheme_id] = s.scheme_name; });
         const filters = '<select name="scheme_id" class="form-select" aria-label="Scheme" data-auto-submit>' + L.options(schemes, q.scheme_id, 'All schemes') + '</select>' +
             (cur ? '<input type="hidden" name="status" value="' + e(cur) + '">' : '');
         return {
@@ -349,16 +349,15 @@
                     return '<a href="' + P.url('/role/tasks', { status: t[0], scheme_id: q.scheme_id || '' }) + '" class="tab' + (cur === t[0] ? ' active' : '') + '"' + (cur === t[0] ? ' aria-current="page"' : '') + '>' +
                         icon(t[2]) + ' ' + t[1] + '</a>';
                 }).join('') + '</nav>' +
-                '<div class="card">' + P.list_toolbar(p, 'Search plot no., property code, scheme, sector…', filters) +
-                '<div class="table-wrap"><table class="table table-stack"><thead><tr><th>Property</th>' + P.th_sort(p, 'scheme', 'Scheme / Sector') + P.th_sort(p, 'plot', 'Plot') +
+                '<div class="card">' + P.list_toolbar(p, 'Search plot no., plot type, scheme, sector…', filters) +
+                '<div class="table-wrap"><table class="table table-stack"><thead><tr>' + P.th_sort(p, 'scheme', 'Scheme / Sector') + P.th_sort(p, 'plot', 'Plot') +
                 '<th>Area</th><th>Round</th>' + P.th_sort(p, 'sent', 'Received') + P.th_sort(p, 'due', 'Due (SLA)') + P.th_sort(p, 'status', 'Status') + '<th class="text-right">Action</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (t) {
                     const pending = isPendingOpen(t);
                     const late = pending && t.sla_due_date < today;
                     return '<tr class="' + (t.view_status === 'APPROVED' ? 'row-success' : (t.view_status === 'REJECTED' ? 'row-danger' : '')) + '">' +
-                        '<td data-label="Property"><span class="mono">' + e(t.property_code) + '</span></td>' +
                         '<td data-label="Scheme / Sector">' + e(t.scheme_name) + '<span class="cell-sub">' + e(t.sector_name) + '</span></td>' +
-                        '<td data-label="Plot"><strong>' + e(t.plot_no) + '</strong><span class="cell-sub">' + e(L.PROPERTY_TYPES[t.property_type]) + '</span></td>' +
+                        '<td data-label="Plot"><strong>' + e(t.plot_no) + '</strong><span class="cell-sub">' + e(t.type_name) + '</span></td>' +
                         '<td data-label="Area" class="nowrap">' + (t.area_sqm == null ? '—' : P.fmt_num(t.area_sqm, 2) + ' sq m') + '</td><td data-label="Round">R' + t.round_no + '</td>' +
                         '<td data-label="Received">' + e(P.fmt_date(t.initiated_at)) + '</td>' +
                         '<td data-label="Due"><span class="' + (late ? 'text-danger' : '') + '">' + e(P.fmt_date(t.sla_due_date)) + '</span>' +
@@ -367,7 +366,7 @@
                         (!pending && t.responded_at ? '<span class="cell-sub">' + e((t.responded_by_name || '') + ' · ' + P.fmt_date(t.responded_at)) + '</span>' : '') + '</td>' +
                         '<td class="actions">' + (pending && Auth.can('task.respond') ? '<a href="' + P.BASE + '/role/tasks/' + t.task_id + '" class="btn btn-primary btn-sm">' + icon('fa-clipboard-check') + ' <span>Verify</span></a>'
                             : '<a href="' + P.BASE + '/role/tasks/' + t.task_id + '" class="btn btn-light btn-sm">' + icon('fa-eye') + ' <span>View</span></a>') + '</td></tr>';
-                }).join('') : P.empty_state(9, p.hasFilters(), 'No task assigned to you yet')) +
+                }).join('') : P.empty_state(8, p.hasFilters(), 'No task assigned to you yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'task.view');
@@ -386,7 +385,7 @@
             return false;
         }
         task.assignees = DB.where('task_assignees', { task_id: task.task_id }).map(function (a) {
-            const u = DB.find('users', a.user_id); return u.name + ' (' + u.designation + ')';
+            const u = DB.find('users', a.user_id); return u ? u.name + (u.mobile ? ' (' + u.mobile + ')' : '') : '';
         }).sort().join(', ');
         const canRespond = task.view_status === 'PENDING' && Auth.can('task.respond');
         const late = canRespond && task.sla_due_date < DB.today();
@@ -400,25 +399,25 @@
             }).filter(Boolean);
 
         let html = P.pageHeader(icon('fa-clipboard-check') + ' Plot ' + e(task.plot_no) + ' ' + P.status_badge(task.view_status),
-            e(task.property_code + ' · ' + task.scheme_name + ' · ' + task.sector_name + ' · Round R' + task.round_no + ' · ' + task.role_name),
+            e(task.scheme_name + ' · ' + task.sector_name + ' · Round R' + task.round_no + ' · ' + task.role_name),
             '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to my tasks</span></a>');
         if (task.view_status === 'NOT_REQUIRED') {
             html += '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This round was already closed (another section rejected the property), so your response is no longer required. If the OIC re-sends it, you will get a new task.</span></div>';
         } else if (late) {
             html += '<div class="alert alert-warning">' + icon('fa-stopwatch', 'fa-shake') + '<span>SLA due date ' + e(P.fmt_date(task.sla_due_date)) + ' has passed. Please respond as soon as possible.</span></div>';
         }
-        if (task.role_code === SITE_ROLE) { html += saleResultAlert(task); }
+        if (task.form === SITE_ROLE) { html += saleResultAlert(task); }
         html += '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
-            '<dt>Property code</dt><dd class="mono">' + e(task.property_code) + '</dd><dt>Scheme</dt><dd>' + e(task.scheme_name + ' (' + task.scheme_code + ')') + '</dd>' +
+            '<dt>Scheme</dt><dd>' + e(task.scheme_name) + '</dd>' +
             '<dt>Area</dt><dd>' + e(task.area) + '</dd>' +
             '<dt>Scheme type</dt><dd>' + e(L.SCHEME_TYPES[task.scheme_type]) + '</dd><dt>Sector</dt><dd>' + e(task.sector_name) + '</dd>' +
-            '<dt>Plot no.</dt><dd><strong>' + e(task.plot_no) + '</strong></dd><dt>Plot type</dt><dd>' + e(L.PROPERTY_TYPES[task.property_type]) + '</dd>' +
-            '<dt>Plot area</dt><dd>' + e(L.area(task.area_value, task.area_unit, task.area_sqm)) + '</dd>' +
+            '<dt>Plot no.</dt><dd><strong>' + e(task.plot_no) + '</strong></dd><dt>Plot type</dt><dd>' + e(task.type_name) + '</dd><dt>Corner plot</dt><dd>' + (task.is_corner ? 'Yes' : 'No') + '</dd>' +
+            '<dt>Plot area</dt><dd>' + e(L.area(task.area_value, task.unit_id, task.area_sqm)) + '</dd>' +
             P.propertyPriceRows(DB.find('properties', task.property_id)) +
-            (task.property_remarks ? '<dt>Remarks</dt><dd>' + e(task.property_remarks) + '</dd>' : '') + '</dl></div></div>' +
+            (task.property_remarks ? '<dt>Description</dt><dd>' + e(task.property_remarks) + '</dd>' : '') + '</dl></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-layer-group') + ' Verification task</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Section</dt><dd>' + e(task.role_name) + '</dd><dt>Round</dt><dd>R' + task.round_no + ' ' + P.status_badge(task.round_status) + '</dd>' +
-            '<dt>Sent by</dt><dd>' + e(task.initiated_by_name + ' (' + task.initiated_by_designation + ')') + '</dd><dt>Received on</dt><dd>' + e(P.fmt_datetime(task.initiated_at)) + '</dd>' +
+            '<dt>Sent by</dt><dd>' + e(task.initiated_by_name + (task.initiated_by_mobile ? ' (' + task.initiated_by_mobile + ')' : '')) + '</dd><dt>Received on</dt><dd>' + e(P.fmt_datetime(task.initiated_at)) + '</dd>' +
             '<dt>Due (SLA)</dt><dd class="' + (late ? 'text-danger' : '') + '">' + e(P.fmt_date(task.sla_due_date)) + '</dd>' +
             '<dt>Assigned to</dt><dd>' + e(task.assignees || '—') + ' <small class="text-muted">(any one may respond)</small></dd>' +
             (task.resend_reason ? '<dt>Re-verification reason</dt><dd>' + e(task.resend_reason) + '</dd>' : '') +
@@ -427,7 +426,7 @@
                 '<dt>Remark</dt><dd>' + e(task.remarks || '—') + '</dd>' +
                 '<dt>Attachments</dt><dd>' + (P.attachmentsFor({ task_id: task.task_id }).length ? P.attachmentChips(P.attachmentsFor({ task_id: task.task_id })) : '—') + '</dd>' : '') + '</dl></div></div></div>';
         if (canRespond) {
-            const isSite = task.role_code === SITE_ROLE, isSale = task.role_code === SALE_ROLE, isAuction = task.role_code === AUCTION_ROLE;
+            const isSite = task.form === SITE_ROLE, isSale = task.form === SALE_ROLE, isAuction = task.form === AUCTION_ROLE;
             html += '<div class="card response-card" id="respond"><div class="card-header"><h3 class="card-title">' +
                 (isSite ? icon('fa-ruler-combined') + ' Site inspection'
                     : isSale ? icon('fa-file-signature') + ' Sale check' : isAuction ? icon('fa-gavel') + ' Auction check' : icon('fa-building-columns') + ' General check') +

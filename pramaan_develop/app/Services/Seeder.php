@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Codes\PropertyStatus;
 use App\Core\Clock;
 use App\Core\Database;
 use App\Core\Password;
@@ -18,6 +19,7 @@ use App\Models\Sector;
 use App\Models\Status;
 use App\Models\Task;
 use App\Models\TaskAssignee;
+use App\Models\Unit;
 use App\Models\User;
 
 /**
@@ -31,7 +33,7 @@ final class Seeder
     private const DAY = 1440;
 
     private const TABLES = ['site_inspections', 'section_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'property_users', 'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'user_permissions', 'users', 'roles', 'panel_permissions'];
+        'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'user_permissions', 'users', 'roles'];
 
     public static function run(): void
     {
@@ -71,7 +73,7 @@ final class Seeder
     {
         Settings::seed();
         \App\Models\Unit::seedDefaults();
-        \App\Models\PanelPermission::seedDefaults();
+        // Dynamic role permissions
         if (\App\Models\Slide::count() === 0) {
             foreach ([
                 ['kishore_sagar.jpg', 'Kishore Sagar, Kota', 'Photo: Kushagra140, CC BY-SA 4.0, via Wikimedia Commons'],
@@ -92,7 +94,7 @@ final class Seeder
     private static function actor(int $uid): array
     {
         $u = User::find($uid);
-        return ['user_id' => $u['user_id'], 'name' => $u['name'], 'designation' => $u['designation']];
+        return ['user_id' => $u['user_id'] ?? null, 'name' => $u['name'] ?? 'System', 'designation' => null];
     }
 
     private static function seed(): void
@@ -101,17 +103,17 @@ final class Seeder
 
         // ---- roles (verification sections) ----
         $roles = [
-            ['AUCTION_CELL', 'Auction Cell', 'नीलामी शाखा', 'Allotment by auction — allottee / cancellation record', 5],
-            ['LOTTERY_CELL', 'Lottery Cell', 'लॉटरी शाखा', 'Allotment by lottery — allottee / cancellation record', 5],
-            ['SALE_CELL', 'Sale Cell', 'विक्रय शाखा', 'Sale register — sold / reserved / vacant on record', 5],
-            ['LAND_FOR_LAND_CELL', 'Land-for-Land Cell', 'भूमि के बदले भूमि शाखा', 'Land given against acquired land', 5],
-            ['PUNARVAS_CELL', 'Punarvas Cell', 'पुनर्वास शाखा', 'Rehabilitation allotments', 5],
-            ['ENGINEERING_CELL', 'Engineering Cell', 'अभियांत्रिकी शाखा', 'Site inspection — vacancy, encroachment, measurements', 10],
-            ['TOWN_PLANNING_CELL', 'Town Planning Cell', 'नगर नियोजन शाखा', 'Master plan / layout / road widening check', 7],
-            ['LEGAL_CELL', 'Legal Cell', 'विधि शाखा', 'Litigation / stay order check', 7],
+            ['AUCTION', 'Auction Cell', 'नीलामी शाखा', 'Allotment by auction — allottee / cancellation record', 5],
+            ['GENERAL', 'Lottery Cell', 'लॉटरी शाखा', 'Allotment by lottery — allottee / cancellation record', 5],
+            ['SALE', 'Sale Cell', 'विक्रय शाखा', 'Sale register — sold / reserved / vacant on record', 5],
+            ['GENERAL', 'Land-for-Land Cell', 'भूमि के बदले भूमि शाखा', 'Land given against acquired land', 5],
+            ['GENERAL', 'Punarvas Cell', 'पुनर्वास शाखा', 'Rehabilitation allotments', 5],
+            ['SITE', 'Engineering Cell', 'अभियांत्रिकी शाखा', 'Site inspection — vacancy, encroachment, measurements', 10],
+            ['GENERAL', 'Town Planning Cell', 'नगर नियोजन शाखा', 'Master plan / layout / road widening check', 7],
+            ['GENERAL', 'Legal Cell', 'विधि शाखा', 'Litigation / stay order check', 7],
         ];
         foreach ($roles as $i => $r) {
-            Role::insert(['role_code' => $r[0], 'role_name' => $r[1], 'role_name_hi' => $r[2], 'description' => $r[3], 'sla_days' => $r[4],
+            Role::insert(['verification_form' => $r[0], 'role_name' => $r[1], 'role_name_hi' => $r[2], 'description' => $r[3], 'sla_days' => $r[4],
                 'is_mandatory' => 1, 'sort_order' => $i + 1, 'is_active' => 1, 'created_by' => null]);
         }
 
@@ -140,32 +142,33 @@ final class Seeder
             ['eng4', 'KDA-ENG-004', 'Sanjay Gurjar', 'Junior Engineer (Survey)', '9800000064', 'ROLE_USER', 6],
             ['legal3', 'KDA-LEG-003', 'Neelam Shekhawat', 'Legal Assistant', '9800000083', 'ROLE_USER', 8],
         ];
-        $panelName = ['SUPER_ADMIN' => 'Super Admin', 'DATA_ENTRY' => 'Data Entry', 'OIC' => 'OIC', 'ROLE_USER' => 'Role User'];
         foreach ($users as $u) {
             $id = User::insert([
-                'username' => $u[0], 'emp_code' => $u[1], 'name' => $u[2], 'designation' => $u[3], 'mobile' => $u[4], 'email' => $u[0] . '@kda.local',
-                'password_hash' => Password::hash(self::PASSWORD), 'panel' => $u[5], 'role_id' => $u[6], 'is_active' => 1, 'must_change_password' => 0,
+                'name' => $u[2], 'mobile' => $u[4], 'email' => $u[0] . '@kda.local',
+                'password_hash' => Password::hash(self::PASSWORD), 'role_id' => $u[6], 'is_active' => 1, 'must_change_password' => 0,
                 'failed_attempts' => 0, 'created_by' => 1,
             ]);
             Notify::send($id, ['type' => 'ACCOUNT', 'tone' => 'success', 'icon' => 'fa-hand-sparkles', 'title' => 'Welcome to ' . Settings::get('app_name'),
-                'message' => 'Your ' . $panelName[$u[5]] . ' account is ready.', 'link' => '/change-password']);
+                'message' => 'Your account is ready.', 'link' => '/change-password']);
         }
         Role::updateWhere(['created_by' => 1], ['created_by' => null]);
         Audit::log('SYSTEM', null, 'DATABASE_SEEDED', null, ['roles' => count($roles), 'users' => count($users)], null, self::actor(1));
 
         // ---- masters ----
         foreach ([
-            ['AREA-1', 'Area 1', 'एरिया 1', 'North Kota'],
-            ['AREA-2', 'Area 2', 'एरिया 2', 'South Kota'],
-            ['AREA-3', 'Area 3', 'एरिया 3', 'East Kota belt'],
-            ['AREA-4', 'Area 4', 'एरिया 4', 'West Kota'],
+            ['Area 1', 'एरिया 1', 'North Kota'],
+            ['Area 2', 'एरिया 2', 'South Kota'],
+            ['Area 3', 'एरिया 3', 'East Kota belt'],
+            ['Area 4', 'एरिया 4', 'West Kota'],
         ] as $i => $a) {
-            Area::insert(['area_code' => $a[0], 'area_name' => $a[1], 'name_hi' => $a[2], 'description' => $a[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
+            Area::insert(['area_name' => $a[0], 'name_hi' => $a[1], 'description' => $a[2], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
         }
         foreach ([['PLOT', 'Plot', 'भूखंड', 'Open residential / commercial plot'], ['SHOP', 'Shop', 'दुकान', 'Built shop'], ['KIOSK', 'Kiosk', 'कियोस्क', 'Small kiosk / booth'],
                      ['FARMHOUSE', 'Farmhouse', 'फार्महाउस', 'Farmhouse land'], ['FLAT', 'Flat', 'फ्लैट', 'Flat in a building'], ['OTHER', 'Other', 'अन्य', 'Any other property']] as $i => $t) {
-            PlotType::insert(['code' => $t[0], 'name' => $t[1], 'name_hi' => $t[2], 'description' => $t[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
+            $type[$t[0]] = PlotType::insert( // sample type => plot_type_id
+                ['name' => $t[1], 'name_hi' => $t[2], 'description' => $t[3], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
         }
+        // inserted in the order of App\Codes\PropertyStatus: the ids 1–9 are the fixed ones the workflow uses
         foreach ([['LISTED', 'Listed', 'info', 'fa-list', 'Registered, not yet sent for verification'],
                      ['UNDER_VERIFICATION', 'Under Verification', 'warning', 'fa-hourglass-half', 'Round open — sections are verifying'],
                      ['AUCTION_READY', 'Auction Ready', 'success', 'fa-circle-check', 'All sections approved'],
@@ -174,7 +177,7 @@ final class Seeder
                      ['SENT_FOR_AUCTION', 'Sent for Auction', 'primary', 'fa-gavel', 'Handed over to the auction cell'],
                      ['SOLD', 'Sold', 'dark', 'fa-handshake', 'Sold in auction'], ['WITHHELD', 'Withheld', 'muted', 'fa-pause', 'Kept on hold by order'],
                      ['ARCHIVED', 'Archived', 'muted', 'fa-box-archive', 'No longer active']] as $i => $s) {
-            Status::insert(['code' => $s[0], 'name' => $s[1], 'color' => $s[2], 'icon' => $s[3], 'description' => $s[4], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 1, 'created_by' => 1]);
+            Status::insert(['name' => $s[1], 'color' => $s[2], 'icon' => $s[3], 'description' => $s[4], 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 1, 'created_by' => 1]);
         }
 
         $de = self::actor(2);
@@ -182,29 +185,29 @@ final class Seeder
 
         // ---- schemes (created by Data Entry, 20-16 days ago) ----
         $schemes = [
-            ['Ravindra Nagar Awasiya Yojana', 'RNY-2019', 'RESIDENTIAL', 1, 2019, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
-            ['Vigyan Nagar Commercial Complex', 'VNC-2021', 'COMMERCIAL', 2, 2021, ['Block-A', 'Block-B']],
-            ['Kunhadi Industrial Area', 'KIA-2016', 'INDUSTRIAL', 3, 2016, ['Phase-I', 'Phase-II', 'Phase-III']],
+            ['Ravindra Nagar Awasiya Yojana', 'RESIDENTIAL', 1, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
+            ['Vigyan Nagar Commercial Complex', 'COMMERCIAL', 2, ['Block-A', 'Block-B']],
+            ['Kunhadi Industrial Area', 'INDUSTRIAL', 3, ['Phase-I', 'Phase-II', 'Phase-III']],
         ];
-        $roleUsers = User::where(['panel' => 'ROLE_USER'], 'user_id');
+        $roleUsers = User::where(['role_id >' => 1], 'user_id');
         foreach ($schemes as $i => $s) {
             self::loginAt(2, (20 - $i * 2) * self::DAY + 30, 0);
             self::at((20 - $i * 2) * self::DAY);
-            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2], 'area_id' => $s[3], 'year_of_scheme' => $s[4], 'is_active' => 1, 'created_by' => 2]);
-            foreach ($s[5] as $j => $name) {
+            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_type' => $s[1], 'area_id' => $s[2], 'is_active' => 1, 'created_by' => 2]);
+            foreach ($s[3] as $j => $name) {
                 Sector::insert(['scheme_id' => $sid, 'sector_name' => $name, 'sort_order' => $j + 1, 'is_active' => 1, 'created_by' => 2]);
             }
             // user 1 of each role (both for Engineering)
             foreach ($roleUsers as $u) {
-                if (str_ends_with($u['username'], '1') || (int) $u['role_id'] === 6) {
+                if (str_ends_with($u['mobile'], '1') || (int) $u['role_id'] === 6) {
                     SchemeUser::insert(['scheme_id' => $sid, 'role_id' => $u['role_id'], 'user_id' => $u['user_id'], 'is_active' => 1, 'created_by' => 2]);
                 }
             }
-            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_code' => $s[1], 'scheme_type' => $s[2],
-                'area_id' => $s[3], 'year_of_scheme' => $s[4], 'sectors' => implode(', ', $s[5])], null, $de);
+            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_type' => $s[1],
+                'area_id' => $s[2], 'sectors' => implode(', ', $s[3])], null, $de);
         }
         self::at(15 * self::DAY);
-        Audit::log('SCHEME', 1, 'UPDATED', ['year_of_scheme' => 2018], ['year_of_scheme' => 2019], null, $de);
+        Audit::log('SCHEME', 1, 'UPDATED', ['scheme_type' => 'MIXED'], ['scheme_type' => 'RESIDENTIAL'], null, $de);
 
         // ---- properties (10-6 days ago) ----
         $props = [
@@ -213,17 +216,20 @@ final class Seeder
             [3, 7, 'IND-21', 'PLOT', 1000, 'SQM'], [3, 8, 'IND-45', 'PLOT', 1500, 'SQM'], [1, 4, '412', 'PLOT', 200, 'SQM'],
             [2, 5, 'SH-15', 'SHOP', 280, 'SQFT'],
         ];
+        $unit = static fn (string $symbol): int => Unit::first(['symbol' => $symbol])['unit_id'];
+        $units = ['SQM' => $unit('sq m'), 'SQFT' => $unit('sq ft')];
         self::loginAt(2, 10 * self::DAY + 20, 0);
         foreach ($props as $i => $x) {
+            $u = $units[$x[5]];
             self::at(10 * self::DAY - $i * 3 * 60);
             $res = PropertyService::create([
                 'scheme_id' => $x[0], 'sector_id' => $x[1],
-                'plot_no' => $x[2], 'property_type' => $x[3], 'area_value' => $x[4], 'area_unit' => $x[5], 'area_sqm' => PropertyService::toSqm($x[4], $x[5]),
-                'reserve_price' => round(PropertyService::toSqm($x[4], $x[5]) * 15000, -3),
+                'plot_no' => $x[2], 'plot_type_id' => $type[$x[3]], 'area_value' => $x[4], 'unit_id' => $u, 'area_sqm' => PropertyService::toSqm($x[4], $u),
+                'reserve_price' => round(PropertyService::toSqm($x[4], $u) * 15000, -3),
             ], 2);
             $p = $res['property'];
-            Audit::log('PROPERTY', $p['property_id'], 'CREATED', null, ['property_code' => $p['property_code'], 'plot_no' => $p['plot_no'],
-                'property_type' => $p['property_type'], 'area_value' => $p['area_value'], 'area_unit' => $p['area_unit'], 'status' => 'LISTED'], $p['property_id'], $de);
+            Audit::log('PROPERTY', $p['property_id'], 'CREATED', null, ['plot_no' => $p['plot_no'],
+                'plot_type_id' => $p['plot_type_id'], 'area_value' => $p['area_value'], 'unit_id' => $p['unit_id'], 'status' => PropertyStatus::LISTED], $p['property_id'], $de);
         }
         self::at(5 * self::DAY);
         Audit::log('PROPERTY', 2, 'UPDATED', ['area_value' => 175, 'remarks' => null], ['area_value' => 180, 'remarks' => 'Area corrected as per site map'], 2, $de);
@@ -268,8 +274,8 @@ final class Seeder
         $eng = Task::first(['round_id' => $p7['current_round_id'], 'role_id' => 6]);
         Audit::as(self::actor(14), static fn () => Verification::respond($eng['task_id'], 'REJECTED',
             'Encroachment - temporary tin shed approx. 8 sq m on the front side.', 14, ['attachments' => ['site_inspection_photo.jpg', 'inspection_report.pdf']]));
-        \App\Models\SiteInspection::insert(['task_id' => $eng['task_id'], 'length_value' => 31, 'width_value' => 32, 'area_value' => 992, 'area_unit' => 'SQM', 'area_sqm' => 992,
-            'recorded_value' => 1000, 'recorded_unit' => 'SQM', 'difference' => 8, 'difference_pct' => 0.8, 'variance' => 'LESS', 'encroachment' => 'YES',
+        \App\Models\SiteInspection::insert(['task_id' => $eng['task_id'], 'length_value' => 31, 'width_value' => 32, 'area_value' => 992, 'unit_id' => $units['SQM'], 'area_sqm' => 992,
+            'recorded_value' => 1000, 'recorded_unit_id' => $units['SQM'], 'difference' => 8, 'difference_pct' => 0.8, 'variance' => 'LESS', 'encroachment' => 'YES',
             'encroachment_type' => 'PARTIAL', 'encroachment_details' => 'Temporary tin shed of about 8 sq m on the front side.',
             'road_width' => 40, 'road_width_unit' => 'FT', 'is_corner' => 0, 'latitude' => 25.13254610, 'longitude' => 75.88731245, 'measured_by' => 14, 'measured_at' => now()]);
         self::sampleFile($eng, 14, 'site_inspection_photo.jpg', 'image', ['SITE INSPECTION — Plot IND-21', 'Kunhadi Industrial Area / Phase-I', 'Encroachment: tin shed ~8 sq m (front side)', 'Inspected by: Vikas Choudhary, JE']);
@@ -299,13 +305,13 @@ final class Seeder
 
         // Super Admin security alerts
         self::at(2 * self::DAY + 95);
-        Notify::send(Notify::panelUsers('SUPER_ADMIN'), ['type' => 'ACCOUNT', 'tone' => 'warning', 'icon' => 'fa-user-shield', 'title' => 'Failed login attempt — eng2',
+        Notify::send(Notify::adminUsers(), ['type' => 'ACCOUNT', 'tone' => 'warning', 'icon' => 'fa-user-shield', 'title' => 'Failed login attempt — eng2',
             'message' => 'A wrong password was entered for eng2. The account locks after 5 failed attempts.', 'link' => '/admin/audit-logs?area=AUTH&quick=area:AUTH']);
         self::at(65);
-        Notify::send(Notify::panelUsers('SUPER_ADMIN'), ['type' => 'ACCOUNT', 'tone' => 'warning', 'icon' => 'fa-user-shield', 'title' => 'Failed login attempt — tp1',
+        Notify::send(Notify::adminUsers(), ['type' => 'ACCOUNT', 'tone' => 'warning', 'icon' => 'fa-user-shield', 'title' => 'Failed login attempt — tp1',
             'message' => 'A wrong password was entered for tp1 today.', 'link' => '/admin/audit-logs?area=AUTH&quick=area:AUTH']);
         self::at(30);
-        Notify::send(Notify::panelUsers('SUPER_ADMIN'), ['type' => 'SYSTEM', 'tone' => 'info', 'icon' => 'fa-chart-line', 'title' => 'Daily activity summary',
+        Notify::send(Notify::adminUsers(), ['type' => 'SYSTEM', 'tone' => 'info', 'icon' => 'fa-chart-line', 'title' => 'Daily activity summary',
             'message' => 'Verification is active; 2 properties are Auction Ready and 2 need re-verification. Open Activity & Audit for details.', 'link' => '/admin/audit-logs']);
         self::at(0);
         \App\Models\Notification::markReadBefore(now(-4 * self::DAY));
@@ -316,7 +322,7 @@ final class Seeder
         $a = self::actor($uid);
         $u = User::find($uid);
         self::at($minutesAgo);
-        LoginAttempt::insert(['username' => $u['username'], 'ip_address' => '127.0.0.1', 'success' => 1, 'attempted_at' => now()]);
+        LoginAttempt::insert(['username' => $u['mobile'], 'ip_address' => '127.0.0.1', 'success' => 1, 'attempted_at' => now()]);
         Audit::log('AUTH', $uid, 'LOGIN', null, ['message' => 'Login successful'], null, $a);
         User::update($uid, ['last_login_at' => now(), 'last_login_ip' => '127.0.0.1']);
         if ($logoutAfter) {

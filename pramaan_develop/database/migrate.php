@@ -91,12 +91,106 @@ foreach ([['properties', 'ck_properties_area', 'CHECK (area_value IS NULL OR are
     }
 }
 $fk = $pdo->prepare('SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?');
+// No codes: masters are linked by id, schemes have no code / year, properties no property code.
+// Every step runs only while the old column is still there, so the migration can run again.
+$hasCol = static fn (string $key, string $col): bool => (bool) $pdo->query('SHOW COLUMNS FROM ' . Table::q($key) . ' LIKE ' . $pdo->quote($col))->fetch();
+$dropFk = static function (string $key, string $name) use ($pdo, $fk): void {
+    $fk->execute([Table::name($key), $name]);
+    if ($fk->fetch()) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP FOREIGN KEY `' . $name . '`');
+    }
+};
+$dropIndex = static function (string $key, string $name) use ($pdo): void {
+    if ($pdo->query('SHOW INDEX FROM ' . Table::q($key) . ' WHERE Key_name = ' . $pdo->quote($name))->fetch()) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP INDEX `' . $name . '`');
+    }
+};
+$dropCheck = static function (string $key, string $name) use ($pdo, $fk): void {
+    $fk->execute([Table::name($key), $name]);
+    if ($fk->fetch()) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP CONSTRAINT `' . $name . '`');
+    }
+};
+if ($hasCol('properties', 'area_unit')) {
+    $dropCheck('properties', 'ck_properties_area_unit'); // added again below on unit_id
+}
+// the workflow's statuses get their fixed ids (App\Codes\PropertyStatus) before the codes go
+if ($hasCol('statuses', 'code')) {
+    $want = \App\Codes\PropertyStatus::IDS;
+    $have = $pdo->query('SELECT code, status_id FROM ' . Table::q('statuses'))->fetchAll(PDO::FETCH_KEY_PAIR);
+    if (array_intersect_key($have, $want) != array_intersect_key($want, $have)) {
+        $pdo->exec('UPDATE ' . Table::q('statuses') . ' SET status_id = status_id + 100000');
+        $next = max(array_merge([0], array_values($want))) + 1;
+        foreach ($pdo->query('SELECT code FROM ' . Table::q('statuses') . ' ORDER BY status_id')->fetchAll(PDO::FETCH_COLUMN) as $code) {
+            $id = $want[$code] ?? $next++;
+            $pdo->prepare('UPDATE ' . Table::q('statuses') . ' SET status_id = ? WHERE code = ?')->execute([$id, $code]);
+        }
+        $pdo->exec('ALTER TABLE ' . Table::q('statuses') . ' AUTO_INCREMENT = ' . $next);
+        echo "  ~ statuses: workflow statuses now have their fixed ids\n";
+    }
+}
+// [table key, old code column, new id column, its definition, master table key, master id, old FK, index on the old column]
+foreach ([['properties', 'property_type', 'plot_type_id', 'INT UNSIGNED NULL AFTER plot_no', 'plot_types', 'plot_type_id', 'fk_properties_type', null],
+             ['properties', 'area_unit', 'unit_id', 'INT UNSIGNED NULL AFTER area_value', 'units', 'unit_id', 'fk_properties_unit', null],
+             ['properties', 'current_status', 'status_id', 'INT UNSIGNED NULL AFTER reserve_price', 'statuses', 'status_id', 'fk_properties_status', 'ix_properties_status'],
+             ['site_inspections', 'area_unit', 'unit_id', 'INT UNSIGNED NULL AFTER area_value', 'units', 'unit_id', 'fk_site_inspections_unit', null],
+             ['site_inspections', 'recorded_unit', 'recorded_unit_id', 'INT UNSIGNED NULL AFTER recorded_value', 'units', 'unit_id', 'fk_site_inspections_recorded_unit', null]]
+         as [$key, $old, $new, $def, $master, $mid, $oldFk, $oldIndex]) {
+    if (!$hasCol($key, $old)) {
+        continue;
+    }
+    if (!$hasCol($key, $new)) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' ADD COLUMN `' . $new . '` ' . $def);
+    }
+    $pdo->exec('UPDATE ' . Table::q($key) . ' x JOIN ' . Table::q($master) . ' m ON m.code = x.`' . $old . '` SET x.`' . $new . '` = m.`' . $mid . '`');
+    $lost = (int) $pdo->query('SELECT COUNT(*) FROM ' . Table::q($key) . ' WHERE `' . $old . '` IS NOT NULL AND `' . $new . '` IS NULL')->fetchColumn();
+    if ($lost) {
+        exit('  ! ' . Table::name($key) . ".{$old}: {$lost} row(s) have a code that is not in " . Table::name($master) . " — fix them, then run again.\n");
+    }
+    $dropFk($key, $oldFk);
+    if ($oldIndex) {
+        $dropIndex($key, $oldIndex);
+    }
+    $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP COLUMN `' . $old . '`');
+    echo '  ~ ' . Table::name($key) . ".{$old} → {$new}\n";
+}
+foreach ([['properties', 'plot_type_id', 'INT UNSIGNED NOT NULL'], ['properties', 'status_id', 'INT UNSIGNED NOT NULL DEFAULT 1'],
+             ['site_inspections', 'unit_id', 'INT UNSIGNED NOT NULL']] as [$key, $col, $def]) {
+    $nullable->execute([Table::name($key), $col]);
+    if ($nullable->fetchColumn() === 'YES') {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' MODIFY `' . $col . '` ' . $def);
+    }
+}
+// sections with their own verification form were found by their role code
+if (!$hasCol('roles', 'verification_form')) {
+    $pdo->exec('ALTER TABLE ' . Table::q('roles') . " ADD COLUMN verification_form ENUM('GENERAL','SALE','AUCTION','SITE') NOT NULL DEFAULT 'GENERAL' AFTER role_name");
+    if ($hasCol('roles', 'role_code')) {
+        $pdo->exec('UPDATE ' . Table::q('roles') . " SET verification_form = CASE role_code WHEN 'SALE_CELL' THEN 'SALE' WHEN 'AUCTION_CELL' THEN 'AUCTION' WHEN 'ENGINEERING_CELL' THEN 'SITE' ELSE 'GENERAL' END");
+    }
+    echo "  + roles.verification_form\n";
+}
+$dropCheck('schemes', 'ck_schemes_year');
+// [table key, column, its unique index]
+foreach ([['roles', 'role_code', 'uq_roles_code'], ['areas', 'area_code', 'uq_areas_code'], ['plot_types', 'code', 'uq_plot_types_code'],
+             ['statuses', 'code', 'uq_statuses_code'], ['units', 'code', 'uq_units_code'], ['schemes', 'scheme_code', 'uq_schemes_code'],
+             ['schemes', 'year_of_scheme', null], ['properties', 'property_code', 'uq_properties_code']] as [$key, $col, $index]) {
+    if ($hasCol($key, $col)) {
+        if ($index) {
+            $dropIndex($key, $index);
+        }
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' DROP COLUMN `' . $col . '`');
+        echo '  - removed ' . Table::name($key) . ".{$col}\n";
+    }
+}
+
 // constraints added after the first release: [table key, name, definition]
-foreach ([['properties', 'fk_properties_unit', 'FOREIGN KEY (area_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT'],
+foreach ([['properties', 'fk_properties_type', 'FOREIGN KEY (plot_type_id) REFERENCES ' . Table::q('plot_types') . ' (plot_type_id) ON DELETE RESTRICT'],
+             ['properties', 'fk_properties_unit', 'FOREIGN KEY (unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
+             ['properties', 'fk_properties_status', 'FOREIGN KEY (status_id) REFERENCES ' . Table::q('statuses') . ' (status_id) ON DELETE RESTRICT'],
              ['properties', 'ck_properties_price', 'CHECK (reserve_price IS NULL OR reserve_price > 0)'],
-             ['properties', 'ck_properties_area_unit', 'CHECK ((area_value IS NULL) = (area_unit IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))'],
-             ['site_inspections', 'fk_site_inspections_unit', 'FOREIGN KEY (area_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT'],
-             ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit) REFERENCES ' . Table::q('units') . ' (code) ON UPDATE CASCADE ON DELETE RESTRICT']] as [$key, $name, $def]) {
+             ['properties', 'ck_properties_area_unit', 'CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))'],
+             ['site_inspections', 'fk_site_inspections_unit', 'FOREIGN KEY (unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
+             ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT']] as [$key, $name, $def]) {
     $fk->execute([Table::name($key), $name]);
     if (!$fk->fetch()) {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' ADD CONSTRAINT ' . $name . ' ' . $def);

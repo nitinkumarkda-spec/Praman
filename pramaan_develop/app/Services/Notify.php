@@ -32,9 +32,33 @@ final class Notify
         return Notification::exists(['user_id' => $userId, 'ref' => $ref]);
     }
 
-    /** Active users of a panel. */
+    /** Active users of admin role (role_id = 1). */
+    public static function adminUsers(): array
+    {
+        return array_map('intval', User::pluck('user_id', ['role_id' => 1, 'is_active' => 1]) ?: User::pluck('user_id', ['is_active' => 1]));
+    }
+
+    /** Active users whose assigned role has any of the given permissions. */
+    public static function permissionUsers(string ...$perms): array
+    {
+        $roleIds = \App\Models\RolePermission::pluck('role_id', ['permission' => $perms]);
+        if ($roleIds) {
+            return array_map('intval', User::pluck('user_id', ['role_id' => array_values(array_unique($roleIds)), 'is_active' => 1]));
+        }
+        return [];
+    }
+
+    /** Compatibility adapter for legacy callers passing panel or role name. */
     public static function panelUsers(string $panel): array
     {
-        return array_map('intval', User::pluck('user_id', ['panel' => $panel, 'is_active' => 1]));
+        if ($panel === 'SUPER_ADMIN' || $panel === 'ADMIN') {
+            return self::adminUsers();
+        }
+        $perm = match ($panel) {
+            'OIC' => 'verification.view',
+            'DATA_ENTRY' => 'scheme.create',
+            default => 'role.view',
+        };
+        return self::permissionUsers($perm);
     }
 }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Clock;
 use App\Core\Csrf;
@@ -14,7 +13,7 @@ use App\Core\Session;
 use App\Models\Attachment;
 use App\Models\Notification;
 use App\Models\Property;
-use App\Models\PropertyUser;
+
 use App\Models\Role;
 use App\Models\Round;
 use App\Models\Slide;
@@ -30,9 +29,9 @@ use App\Models\User;
 final class StateService
 {
     /** Public user columns (everyone). */
-    private const USER_PUBLIC = ['user_id', 'name', 'designation', 'emp_code', 'panel', 'role_id', 'is_active'];
-    /** Extra columns for the signed-in user and for Super Admin. */
-    private const USER_ADMIN = ['username', 'mobile', 'email', 'must_change_password', 'failed_attempts', 'locked_until',
+    private const USER_PUBLIC = ['user_id', 'name', 'role_id', 'is_active'];
+    /** Extra columns for the signed-in user and for Admin. */
+    private const USER_ADMIN = ['mobile', 'email', 'must_change_password', 'failed_attempts', 'locked_until',
         'last_login_at', 'last_login_ip', 'password_changed_at', 'created_at'];
 
     public static function build(): array
@@ -53,10 +52,12 @@ final class StateService
             return $state;
         }
         $uid = (int) $u['user_id'];
-        $panel = $u['panel'];
-        if ($panel === Panel::ROLE_USER) {
+        $roleId = (int) ($u['role_id'] ?? 1);
+        $admin = $roleId === 1 || Auth::can('role.view', 'user.view', 'settings.edit');
+        if (Auth::can('task.view')) {
             Verification::overdueReminders($uid);
-        } elseif ($panel === Panel::OIC) {
+        }
+        if (Auth::can('verification.view')) {
             Verification::reverifyReminders($uid);
         }
         $imp = Auth::impersonator();
@@ -68,9 +69,9 @@ final class StateService
                  'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }
-        $t['users'] = self::users($panel === Panel::SUPER_ADMIN, $uid, $imp ? (int) $imp['user_id'] : null);
+        $t['users'] = self::users($admin, $uid, $imp ? (int) $imp['user_id'] : null);
 
-        if ($panel === Panel::ROLE_USER) {
+        if (Auth::can('task.view') && !Auth::can('property.view', 'verification.view')) {
             $propertyIds = TaskAssignee::propertyIdsFor($uid);
             $t['scheme_users'] = [];
         } else {
@@ -79,7 +80,6 @@ final class StateService
         }
 
         $t['properties'] = $propertyIds === null ? Property::where() : Property::where(['property_id' => $propertyIds]);
-        $t['property_users'] = $propertyIds === null ? PropertyUser::where() : PropertyUser::where(['property_id' => $propertyIds]);
         $t['rounds'] = $propertyIds === null ? Round::where() : Round::where(['property_id' => $propertyIds]);
         $roundIds = array_column($t['rounds'], 'round_id');
         $t['tasks'] = self::tasks($propertyIds === null ? null : $roundIds);
@@ -87,8 +87,8 @@ final class StateService
         $t['task_assignees'] = $propertyIds === null ? TaskAssignee::where() : TaskAssignee::where(['task_id' => $taskIds]);
         $t['attachments'] = array_map(static fn ($a) => array_diff_key($a, ['stored_name' => 1, 'sha256' => 1]),
             $propertyIds === null ? Attachment::where() : Attachment::where(['property_id' => $propertyIds]));
-        $t['audit_logs'] = self::auditLogs($panel === Panel::SUPER_ADMIN, $uid, $propertyIds);
-        $t['login_attempts'] = $panel === Panel::SUPER_ADMIN ? self::loginAttempts() : [];
+        $t['audit_logs'] = self::auditLogs($admin, $uid, $propertyIds);
+        $t['login_attempts'] = $admin ? self::loginAttempts() : [];
         $t['notifications'] = Notification::latestFor($uid, (int) config('state.notification_limit', 300));
         return $state;
     }
@@ -96,7 +96,7 @@ final class StateService
     /** Settings, landing slides and code lists for the screens. */
     private static function app(?array $u): array
     {
-        $admin = $u && $u['panel'] === Panel::SUPER_ADMIN;
+        $admin = $u && ((int) ($u['role_id'] ?? 0) === 1 || Auth::can('role.view', 'settings.edit'));
         $app = [
             'settings' => Settings::typed(!$admin),
             'lookups'  => Lookups::all(),

@@ -43,16 +43,42 @@ final class Auth
         return self::user() !== null;
     }
 
-    public static function panel(): ?string
+    /** First screen dynamically decided based on user permissions or role. */
+    public static function home(?array $u = null): string
     {
-        return self::user()['panel'] ?? null;
+        $u = $u ?? self::user();
+        if (!$u) {
+            return '/login';
+        }
+        $roleId = (int) ($u['role_id'] ?? 0);
+        if ($roleId === 1 || self::can('role.view', 'user.view', 'master.view', 'settings.view', 'audit.view')) {
+            return '/admin/dashboard';
+        }
+        if (self::can('scheme.view', 'property.view')) {
+            return '/data-entry/dashboard';
+        }
+        if (self::can('verification.view')) {
+            return '/oic/dashboard';
+        }
+        if (self::can('task.view')) {
+            return '/role/dashboard';
+        }
+        return '/admin/dashboard';
     }
 
-    /** Permission codes of the signed-in user: the panel's + the user's own overrides (Super Admin → Permissions). */
+    public static function panel(): ?string
+    {
+        return self::user()['role_name'] ?? null;
+    }
+
+    /** Permission codes of the signed-in user: the role's permissions + user's own overrides. */
     public static function permissions(): array
     {
-        $panel = self::panel();
-        return $panel === null ? [] : Permissions::forUser((int) self::id(), $panel);
+        $u = self::user();
+        if (!$u) {
+            return [];
+        }
+        return Permissions::forUser((int) $u['user_id'], (int) ($u['role_id'] ?? 1));
     }
 
     /** True when the user has any one of $codes. */
@@ -120,8 +146,8 @@ final class Auth
         $imp = self::impersonator();
         return [
             'user_id'         => (int) $u['user_id'],
-            'name'            => $imp ? mb_substr($u['name'] . ' [by Super Admin: ' . $imp['name'] . ']', 0, 120) : $u['name'],
-            'designation'     => $u['designation'],
+            'name'            => $imp ? mb_substr($u['name'] . ' [by Admin: ' . $imp['name'] . ']', 0, 120) : $u['name'],
+            'designation'     => $u['designation'] ?? null,
             'impersonator_id' => $imp ? (int) $imp['user_id'] : null,
         ];
     }

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\HttpException;
@@ -39,10 +38,10 @@ final class AttachmentController extends Controller
         if (!$u) {
             return false;
         }
-        if ($u['panel'] !== Panel::ROLE_USER) {
+        if (Auth::can('property.view', 'verification.view') || (int) ($u['role_id'] ?? 0) === 1) {
             return true;
         }
-        // role users: only properties they have (had) a task on
+        // task-only users: only properties they have (had) a task on
         return TaskAssignee::userOnProperty((int) $u['user_id'], (int) $a['property_id']);
     }
 }

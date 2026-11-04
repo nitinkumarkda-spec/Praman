@@ -28,8 +28,10 @@
         if (v == null || v === '') { return 'Not set'; }
         if (k === 'sector_id') { const s = DB.find('sectors', v); return s ? s.sector_name : v; }
         if (k === 'area_id') { return DB.areaName(v); }
-        if (k === 'property_type') { return L.PROPERTY_TYPES[v] || v; }
-        if (k === 'status') { return L.PROPERTY_STATUSES[v] || v; }
+        if (k === 'plot_type_id') { return L.PROPERTY_TYPES[v] || v; }
+        if (k === 'unit_id') { return L.unitName(v) || v; }
+        if (k === 'status' || k === 'status_id') { return L.PROPERTY_STATUSES[v] || P.label(v); } // older entries hold the status code
+        if (k === 'is_corner') { return Number(v) ? 'Yes' : 'No'; }
         return String(v);
     }
     function statusPill(from, to) {
@@ -47,8 +49,8 @@
         switch (a.entity_type === 'PROPERTY' ? 'PROPERTY_' + a.action : a.action) {
             case 'PROPERTY_CREATED':
                 title = 'Property registered';
-                body = '<p>Plot <strong>' + e(n.plot_no || '') + '</strong>' + (n.property_type ? ' · ' + e(val('property_type', n.property_type)) : '') +
-                    (n.area_value ? ' · ' + P.fmt_num(n.area_value, 2) + ' ' + P.Lookups.unitSymbol(n.area_unit) : '') + '</p>' + statusPill(null, 'LISTED');
+                body = '<p>Plot <strong>' + e(n.plot_no || '') + '</strong>' + (n.plot_type_id ? ' · ' + e(val('plot_type_id', n.plot_type_id)) : n.property_type ? ' · ' + e(P.label(n.property_type)) : '') +
+                    (n.area_value ? ' · ' + P.fmt_num(n.area_value, 2) + ' ' + e(P.Lookups.unitSymbol(n.unit_id) || P.label(n.area_unit)) : '') + '</p>' + statusPill(null, P.ST.LISTED);
                 break;
             case 'PROPERTY_UPDATED': {
                 title = 'Property details updated';
@@ -63,7 +65,7 @@
                 title = (a.action === 'REINITIATED' ? 'Re-sent for verification' : 'Sent for verification') + ' — Round R' + n.round_no;
                 body = '<p>Sent to <strong>' + (n.roles || []).length + '</strong> section(s): ' + e((n.roles || []).join(', ')) + '</p>' +
                     (n.reason ? '<blockquote class="tl-quote">' + icon('fa-quote-left') + ' ' + e(n.reason) + '</blockquote>' : '') +
-                    statusPill(o.status || 'LISTED', 'UNDER_VERIFICATION');
+                    statusPill(o.status || P.ST.LISTED, P.ST.UNDER_VERIFICATION);
                 break;
             case 'TASK_APPROVED':
             case 'TASK_REJECTED':
@@ -77,13 +79,13 @@
             }
             case 'ROUND_CLOSED':
                 title = 'Round closed — ' + (n.result === 'READY' ? 'Ready for Auction' : 'Not Ready');
-                body = statusPill('UNDER_VERIFICATION', n.result === 'READY' ? 'AUCTION_READY' : 'NOT_READY');
+                body = statusPill(P.ST.UNDER_VERIFICATION, n.result === 'READY' ? P.ST.AUCTION_READY : P.ST.NOT_READY);
                 break;
             default:
                 title = e(P.label(a.action));
                 body = '';
         }
-        const who = actor ? e(actor.name) + (actor.designation ? ' <span class="text-muted">(' + e(actor.designation) + ')</span>' : (role ? ' <span class="text-muted">(' + e(role.role_name) + ')</span>' : '')) : 'System';
+        const who = actor ? e(actor.name) + (role ? ' <span class="text-muted">(' + e(role.role_name) + ')</span>' : '') : 'System';
         return '<li class="tl-item tone-' + k[2] + '" data-area="' + k[0] + '"><span class="tl-dot">' + icon(k[1]) + '</span>' +
             '<div class="tl-card"><div class="tl-head"><strong>' + e(title) + '</strong><span class="tl-time">' + e(P.fmt_datetime(a.performed_at)) + '</span></div>' +
             '<div class="tl-who">' + icon('fa-user') + ' ' + who + '</div>' +

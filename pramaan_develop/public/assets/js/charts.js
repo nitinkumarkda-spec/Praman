@@ -15,10 +15,11 @@
     };
     const C = P.COLORS;
     P.SERIES = [C.navy, C.gold, C.green, C.blue, C.purple, C.teal, C.red, C.amber, C.pink, C.sky, C.slate, C.dark];
-    P.STATUS_COLORS = {
-        LISTED: C.blue, UNDER_VERIFICATION: C.amber, AUCTION_READY: C.green, NOT_READY: C.red, EXPIRED: '#f97316',
-        SENT_FOR_AUCTION: C.navy, SOLD: C.purple, WITHHELD: C.slate, ARCHIVED: '#dde3ea'
-    };
+    const ST = window.PramanDB.ST;
+    /** Chart colour of each workflow status (keyed by status_id). */
+    P.STATUS_COLORS = {};
+    [[ST.LISTED, C.blue], [ST.UNDER_VERIFICATION, C.amber], [ST.AUCTION_READY, C.green], [ST.NOT_READY, C.red], [ST.EXPIRED, '#f97316'],
+        [ST.SENT_FOR_AUCTION, C.navy], [ST.SOLD, C.purple], [ST.WITHHELD, C.slate], [ST.ARCHIVED, '#dde3ea']].forEach(function (x) { P.STATUS_COLORS[x[0]] = x[1]; });
 
     /** Card with a canvas. opts: { height, sub, href, wide } */
     P.chartCard = function (id, title, ic, opts) {

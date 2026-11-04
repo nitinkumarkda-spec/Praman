@@ -3,124 +3,142 @@ declare(strict_types=1);
 
 namespace App\Core;
 
-use App\Codes\Panel;
 use App\Codes\PermissionEffect;
-use App\Models\PanelPermission;
+use App\Models\Role;
+use App\Models\RolePermission;
 use App\Models\UserPermission;
 
 /**
  * Permission catalog — every action the server checks ("can:user.create" on a route,
- * Auth::can() in code, P.Auth.can() in the UI). The panels stay fixed; which of these
- * each panel may use is stored in panel_permissions and edited by Super Admin.
+ * Auth::can() in code, P.Auth.can() in the UI).
  *
- *   module => [label, icon, [code => [label, panels that can be given it]]]
+ * Permissions are assigned dynamically to ROLES in the Role & Permission Master.
+ * The Admin role (role_id = 1) has full access to all modules.
  */
 final class Permissions
 {
-    private const SA = [Panel::SUPER_ADMIN];
-
     public const MODULES = [
         'role' => ['Role Master', 'fa-sitemap', [
-            'role.view'   => ['View roles', self::SA],
-            'role.create' => ['Add role', self::SA],
-            'role.edit'   => ['Edit role', self::SA],
-            'role.toggle' => ['Activate / deactivate role', self::SA],
+            'role.view'   => ['View roles'],
+            'role.create' => ['Add role'],
+            'role.edit'   => ['Edit role'],
+            'role.toggle' => ['Activate / deactivate role'],
         ]],
         'user' => ['User Master', 'fa-users', [
-            'user.view'           => ['View users', self::SA],
-            'user.create'         => ['Add user', self::SA],
-            'user.edit'           => ['Edit user', self::SA],
-            'user.toggle'         => ['Activate / deactivate user', self::SA],
-            'user.unlock'         => ['Unlock account', self::SA],
-            'user.reset_password' => ['Reset password', self::SA],
-            'user.impersonate'    => ['Login as user', self::SA],
-            'user.permissions'    => ['Give / take away permissions of one user', self::SA],
+            'user.view'           => ['View users'],
+            'user.create'         => ['Add user'],
+            'user.edit'           => ['Edit user'],
+            'user.toggle'         => ['Activate / deactivate user'],
+            'user.unlock'         => ['Unlock account'],
+            'user.reset_password' => ['Reset password'],
+            'user.impersonate'    => ['Login as user'],
+            'user.permissions'    => ['Give / take away permissions of one user'],
         ]],
-        'master' => ['Masters (Area, Sector, Plot Type, Unit, Status)', 'fa-map-location-dot', [
-            'master.view'   => ['View masters', self::SA],
-            'master.create' => ['Add master record', self::SA],
-            'master.edit'   => ['Edit master record', self::SA],
-            'master.toggle' => ['Activate / deactivate master record', self::SA],
-            'master.delete' => ['Delete master record', self::SA],
+        'master' => ['Masters (Sector, Plot Type, Unit, Status)', 'fa-map-location-dot', [
+            'master.view'   => ['View masters'],
+            'master.create' => ['Add master record'],
+            'master.edit'   => ['Edit master record'],
+            'master.toggle' => ['Activate / deactivate master record'],
+            'master.delete' => ['Delete master record'],
         ]],
-        'scheme' => ['Scheme Master', 'fa-map', [
-            'scheme.view'   => ['View schemes', [Panel::SUPER_ADMIN, Panel::DATA_ENTRY]],
-            'scheme.create' => ['Add scheme', [Panel::SUPER_ADMIN, Panel::DATA_ENTRY]],
-            'scheme.edit'   => ['Edit scheme', [Panel::SUPER_ADMIN, Panel::DATA_ENTRY]],
-            'scheme.toggle' => ['Activate / deactivate scheme', [Panel::SUPER_ADMIN, Panel::DATA_ENTRY]],
+        'scheme' => ['Schemes (Scheme Management)', 'fa-map', [
+            'scheme.view'   => ['View schemes'],
+            'scheme.create' => ['Add scheme'],
+            'scheme.edit'   => ['Edit scheme'],
+            'scheme.toggle' => ['Activate / deactivate scheme'],
         ]],
         'property' => ['Property Register', 'fa-building', [
-            'property.view'   => ['View properties', [Panel::DATA_ENTRY]],
-            'property.create' => ['Add property', [Panel::DATA_ENTRY]],
-            'property.edit'   => ['Edit property', [Panel::DATA_ENTRY]],
+            'property.view'   => ['View properties'],
+            'property.create' => ['Add property'],
+            'property.edit'   => ['Edit property'],
         ]],
-        'verification' => ['Verification (OIC)', 'fa-list-check', [
-            'verification.view' => ['View properties for verification', [Panel::OIC]],
-            'verification.send' => ['Send / re-send for verification', [Panel::OIC]],
+        'verification' => ['Verification', 'fa-list-check', [
+            'verification.view' => ['View properties for verification'],
+            'verification.send' => ['Send / re-send for verification'],
         ]],
-        'task' => ['My Tasks (section users)', 'fa-clipboard-list', [
-            'task.view'    => ['View assigned tasks', [Panel::ROLE_USER]],
-            'task.respond' => ['Submit verification response', [Panel::ROLE_USER]],
+        'task' => ['My Tasks (verification inspections)', 'fa-clipboard-list', [
+            'task.view'    => ['View assigned tasks'],
+            'task.respond' => ['Submit verification response'],
         ]],
         'audit' => ['Activity & Audit', 'fa-chart-line', [
-            'audit.view'        => ['View activity & audit', self::SA],
-            'direction.publish' => ['Publish directions', self::SA],
+            'audit.view'        => ['View activity & audit'],
+            'direction.publish' => ['Publish directions'],
         ]],
         'settings' => ['App Settings', 'fa-sliders', [
-            'settings.view' => ['View settings', self::SA],
-            'settings.edit' => ['Change settings & slides', self::SA],
+            'settings.view' => ['View settings'],
+            'settings.edit' => ['Change settings & slides'],
         ]],
         'permission' => ['Permissions', 'fa-user-shield', [
-            'permission.view' => ['View permissions', self::SA],
-            'permission.edit' => ['Change permissions', self::SA],
+            'permission.view' => ['View permissions'],
+            'permission.edit' => ['Change permissions'],
+        ]],
+        'report' => ['Reports & Analytics', 'fa-chart-pie', [
+            'report.view'   => ['View reports and analytics'],
+            'report.export' => ['Export and print reports'],
         ]],
     ];
 
-    /** Always granted, so Super Admin can never lock everyone out of this screen. */
-    public const LOCKED = [Panel::SUPER_ADMIN => ['permission.view', 'permission.edit']];
+    /** Always granted to Admin (role_id = 1) so administrators can never lock everyone out. */
+    public const LOCKED = [
+        1 => ['permission.view', 'permission.edit', 'role.view', 'role.edit', 'user.view', 'user.edit', 'report.view', 'report.export']
+    ];
 
-    /** @var array<string, string[]> panel => granted codes (this request) */
+    /** @var array<int, string[]> role_id => granted codes (this request) */
     private static array $granted = [];
-    /** @var array<int, string[]> user id => effective codes (this request) */
+    /** @var array<int, string[]> user_id => effective codes (this request) */
     private static array $users = [];
 
-    /** @return array<string, array{0:string,1:string[]}> code => [label, panels] */
+    /** @return array<string, array{0:string}> code => [label] */
     public static function all(): array
     {
         return array_merge(...array_map(static fn ($m) => $m[2], array_values(self::MODULES)));
     }
 
-    /** May $code be given to $panel at all? */
-    public static function applies(string $code, string $panel): bool
+    /** May $code be given to a role? (Any valid code in catalog can be given to any role) */
+    public static function applies(string $code, int|string $role = 1): bool
     {
-        return in_array($panel, self::all()[$code][1] ?? [], true);
+        return isset(self::all()[$code]);
     }
 
-    public static function isLocked(string $panel, string $code): bool
+    public static function isLocked(int|string $roleId, string $code): bool
     {
-        return in_array($code, self::LOCKED[$panel] ?? [], true);
+        $rid = (int) $roleId;
+        return in_array($code, self::LOCKED[$rid] ?? [], true);
     }
 
-    /** Codes $panel may use: stored grants that still apply + the locked ones. */
-    public static function forPanel(string $panel): array
+    /** Codes a role may use: for Admin (role_id 1), all codes; for other roles, stored grants. */
+    public static function forRole(int $roleId): array
     {
-        if (!isset(self::$granted[$panel])) {
-            $codes = array_filter(PanelPermission::codesFor($panel), static fn ($c) => self::applies($c, $panel));
-            self::$granted[$panel] = array_values(array_unique(array_merge($codes, self::LOCKED[$panel] ?? [])));
+        if (!isset(self::$granted[$roleId])) {
+            if ($roleId === 1) {
+                $codes = array_keys(self::all());
+            } else {
+                $codes = RolePermission::codesFor($roleId);
+            }
+            self::$granted[$roleId] = array_values(array_unique(array_merge($codes, self::LOCKED[$roleId] ?? [])));
         }
-        return self::$granted[$panel];
+        return self::$granted[$roleId];
+    }
+
+    /** Compatibility helper for older callers passing panel string or role id. */
+    public static function forPanel(string|int $target): array
+    {
+        if (is_numeric($target)) {
+            return self::forRole((int) $target);
+        }
+        return self::forRole(1);
     }
 
     /**
-     * What one user may do: the panel's codes + the user's ALLOW overrides − the DENY overrides.
-     * Overrides only count for codes the panel can have, and never remove a locked code.
+     * What one user may do: the role's codes + the user's ALLOW overrides − the DENY overrides.
      */
-    public static function forUser(int $userId, string $panel): array
+    public static function forUser(int $userId, int|string $roleId): array
     {
+        $rid = (int) $roleId;
         if (!isset(self::$users[$userId])) {
-            $codes = array_flip(self::forPanel($panel));
+            $codes = array_flip(self::forRole($rid));
             foreach (UserPermission::mapFor($userId) as $code => $effect) {
-                if (!self::applies($code, $panel) || self::isLocked($panel, $code)) {
+                if ($rid === 1 && self::isLocked($rid, $code)) {
                     continue;
                 }
                 if ($effect === PermissionEffect::ALLOW) {
@@ -134,35 +152,39 @@ final class Permissions
         return self::$users[$userId];
     }
 
-    /** panel => granted codes, for the Permissions screen. */
+    /** role_id => granted codes, for the Permissions screen. */
     public static function matrix(): array
     {
         $out = [];
-        foreach (array_keys(Lookups::PANELS) as $panel) {
-            $out[$panel] = self::forPanel($panel);
+        $roles = Role::where(['is_active' => 1], 'sort_order');
+        foreach ($roles as $r) {
+            $rid = (int) $r['role_id'];
+            $out[$rid] = self::forRole($rid);
         }
         return $out;
     }
 
-    /** Every code each panel can be given (the first install grants all of them). */
+    /** Every code for defaults (Admin role gets all of them). */
     public static function defaults(): array
     {
-        $out = [];
-        foreach (self::all() as $code => [, $panels]) {
-            foreach ($panels as $panel) {
-                $out[$panel][] = $code;
-            }
-        }
-        return $out;
+        return [1 => array_keys(self::all())];
     }
 
-    /** Catalog for the UI: [{key, label, icon, items:[{code, label, panels}]}]. */
+    /** Catalog for the UI: [{key, label, icon, items:[{code, label}]}]. */
     public static function catalog(): array
     {
         $out = [];
         foreach (self::MODULES as $key => [$label, $icon, $items]) {
-            $out[] = ['key' => $key, 'label' => $label, 'icon' => $icon, 'items' => array_map(
-                static fn ($code, $x) => ['code' => $code, 'label' => $x[0], 'panels' => $x[1]], array_keys($items), $items)];
+            $out[] = [
+                'key' => $key,
+                'label' => $label,
+                'icon' => $icon,
+                'items' => array_map(
+                    static fn ($code, $x) => ['code' => $code, 'label' => is_array($x) ? $x[0] : $x],
+                    array_keys($items),
+                    $items
+                )
+            ];
         }
         return $out;
     }

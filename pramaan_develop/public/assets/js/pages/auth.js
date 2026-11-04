@@ -9,8 +9,8 @@
     P.views.login = function () {
         return (window.PramanFlashHtml ? window.PramanFlashHtml() : '') +
             '<form method="post" data-action="login" novalidate data-validate autocomplete="off">' +
-            '<div class="form-group"><label class="form-label" for="username">Username <span class="required">*</span></label>' +
-            '<div class="input-icon">' + icon('fa-user') + '<input type="text" id="username" name="username" class="form-control" maxlength="50" autocomplete="username" placeholder="Enter your username" data-rules="required|max:50|alpha_dash" data-label="Username"></div>' +
+            '<div class="form-group"><label class="form-label" for="mobile">Mobile Number (मोबाइल नंबर) <span class="required">*</span></label>' +
+            '<div class="input-icon">' + icon('fa-phone') + '<input type="tel" id="mobile" name="mobile" class="form-control" maxlength="10" inputmode="numeric" autocomplete="username" placeholder="Enter 10-digit registered mobile" data-rules="required|mobile" data-label="Mobile number"></div>' +
             '<div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="password">Password <span class="required">*</span></label>' +
             '<div class="input-icon input-password">' + icon('fa-lock') + '<input type="password" id="password" name="password" class="form-control" maxlength="72" autocomplete="current-password" placeholder="Enter your password" data-rules="required" data-label="Password">' +
@@ -59,13 +59,13 @@
                 '<li data-rule="digit">' + icon('fa-circle-xmark') + '<span>One digit (0–9)</span></li>' +
                 '<li data-rule="special">' + icon('fa-circle-xmark') + '<span>One special character (e.g. @ # $ %)</span></li>' +
                 '<li data-rule="differs">' + icon('fa-circle-xmark') + '<span>Different from the current password</span></li>' +
-                '<li data-rule="nouser">' + icon('fa-circle-xmark') + '<span>Does not contain your username (<span class="mono">' + e(P.Auth.user().username) + '</span>)</span></li></ul>' +
+                '<li data-rule="nouser">' + icon('fa-circle-xmark') + '<span>Does not contain your mobile number (<span class="mono">' + e(P.Auth.user().mobile || '') + '</span>)</span></li></ul>' +
                 '<p class="pw-group">Confirm password</p><ul class="check-list pw-rules">' +
                 '<li data-rule="match">' + icon('fa-circle-xmark') + '<span>Confirm password matches the new password</span></li></ul></div></div></div>',
             after: function (root) {
                 const form = root.querySelector('form[data-action="change-password"]');
                 const card = root.querySelector('.pw-live');
-                const username = P.Auth.user().username.toLowerCase();
+                const userMobile = String(P.Auth.user().mobile || '').toLowerCase();
                 const states = ['', 'Very weak', 'Weak', 'Fair', 'Good', 'Strong'];
                 function check() {
                     const v = form.new_password.value;
@@ -73,7 +73,7 @@
                     // "different from the current password" is checked by the server (the browser never has the password)
                     const r = {
                         length: v.length >= min, upper: /[A-Z]/.test(v), lower: /[a-z]/.test(v), digit: /\d/.test(v), special: /[^A-Za-z0-9]/.test(v),
-                        differs: v !== '', nouser: v !== '' && v.toLowerCase().indexOf(username) === -1, match: c !== '' && c === v
+                        differs: v !== '', nouser: v !== '' && (userMobile ? v.indexOf(userMobile) === -1 : true), match: c !== '' && c === v
                     };
                     let ok = 0;
                     card.querySelectorAll('[data-rule]').forEach(function (li) {

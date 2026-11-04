@@ -144,7 +144,7 @@
             '<span class="lp-auth-note">' + icon('fa-lock') + ' ' + e(S('header_note', '')) + '</span></aside>' +
             // right: the form
             '<div class="lp-auth-form"><div class="lp-card-head"><span class="lp-card-eyebrow">' + icon('fa-hand') + ' Welcome back</span>' +
-            '<h2 id="lp-signin-title">Sign in to your account</h2><p>Use your <strong>' + e(P.APP.name) + '</strong> username and password.</p></div>' +
+            '<h2 id="lp-signin-title">Sign in to your account</h2><p>Use your registered mobile number and password.</p></div>' +
             P.views.login() +
             '<p class="lp-auth-secure">' + icon('fa-circle-check') + ' Encrypted session · repeated wrong passwords lock the account</p></div></div></div>';
     }
@@ -178,7 +178,7 @@
         document.documentElement.classList.add('lp-lock');
         // mouse/keyboard: cursor straight into Username; touch: focus the dialog so the keyboard does not pop up
         const fine = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
-        const input = m.querySelector('#username');
+        const input = m.querySelector('#mobile') || m.querySelector('#username');
         (fine && input ? input : m.querySelector('.lp-modal-dialog')).focus({ preventScroll: true });
     }
     function closeModal() {

@@ -280,23 +280,9 @@
                     seen[k] = true;
                 });
                 if (dup) { return { field: dup, message: 'Sector name "' + dup.value.trim() + '" is repeated. Each sector must be unique.' }; }
-                if (sectorCount(form) < 1) {
-                    return { field: form.querySelector('[data-sector-entry]') || form.querySelector('[data-sector-name]'), message: 'Add at least one sector. A scheme cannot be saved without sectors.' };
-                }
                 return null;
             });
-            V().addCheck(form, function () {
-                let first = null;
-                form.querySelectorAll('[data-mapping-role][data-mandatory="1"]').forEach(function (card) {
-                    if (card.querySelector('input:checked')) { return; }
-                    card.classList.add('has-error');
-                    const err = card.querySelector('[data-mapping-error]');
-                    const msg = 'Select at least one user for "' + card.getAttribute('data-role-name') + '" (mandatory role).';
-                    if (err) { err.textContent = msg; }
-                    if (!first) { first = { field: null, message: msg }; card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
-                });
-                return first;
-            });
+// Role-user mapping is bound when sending properties for verification
         }
         refreshSectorCount(form);
     }
@@ -377,13 +363,13 @@
             const v = parseFloat(area.value);
             const L = Praman.Lookups, base = L.BASE_UNIT;
             if (isNaN(v) || v <= 0) {
-                const u = unit.value && unit.value !== base ? unit.value : null;
+                const u = unit.value && Number(unit.value) !== base ? Number(unit.value) : null;
                 preview.textContent = u ? '1 ' + L.unitSymbol(u) + ' = ' + L.unitFactor(u) + ' ' + L.unitSymbol(base) : 'Every area is also stored in ' + L.unitSymbol(base) + '.';
                 return;
             }
-            preview.textContent = unit.value && unit.value !== base
-                ? '= ' + L.toSqm(v, unit.value).toFixed(2) + ' ' + L.unitSymbol(base) + ' (stored)'
-                : Object.keys(L.AREA_UNITS).filter(function (c) { return c !== base; }).map(function (c) { return '= ' + L.convert(v, base, c).toFixed(2) + ' ' + L.unitSymbol(c); }).join(' · ');
+            preview.textContent = unit.value && Number(unit.value) !== base
+                ? '= ' + L.toSqm(v, Number(unit.value)).toFixed(2) + ' ' + L.unitSymbol(base) + ' (stored)'
+                : Object.keys(L.AREA_UNITS).map(Number).filter(function (c) { return c !== base; }).map(function (c) { return '= ' + L.convert(v, base, c).toFixed(2) + ' ' + L.unitSymbol(c); }).join(' · ');
         }
 
         if (scheme && scheme.tagName === 'SELECT') {
@@ -392,6 +378,40 @@
         }
         if (sector) { sector.addEventListener('change', resetConfirm); }
         form.addEventListener('change', function (e) { if (e.target.name === 'confirm_location') { updateConfirm(); } });
+        const lenEl = form.querySelector('#area_length');
+        const widEl = form.querySelector('#area_width');
+        const calcHint = form.querySelector('[data-area-calc-hint]');
+
+        function syncEditArea() {
+            if (!lenEl || !widEl || !area) return;
+            const lStr = lenEl.value.trim().replace(/,/g, '');
+            const wStr = widEl.value.trim().replace(/,/g, '');
+            if (lStr !== '' && wStr !== '') {
+                const l = parseFloat(lStr);
+                const w = parseFloat(wStr);
+                if (!isNaN(l) && l > 0 && !isNaN(w) && w > 0) {
+                    const val = Math.round(l * w * 100) / 100;
+                    area.value = val.toFixed(2);
+                    if (calcHint) {
+                        calcHint.innerHTML = '<span class="text-success"><i class="fa-solid fa-check" aria-hidden="true"></i> Calculated: <strong>' + l + '</strong> × <strong>' + w + '</strong> = <strong>' + val.toFixed(2) + '</strong></span> (Read-only)';
+                    }
+                } else {
+                    area.value = '';
+                }
+            } else if (lStr === '' && wStr === '') {
+                // Keep existing or empty
+            } else {
+                area.value = '';
+                if (calcHint) calcHint.textContent = 'Enter both Length and Width to calculate Area.';
+            }
+            updateArea();
+        }
+
+        if (lenEl && widEl) {
+            lenEl.addEventListener('input', syncEditArea);
+            widEl.addEventListener('input', syncEditArea);
+        }
+
         if (area && unit) {
             area.addEventListener('input', updateArea);
             unit.addEventListener('change', updateArea);
@@ -420,7 +440,11 @@
         const grid = form.querySelector('[data-pb-grid]');
         const count = form.querySelector('[data-pb-count]');
         const saveBtn = form.querySelector('[data-pb-save]');
-        const KEYS = ['property_type', 'area_value', 'area_unit'];
+        const pbLen = form.querySelector('[data-pb-length]');
+        const pbWid = form.querySelector('[data-pb-width]');
+        const pbArea = form.querySelector('[data-pb-default="area_value"]');
+        const pbHint = form.querySelector('[data-pb-area-calc-hint]');
+        const KEYS = ['plot_type_id', 'area_value', 'unit_id'];
         // each plot: {plot_no, corner, own: {key: value}} — keys not in own follow the defaults above
         let plots = [];
 
@@ -488,6 +512,15 @@
         }
 
         function generate() {
+            if (pbLen && pbWid) {
+                const lStr = pbLen.value.trim();
+                const wStr = pbWid.value.trim();
+                if ((lStr !== '' && wStr === '') || (lStr === '' && wStr !== '')) {
+                    Praman.toast('error', 'Please enter both Length and Width to calculate Area (or leave both blank).');
+                    (lStr === '' ? pbLen : pbWid).focus();
+                    return;
+                }
+            }
             const rows = modeBox(mode()).querySelectorAll('[data-pb-row]');
             const list = [];
             const descs = {};
@@ -538,7 +571,7 @@
                 const area = value(p, 'area_value');
                 return '<div class="pb-card' + (p.corner ? ' is-corner' : '') + '" data-pb-i="' + i + '">' +
                     '<div class="pb-no">' + esc(p.plot_no) + '</div><div class="pb-kind">' + (p.corner ? 'Corner' : 'Normal') + '</div>' +
-                    '<div class="pb-meta">' + esc(types[value(p, 'property_type')] || 'No type') + (area ? ' · ' + esc(area + ' ' + L.unitSymbol(value(p, 'area_unit'))) : '') + '</div>' +
+                    '<div class="pb-meta">' + esc(types[value(p, 'plot_type_id')] || 'No plot type') + (area ? ' · ' + esc(area + ' ' + L.unitSymbol(value(p, 'unit_id'))) : '') + '</div>' +
                     (p.remarks ? '<div class="pb-desc" title="' + esc(p.remarks) + '">' + esc(p.remarks) + '</div>' : '') +
                     '<div class="pb-card-actions"><button type="button" class="btn btn-light btn-sm" data-pb-edit>Edit</button>' +
                     '<button type="button" class="btn btn-light btn-sm" data-pb-corner aria-pressed="' + p.corner + '">' + (p.corner ? 'Unmark Corner' : 'Mark Corner') + '</button></div></div>';
@@ -550,7 +583,7 @@
         }
         function sync() {
             out.value = JSON.stringify(plots.map(function (p) {
-                return { plot_no: p.plot_no, property_type: value(p, 'property_type'), area_value: value(p, 'area_value'), area_unit: value(p, 'area_unit'),
+                return { plot_no: p.plot_no, plot_type_id: value(p, 'plot_type_id'), area_value: value(p, 'area_value'), unit_id: value(p, 'unit_id'),
                     remarks: p.remarks || '', corner: p.corner ? 1 : 0 };
             }));
             saveBtn.disabled = !plots.length;
@@ -570,9 +603,15 @@
                 '<span class="modal-icon"><i class="fa-solid fa-pen" aria-hidden="true"></i></span><div><h2 class="modal-title" id="pb-modal-title">Edit plot ' + esc(p.plot_no) + '</h2>' +
                 '<p>Changes here apply to this property only.</p></div></div><div class="modal-body"><div class="form-grid">' +
                 '<div class="form-group"><label class="form-label" for="pbm_no">Plot no. <span class="required">*</span></label><input type="text" id="pbm_no" class="form-control" maxlength="30" value="' + esc(p.plot_no) + '" data-uppercase><div class="invalid-feedback"></div></div>' +
-                '<div class="form-group"><label class="form-label" for="pbm_type">Plot type</label><select id="pbm_type" class="form-select">' + L.options(L.activeMap('plot_types', 'code', 'name', value(p, 'property_type')), value(p, 'property_type'), 'Select plot type') + '</select></div>' +
-                '<div class="form-group span-2"><label class="form-label" for="pbm_area">Area</label><div class="pb-area"><input type="text" id="pbm_area" class="form-control" inputmode="decimal" maxlength="13" value="' + esc(value(p, 'area_value')) + '" data-decimals="2">' +
-                '<select id="pbm_unit" class="form-select" aria-label="Area unit">' + L.options(L.activeMap('units', 'code', 'name', value(p, 'area_unit')), value(p, 'area_unit')) + '</select></div></div>' +
+                '<div class="form-group"><label class="form-label" for="pbm_type">Plot type</label><select id="pbm_type" class="form-select">' + L.options(L.activeMap('plot_types', 'plot_type_id', 'name', value(p, 'plot_type_id')), value(p, 'plot_type_id'), 'Select plot type') + '</select></div>' +
+                '<div class="form-group span-2"><label class="form-label">Area (optional)</label>' +
+                '<div class="dim-row">' +
+                '<div class="form-group"><label class="form-label text-muted" for="pbm_length">Length</label><input type="text" id="pbm_length" class="form-control" inputmode="decimal" maxlength="10" placeholder="e.g. 30.00" data-decimals="2"></div>' +
+                '<span class="dim-x" aria-hidden="true">×</span>' +
+                '<div class="form-group"><label class="form-label text-muted" for="pbm_width">Width</label><input type="text" id="pbm_width" class="form-control" inputmode="decimal" maxlength="10" placeholder="e.g. 40.50" data-decimals="2"></div>' +
+                '<div class="form-group"><label class="form-label text-muted" for="pbm_area">Calculated Area</label><div class="pb-area"><input type="text" id="pbm_area" class="form-control" readonly placeholder="Auto (L × W)" data-decimals="2" value="' + esc(value(p, 'area_value')) + '" tabindex="-1" style="cursor: not-allowed;">' +
+                '<select id="pbm_unit" class="form-select" aria-label="Area unit">' + L.options(L.activeMap('units', 'unit_id', 'name', value(p, 'unit_id')), value(p, 'unit_id')) + '</select></div></div></div>' +
+                '<div class="form-hint" id="pbm_hint">Enter Length and Width — Area is auto-calculated and non-editable.</div></div>' +
                 '<div class="form-group span-2"><label class="form-label" for="pbm_desc">Description</label><textarea id="pbm_desc" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot">' + esc(p.remarks || '') + '</textarea><div class="invalid-feedback"></div></div>' +
                 '<div class="form-group span-2"><label class="check"><input type="checkbox" id="pbm_corner"' + (p.corner ? ' checked' : '') + '> <span><strong>Corner plot</strong></span></label></div>' +
                 '</div></div><div class="modal-footer"><button type="button" class="btn btn-light pb-remove" data-pbm-remove><i class="fa-solid fa-trash-can" aria-hidden="true"></i> <span>Remove</span></button>' +
@@ -580,6 +619,33 @@
             document.body.appendChild(m);
             const $ = function (s) { return m.querySelector(s); };
             const lastFocus = document.activeElement;
+
+            function syncPbmArea() {
+                const lStr = $('#pbm_length').value.trim().replace(/,/g, '');
+                const wStr = $('#pbm_width').value.trim().replace(/,/g, '');
+                if (lStr !== '' && wStr !== '') {
+                    const l = parseFloat(lStr);
+                    const w = parseFloat(wStr);
+                    if (!isNaN(l) && l > 0 && !isNaN(w) && w > 0) {
+                        const val = Math.round(l * w * 100) / 100;
+                        $('#pbm_area').value = val.toFixed(2);
+                        const hint = $('#pbm_hint');
+                        if (hint) { hint.innerHTML = '<span class="text-success"><i class="fa-solid fa-check" aria-hidden="true"></i> Calculated: <strong>' + l + '</strong> × <strong>' + w + '</strong> = <strong>' + val.toFixed(2) + '</strong></span> (Read-only)'; }
+                    } else {
+                        $('#pbm_area').value = '';
+                    }
+                } else if (lStr === '' && wStr === '') {
+                    $('#pbm_area').value = '';
+                    const hint = $('#pbm_hint');
+                    if (hint) { hint.textContent = 'Enter Length and Width — Area is auto-calculated and non-editable.'; }
+                } else {
+                    $('#pbm_area').value = '';
+                    const hint = $('#pbm_hint');
+                    if (hint) { hint.textContent = 'Enter both Length and Width to calculate Area.'; }
+                }
+            }
+            $('#pbm_length').addEventListener('input', syncPbmArea);
+            $('#pbm_width').addEventListener('input', syncPbmArea);
             function close() {
                 m.classList.remove('is-open');
                 document.body.classList.remove('modal-open');
@@ -606,7 +672,7 @@
                 if (descErr) { ok = false; }
                 if (!ok) { return; }
                 const d = defaults();
-                const next = { property_type: $('#pbm_type').value, area_value: $('#pbm_area').value.trim(), area_unit: $('#pbm_unit').value };
+                const next = { plot_type_id: $('#pbm_type').value, area_value: $('#pbm_area').value.trim(), unit_id: $('#pbm_unit').value };
                 p.plot_no = no;
                 p.corner = $('#pbm_corner').checked;
                 p.remarks = desc;
@@ -632,6 +698,51 @@
                 list.map(function (s) { return '<option value="' + s.sector_id + '">' + esc(s.sector_name) + '</option>'; }).join('');
             sector.disabled = !list.length;
             sync();
+        }
+
+        /* --- area calculation from length × width --- */
+        function syncBulkArea() {
+            if (!pbLen || !pbWid || !pbArea) return;
+            const lStr = pbLen.value.trim().replace(/,/g, '');
+            const wStr = pbWid.value.trim().replace(/,/g, '');
+            const unitSel = form.querySelector('[name="unit_id"]');
+            const unitText = unitSel && unitSel.selectedIndex >= 0 ? unitSel.options[unitSel.selectedIndex].text : '';
+
+            if (lStr === '' || wStr === '') {
+                pbArea.value = '';
+                if (pbHint) {
+                    if (lStr !== '' && wStr === '') {
+                        pbHint.innerHTML = 'Enter <strong>Width</strong> to calculate Area.';
+                    } else if (lStr === '' && wStr !== '') {
+                        pbHint.innerHTML = 'Enter <strong>Length</strong> to calculate Area.';
+                    } else {
+                        pbHint.textContent = 'Enter Length and Width — Area is automatically calculated (Length × Width) and is not editable.';
+                    }
+                }
+            } else {
+                const l = parseFloat(lStr);
+                const w = parseFloat(wStr);
+                if (!isNaN(l) && l > 0 && !isNaN(w) && w > 0) {
+                    const areaVal = Math.round(l * w * 100) / 100;
+                    pbArea.value = areaVal.toFixed(2);
+                    if (pbHint) {
+                        pbHint.innerHTML = '<span class="text-success"><i class="fa-solid fa-check" aria-hidden="true"></i> Calculated: <strong>' + l + '</strong> × <strong>' + w + '</strong> = <strong>' + areaVal.toFixed(2) + '</strong> ' + esc(unitText) + '</span> (Read-only)';
+                    }
+                } else {
+                    pbArea.value = '';
+                    if (pbHint) {
+                        pbHint.innerHTML = '<span class="text-danger"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> Please enter positive numbers for Length and Width.</span>';
+                    }
+                }
+            }
+            render();
+        }
+
+        if (pbLen && pbWid) {
+            pbLen.addEventListener('input', syncBulkArea);
+            pbWid.addEventListener('input', syncBulkArea);
+            const unitSel = form.querySelector('[name="unit_id"]');
+            if (unitSel) { unitSel.addEventListener('change', syncBulkArea); }
         }
 
         scheme.addEventListener('change', loadSectors);
@@ -703,7 +814,7 @@
         if (!V()) { return; }
         V().addCheck(form, function () {
             const reason = form.querySelector('[data-bulk-reason]');
-            const needs = form.querySelector('input[name="ids[]"][data-status="NOT_READY"]:checked');
+            const needs = form.querySelector('input[name="ids[]"][data-status="' + Praman.ST.NOT_READY + '"]:checked');
             if (needs && reason && reason.value.trim().length < 5) {
                 return { field: reason, message: 'Enter a re-verification reason (min 5 characters) — Not Ready properties are selected.' };
             }

@@ -23,24 +23,21 @@
             sub: 'Types of property / plot. Inactive types are hidden from new property entry but kept on existing records.',
             name: function (r) { return r.name; }, sort: 'name',
             fields: [
-                { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. GODOWN', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'e.g. Godown' },
                 { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>'; }],
                 ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
-            usage: function (r) { const n = DB.count('properties', { property_type: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.description]; }
+            usage: function (r) { const n = DB.count('properties', { plot_type_id: r.plot_type_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
+            search: function (r) { return [r.name, r.description]; }
         },
         units: {
             table: 'units', pk: 'unit_id', title: 'Unit Master', one: 'Unit', icon: 'fa-ruler-combined', entity: 'UNIT',
             sub: 'Area units used across the project (property entry, site inspection, reports). Every area is also stored in sq m using the factor below.',
             name: function (r) { return r.name; }, sort: 'name',
             fields: [
-                { name: 'code', label: 'Code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. SQYD', hint: 'CAPITAL letters, digits, underscore. Stored on properties — cannot be changed later.' },
                 { name: 'name', label: 'Unit name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. Square Yard' },
                 { name: 'symbol', label: 'Symbol', rules: 'required|max:15|text', unique: true, placeholder: 'e.g. sq yd', hint: 'Short label shown next to every area.' },
                 { name: 'to_sqm', label: '1 unit = sq m', rules: 'required|decimal:8|positive', placeholder: 'e.g. 0.83612736', inputmode: 'decimal',
@@ -48,35 +45,32 @@
                 { name: 'description', label: 'Description', rules: 'max:150|text' }
             ],
             columns: [
-                ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' base unit</span>' : ''); }],
-                ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>'; }],
+                ['name', 'Unit', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong> <span class="badge badge-muted">' + e(r.symbol) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' base unit</span>' : ''); }],
                 ['factor', '1 unit =', function (r) { return Number(r.to_sqm); }, function (r) { return '<span class="mono">' + e(String(Number(r.to_sqm))) + '</span> sq m'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             locked: function (r) { return !!r.is_system; },
-            lockNote: 'Base unit — every area is stored in sq m, so its code and factor (1) cannot change and it is always active. You can change its name, symbol and order.',
-            usage: function (r) { const n = DB.count('properties', { area_unit: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.symbol, r.description]; }
+            lockNote: 'Base unit — every area is stored in sq m, so its factor (1) cannot change and it is always active. You can change its name, symbol and order.',
+            usage: function (r) { const n = DB.count('properties', { unit_id: r.unit_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
+            search: function (r) { return [r.name, r.symbol, r.description]; }
         },
         statuses: {
             table: 'statuses', pk: 'status_id', title: 'Status Master', one: 'Property status', icon: 'fa-flag', entity: 'STATUS',
-            sub: 'Property status names, colours and icons. System statuses drive the verification workflow — their code cannot change and they cannot be removed.',
+            sub: 'Property status names, colours and icons. System statuses drive the verification workflow — they cannot be switched off or removed.',
             name: function (r) { return r.name; }, sort: 'name',
             fields: [
-                { name: 'code', label: 'Status code', rules: 'required|code', unique: true, upper: true, lockOnEdit: true, placeholder: 'e.g. ON_HOLD', hint: 'CAPITAL letters, digits, underscore. Cannot be changed later.' },
                 { name: 'name', label: 'Display name', rules: 'required|min:2|max:40|text', unique: true, placeholder: 'e.g. On Hold' },
                 { name: 'color', label: 'Badge colour', type: 'select', rules: 'required', options: COLOR_OPTS, def: function () { return 'info'; }, preview: true },
                 { name: 'icon', label: 'Icon', type: 'select', rules: 'required', options: ICON_OPTS, def: function () { return 'fa-flag'; }, preview: true },
                 { name: 'description', label: 'Meaning', rules: 'max:150|text' }
             ],
             columns: [
-                ['code', 'Code', function (r) { return r.code; }, function (r) { return '<span class="mono">' + e(r.code) + '</span>' + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' system</span>' : '<span class="cell-sub">custom</span>'); }],
-                ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.code); }],
+                ['name', 'Badge', function (r) { return r.name; }, function (r) { return P.status_badge(r.status_id) + (r.is_system ? '<span class="cell-sub">' + icon('fa-lock') + ' system</span>' : '<span class="cell-sub">custom</span>'); }],
                 ['desc', 'Meaning', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
             locked: function (r) { return !!r.is_system; },
-            usage: function (r) { const n = DB.count('properties', { current_status: r.code, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
-            search: function (r) { return [r.code, r.name, r.description]; }
+            usage: function (r) { const n = DB.count('properties', { status_id: r.status_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
+            search: function (r) { return [r.name, r.description]; }
         }
     };
     P.MASTERS = MASTERS;
@@ -152,7 +146,7 @@
                 '<a href="' + P.BASE + BASE + '/' + key + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
                 (usage && usage.n ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This ' + e(m.one.toLowerCase()) + ' is used in <strong>' + e(usage.text) + '</strong>. Changes show everywhere it is used.</span></div>' : '') +
                 (locked ? '<div class="alert alert-warning">' + icon('fa-lock') + '<span>' + (m.lockNote ? e(m.lockNote)
-                    : 'System status — the workflow depends on code <strong>' + e(row.code) + '</strong>. You can change its name, colour, icon and order.') + '</span></div>' : '') +
+                    : 'System status — the verification workflow depends on it. You can change its name, colour, icon and meaning.') + '</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="master" data-master-form novalidate data-validate>' +
                 '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="save">' + (isEdit ? '<input type="hidden" name="id" value="' + row[m.pk] + '">' : '') +
                 '<div class="form-grid">' + m.fields.map(field).join('') +
@@ -180,7 +174,7 @@
             const k = Object.keys(MASTERS).find(function (x) { return MASTERS[x].title === title; });
             if (k) { listHref = P.BASE + BASE + '/' + k; }
             else if (title === 'Sector Master') { listHref = P.BASE + BASE + '/sectors'; }
-            else if (title === 'Scheme Master') { listHref = P.BASE + BASE + '/schemes'; }
+            else if (title === 'Schemes' || title === 'Scheme Master') { listHref = P.BASE + BASE + '/schemes'; }
         }
         return '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="' + P.BASE + '/admin/dashboard">Home</a><span>/</span>' +
             (last ? (listHref ? '<a href="' + listHref + '">' + e(title) + '</a>' : '<span>' + e(title) + '</span>') + '<span>/</span><strong>' + e(last) + '</strong>' : '<strong>' + e(title) + '</strong>') + '</nav>';
@@ -201,7 +195,7 @@
         return DB.all('sectors').map(function (s) {
             const sc = DB.find('schemes', s.scheme_id);
             const areaName = sc ? DB.areaName(sc.area_id) : '—';
-            return Object.assign({}, s, { scheme_name: sc ? sc.scheme_name : '—', scheme_code: sc ? sc.scheme_code : '—', scheme_active: sc ? sc.is_active : 0,
+            return Object.assign({}, s, { scheme_name: sc ? sc.scheme_name : '—', scheme_active: sc ? sc.is_active : 0,
                 area: areaName,
                 props: DB.count('properties', { sector_id: s.sector_id, is_active: 1 }) });
         });
@@ -214,11 +208,11 @@
         if (q.status === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'scheme', dir: 'asc', filters: ['scheme_id', 'status'],
-            search: function (r) { return [r.sector_name, r.scheme_name, r.scheme_code, r.area]; },
+            search: function (r) { return [r.sector_name, r.scheme_name, r.area]; },
             sortable: { scheme: function (r) { return r.scheme_name; }, name: function (r) { return r.sector_name; }, props: function (r) { return r.props; } }
         });
         const schemes = {};
-        DB.all('schemes').sort(P.by(function (s) { return s.scheme_name; })).forEach(function (s) { schemes[s.scheme_id] = s.scheme_name + ' (' + s.scheme_code + ')'; });
+        DB.all('schemes').sort(P.by(function (s) { return s.scheme_name; })).forEach(function (s) { schemes[s.scheme_id] = s.scheme_name; });
         const filters = '<select name="scheme_id" class="form-select" aria-label="Scheme" data-auto-submit>' + L.options(schemes, q.scheme_id, 'All schemes') + '</select>' +
             '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' + L.options({ active: 'Active', inactive: 'Inactive' }, q.status, 'All status') + '</select>';
         const total = DB.count('sectors'), active = DB.count('sectors', { is_active: 1 });
@@ -233,7 +227,7 @@
                 P.th_sort(p, 'props', 'Properties') + '<th>Status</th><th>Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong><span class="cell-sub">' + e(r.scheme_code) + (r.area && r.area !== '—' ? ' · ' + e(r.area) : '') + (r.scheme_active ? '' : ' · scheme inactive') + '</span></td>' +
+                    return '<tr><td data-label="Scheme"><strong>' + e(r.scheme_name) + '</strong>' + ((r.area && r.area !== '—') || !r.scheme_active ? '<span class="cell-sub">' + (r.area && r.area !== '—' ? e(r.area) : '') + (r.scheme_active ? '' : (r.area && r.area !== '—' ? ' · ' : '') + 'scheme inactive') + '</span>' : '') + '</td>' +
                         '<td data-label="Sector">' + e(r.sector_name) + '</td>' +
                         '<td data-label="Properties">' + (Auth.can('master.edit') ? '<a href="' + P.url('/admin/masters/sectors/' + r.sector_id + '/edit') + '" class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</a>'
                             : '<span class="badge ' + (r.props ? 'badge-info' : 'badge-muted') + '">' + r.props + '</span>') + '</td>' +
@@ -251,7 +245,7 @@
     function sectorForm(row, ctx) {
         const isEdit = !!row;
         const schemes = {};
-        DB.all('schemes').sort(P.by(function (s) { return s.scheme_name; })).forEach(function (s) { schemes[s.scheme_id] = s.scheme_name + ' (' + s.scheme_code + ')' + (s.is_active ? '' : ' — inactive'); });
+        DB.all('schemes').sort(P.by(function (s) { return s.scheme_name; })).forEach(function (s) { schemes[s.scheme_id] = s.scheme_name + (s.is_active ? '' : ' — inactive'); });
         const sc = isEdit ? DB.find('schemes', row.scheme_id) : null;
         const props = isEdit ? DB.count('properties', { sector_id: row.sector_id, is_active: 1 }) : 0;
         return {
@@ -262,7 +256,7 @@
                 (props ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>' + props + ' propert' + (props === 1 ? 'y is' : 'ies are') + ' registered in this sector. Renaming shows the new name on them too.</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="master" data-sector-form novalidate data-validate><input type="hidden" name="key" value="sectors"><input type="hidden" name="do" value="save">' + (isEdit ? '<input type="hidden" name="id" value="' + row.sector_id + '">' : '') +
                 '<div class="form-grid"><div class="form-group"><label class="form-label" for="scheme_id">Scheme <span class="required">*</span></label>' +
-                (isEdit ? '<input type="text" class="form-control" readonly value="' + e(sc.scheme_name + ' (' + sc.scheme_code + ')') + '"><div class="form-hint">A sector cannot move to another scheme.</div>'
+                (isEdit ? '<input type="text" class="form-control" readonly value="' + e(sc.scheme_name) + '"><div class="form-hint">A sector cannot move to another scheme.</div>'
                     : '<select id="scheme_id" name="scheme_id" class="form-select" data-rules="required" data-label="Scheme">' + L.options(schemes, ctx.query.scheme_id, 'Select scheme') + '</select>') +
                 '<div class="invalid-feedback"></div></div>' +
                 '<div class="form-group"><label class="form-label" for="sector_name">' + (isEdit ? 'Sector name' : 'Sector name(s)') + ' <span class="required">*</span></label>' +
@@ -282,6 +276,8 @@
 
     /* ================= Scheme Master for Super Admin (same screens as Data Entry) ================= */
     if (P.registerSchemeScreens) { P.registerSchemeScreens(BASE + '/schemes', PANEL, crumbs); }
+    // Property Register in the Super Admin masters (same screens as Data Entry)
+    if (P.registerPropertyScreens) { P.registerPropertyScreens(BASE + '/properties', PANEL, crumbs); }
 
     /* ================= Masters hub (removed) ================= */
     P.route(BASE, PANEL, function () {

@@ -10,7 +10,7 @@ $css = ['fonts.css', 'loader.css', 'fontawesome.min.css', 'style.css', 'animatio
 $js = [
     'loader.js', 'vendor/chart.umd.min.js', 'db.js', 'validation.js', 'app.js', 'core.js', 'forms.js', 'charts.js', 'tables.js', 'files.js',
     'pages/auth.js', 'pages/landing.js', 'pages/admin.js', 'pages/insights.js', 'pages/dataentry.js', 'pages/masters.js',
-    'pages/oic.js', 'pages/role.js', 'pages/dashboards.js', 'pages/notifications.js', 'pages/timeline.js',
+    'pages/oic.js', 'pages/role.js', 'pages/dashboards.js', 'pages/reports.js', 'pages/notifications.js', 'pages/timeline.js',
 ];
 $json = json_encode($state, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
 ?>

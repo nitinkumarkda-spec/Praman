@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 $router->get('/', 'Home@index');
 $router->get('/api/state', 'Home@state');
-$router->pages(['admin', 'data-entry', 'oic', 'role', 'notifications', 'change-password', 'login'], 'Home@index');
+$router->pages(['admin', 'reports', 'data-entry', 'oic', 'role', 'notifications', 'change-password', 'login'], 'Home@index');
 
 $router->group(['csrf'], static function ($r): void {
     $r->post('/api/login', 'Auth@login', ['guest']);

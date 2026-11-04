@@ -10,5 +10,5 @@ final class Role extends Model
 {
     protected static string $table = 'roles';
     protected static string $pk = 'role_id';
-    protected static array $columns = ['role_code', 'role_name', 'role_name_hi', 'description', 'sla_days', 'is_mandatory', 'sort_order', 'is_active', 'created_by', 'updated_by'];
+    protected static array $columns = ['role_name', 'verification_form', 'role_name_hi', 'description', 'sla_days', 'is_mandatory', 'sort_order', 'is_active', 'created_by', 'updated_by'];
 }

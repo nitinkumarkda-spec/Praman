@@ -46,7 +46,7 @@ final class TaskController extends Controller
             $this->fail('This task is no longer pending.');
         }
         $role = Role::find($t['role_id']);
-        $site = $role['role_code'] === Section::ENGINEERING ? $this->siteCheck($round['property_id'], $me) : null;
+        $site = $role['verification_form'] === Section::SITE ? $this->siteCheck($round['property_id'], $me) : null;
         $photos = $site ? $this->sitePhotos() : [];
         if ($site) {
             // Engineering gives a site report, not a decision: encroachment = Objection, otherwise No Objection
@@ -58,7 +58,7 @@ final class TaskController extends Controller
             $section = null;
             $letters = [];
         } else {
-            $section = $this->sectionCheck($role['role_code'], $me);
+            $section = $this->sectionCheck($role['verification_form'], $me);
             $letters = $section ? $this->letters($section) : [];
             $taken = $section && (!empty($section['is_sale_allotted']) || !empty($section['is_auctioned']) || !empty($section['is_inst_allotted']) || !empty($section['is_inst_in_process']));
             $decision = $taken ? TaskStatus::REJECTED : TaskStatus::APPROVED;
@@ -120,8 +120,8 @@ final class TaskController extends Controller
     {
         $len = $this->measure('site_length', 'Length');
         $wid = $this->measure('site_width', 'Width');
-        $unit = $this->request->str('site_area_unit');
-        if (!PropertyService::validUnit($unit)) {
+        $unit = PropertyService::validUnit($this->id('site_area_unit'));
+        if (!$unit) {
             $this->fail('Select an active unit from the Unit Master.', 'site_area_unit');
         }
         $value = round($len * $wid, 2);
@@ -167,11 +167,11 @@ final class TaskController extends Controller
         $p = Property::find($propertyId);
         // a property entered without an area has nothing to compare with: difference 0, variance empty
         $recorded = $p['area_value'] !== null;
-        $diff = $recorded ? round(round(PropertyService::convert($value, $unit, $p['area_unit']), 2) - (float) $p['area_value'], 2) : 0.0;
+        $diff = $recorded ? round(round(PropertyService::convert($value, $unit, $p['unit_id']), 2) - (float) $p['area_value'], 2) : 0.0;
         return [
             'length_value' => $len, 'width_value' => $wid,
-            'area_value' => $value, 'area_unit' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
-            'recorded_value' => $p['area_value'], 'recorded_unit' => $p['area_unit'], 'difference' => abs($diff),
+            'area_value' => $value, 'unit_id' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
+            'recorded_value' => $p['area_value'], 'recorded_unit_id' => $p['unit_id'], 'difference' => abs($diff),
             'difference_pct' => $p['area_value'] ? round(abs($diff) / (float) $p['area_value'] * 100, 2) : 0,
             'variance' => !$recorded ? null : (abs($diff) < 0.01 ? SiteCode::SAME : ($diff < 0 ? SiteCode::LESS : SiteCode::MORE)),
             'encroachment' => $enc, 'encroachment_type' => $type, 'encroachment_details' => $text !== '' ? $text : null,
@@ -219,23 +219,23 @@ final class TaskController extends Controller
      * except Engineering, which has its site inspection). null when the cell has no section.
      * Any "Yes" means the property is not available: only Objection is allowed.
      */
-    private function sectionCheck(string $roleCode, int $by): ?array
+    private function sectionCheck(string $form, int $by): ?array
     {
         $out = ['checked_by' => $by, 'checked_at' => now()];
-        if ($roleCode === Section::SALE) {
+        if ($form === Section::SALE) {
             $out['is_sale_allotted'] = $this->yesNo('is_sale_allotted', 'Sale: select Yes or No for “Allotted”.');
             if ($out['is_sale_allotted']) {
                 $out['allottee_name'] = $this->person('allottee_name', 'Name of allottee / mutation');
                 $out['allotment_date'] = $this->pastDate('allotment_date', 'Date of allotment / mutation');
             }
         }
-        if ($roleCode === Section::AUCTION) {
+        if ($form === Section::AUCTION) {
             $out['is_auctioned'] = $this->yesNo('is_auctioned', 'Auction: select Yes or No for “Auctioned”.');
             if ($out['is_auctioned']) {
                 $out['auction_date'] = $this->pastDate('auction_date', 'Date of auction');
             }
         }
-        if (!in_array($roleCode, Section::OWN_FORM, true)) {
+        if (!in_array($form, Section::OWN_FORM, true)) {
             $out['is_inst_allotted'] = $this->yesNo('is_inst_allotted', 'General: select Yes or No for “Allotment to an organisation / institution”.');
             // "Yes" = occupied: allotted, or allotment in progress (no exact date yet)
             $out['is_inst_in_process'] = $out['is_inst_allotted'] && $this->request->input('is_inst_in_process') === '1' ? 1 : 0;

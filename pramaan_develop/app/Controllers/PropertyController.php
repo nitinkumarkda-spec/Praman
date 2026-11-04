@@ -17,17 +17,19 @@ use App\Services\PropertyService;
 use App\Services\Uploads;
 use Throwable;
 
-/** Data Entry → Add Property (the whole generated grid at once) / edit one property (only while Listed). */
+/** Data Entry / Super Admin → Add Property (the whole generated grid at once) / edit one property (only while Listed). */
 final class PropertyController extends Controller
 {
     /** Most plots one Add Property grid may save at once. */
     private const MAX_PLOTS = 500;
+    /** Where the Property screens live; a save returns to the one it came from. */
+    private const LISTS = ['/data-entry/properties', '/admin/masters/properties'];
 
     /**
      * One function for both screens:
-     *   add  — scheme_id, sector_id?, site_plan?, plots = JSON [{plot_no, property_type, area_value?, area_unit, remarks?, corner}]
+     *   add  — scheme_id, sector_id?, site_plan?, plots = JSON [{plot_no, plot_type_id, area_value?, unit_id, remarks?, corner}]
      *   edit — id, sector_id?, site_plan?, confirm_location = YES and that plot's fields
-     *          (plot_no, property_type, area_value?, area_unit, reserve_price?, remarks?, is_corner)
+     *          (plot_no, plot_type_id, area_value?, unit_id, reserve_price?, remarks?, is_corner)
      * Sector, area, reserve price, description and site plan are optional.
      */
     public function save(): void
@@ -35,15 +37,16 @@ final class PropertyController extends Controller
         $id = $this->id() ?: null;
         $this->authorize($id ? 'property.edit' : 'property.create');
         $in = $this->request;
+        $list = in_array($in->str('back'), self::LISTS, true) ? $in->str('back') : self::LISTS[0];
         $prop = null;
         if ($id) {
             $prop = Property::find($id);
             if (!$prop || !$prop['is_active']) {
                 $this->fail('Property not found.');
             }
-            if ($prop['current_status'] !== PropertyStatus::LISTED) {
+            if ($prop['status_id'] !== PropertyStatus::LISTED) {
                 $this->flash('error', 'This property was sent for verification meanwhile and can no longer be edited.');
-                $this->done(null, '/data-entry/properties');
+                $this->done(null, $list);
             }
             if ($in->str('confirm_location') !== YesNo::YES) {
                 $this->fail('Please confirm the scheme and sector (answer "Yes").', 'confirm_location');
@@ -63,8 +66,10 @@ final class PropertyController extends Controller
 
         // the plots to save: the whole grid, or the one property being edited
         if ($prop) {
-            $plots = [['plot_no' => $in->str('plot_no'), 'property_type' => $in->str('property_type') ?: $in->str('plot_type_id'), 'area_value' => $in->str('area_value'),
-                'area_unit' => $in->str('area_unit') ?: $in->str('unit_id'), 'reserve_price' => $in->str('reserve_price'), 'remarks' => $in->str('remarks'),
+            // a form without the reserve price box keeps the price the property already has
+            $price = $in->input('reserve_price') === null ? (string) ($prop['reserve_price'] ?? '') : $in->str('reserve_price');
+            $plots = [['plot_no' => $in->str('plot_no'), 'plot_type_id' => $in->str('plot_type_id'), 'area_value' => $in->str('area_value'),
+                'unit_id' => $in->str('unit_id'), 'reserve_price' => $price, 'remarks' => $in->str('remarks'),
                 'corner' => $in->input('is_corner') === '1']];
         } else {
             $plots = json_decode($in->str('plots'), true);
@@ -95,18 +100,10 @@ final class PropertyController extends Controller
             if (Property::valueExists('plot_no', $plot, $id, ['scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'] ?? null])) {
                 $err(($prop ? 'Plot no. ' . $plot . ' ' : '') . 'already exists in ' . $where . '.', 'plot_no', $tag);
             }
-            $rawType = trim((string) ($p['property_type'] ?? $p['plot_type_id'] ?? ''));
-            $pt = null;
-            if (is_numeric($rawType) && (int) $rawType > 0) {
-                $pt = PlotType::find((int) $rawType);
-            }
-            if (!$pt && $rawType !== '') {
-                $pt = PlotType::first(['code' => strtoupper($rawType)])
-                    ?: PlotType::first(['code' => $rawType])
-                    ?: PlotType::first(['name' => $rawType]);
-            }
-            if (!$pt || (!$pt['is_active'] && $pt['code'] !== ($prop['property_type'] ?? null))) {
-                $err('Please select an active plot type.', 'property_type', $tag);
+            $typeId = (int) ($p['plot_type_id'] ?? 0);
+            $pt = $typeId > 0 ? PlotType::find($typeId) : null;
+            if (!$pt || (!$pt['is_active'] && $typeId !== ($prop['plot_type_id'] ?? null))) {
+                $err('Please select an active plot type.', 'plot_type_id', $tag);
             }
             $area = str_replace(',', '', trim((string) ($p['area_value'] ?? '')));
             $unit = null;
@@ -114,14 +111,9 @@ final class PropertyController extends Controller
                 if (!preg_match('/^\d{1,10}(\.\d{1,2})?$/', $area) || (float) $area <= 0) {
                     $err('Area must be a number greater than zero (up to 2 decimals).', 'area_value', $tag);
                 }
-                $rawUnit = trim((string) ($p['area_unit'] ?? $p['unit_id'] ?? ''));
-                if (is_numeric($rawUnit) && (int) $rawUnit > 0) {
-                    $uRow = Unit::find((int) $rawUnit);
-                    $rawUnit = $uRow ? $uRow['code'] : '';
-                }
-                $unit = PropertyService::validUnit($rawUnit, $prop['area_unit'] ?? null);
+                $unit = PropertyService::validUnit((int) ($p['unit_id'] ?? 0), $prop['unit_id'] ?? null);
                 if (!$unit) {
-                    $err('Please select an active area unit.', 'area_unit', $tag);
+                    $err('Please select an active area unit.', 'unit_id', $tag);
                 }
             }
             $price = str_replace(',', '', trim((string) ($p['reserve_price'] ?? '')));
@@ -134,8 +126,8 @@ final class PropertyController extends Controller
             }
             $a = $area !== '' ? round((float) $area, 2) : null;
             $rows[] = [
-                'scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'] ?? null, 'plot_no' => $plot, 'property_type' => $pt['code'],
-                'area_value' => $a, 'area_unit' => $unit, 'area_sqm' => $a !== null ? PropertyService::toSqm($a, $unit) : null,
+                'scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'] ?? null, 'plot_no' => $plot, 'plot_type_id' => $pt['plot_type_id'],
+                'area_value' => $a, 'unit_id' => $unit, 'area_sqm' => $a !== null ? PropertyService::toSqm($a, $unit) : null,
                 'is_corner' => empty($p['corner']) ? 0 : 1, 'reserve_price' => $price !== '' ? round((float) $price, 2) : null,
                 'remarks' => $remarks !== '' ? $remarks : null,
             ];
@@ -147,9 +139,7 @@ final class PropertyController extends Controller
                 $this->fail($sitePlan, 'site_plan');
             }
         }
-        if (!$prop && ($missing = PropertyService::missingMandatoryRoles($schemeId))) {
-            $this->fail('Cannot create properties: no active user is mapped in this scheme for mandatory role(s): ' . implode(', ', $missing) . '. Update the scheme\'s role mapping first.', 'scheme_id');
-        }
+// Role-user mapping is bound when sending properties for verification
 
         $by = (int) Auth::id();
         $stored = [];
@@ -180,9 +170,9 @@ final class PropertyController extends Controller
         }
         if ($prop) {
             Audit::log('PROPERTY', $id, 'UPDATED', array_intersect_key($prop, $rows[0]), $rows[0] + ($sitePlan ? ['site_plan' => $sitePlan['name']] : []), $id);
-            $this->done('Property plot ' . $rows[0]['plot_no'] . ' updated.', '/data-entry/properties');
+            $this->done('Property plot ' . $rows[0]['plot_no'] . ' updated.', $list);
         }
         $n = count($rows);
-        $this->done($n . ' propert' . ($n === 1 ? 'y' : 'ies') . ' created in ' . $where . ' (status: Listed).', '/data-entry/properties');
+        $this->done($n . ' propert' . ($n === 1 ? 'y' : 'ies') . ' created in ' . $where . ' (status: Listed).', $list);
     }
 }

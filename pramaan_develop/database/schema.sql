@@ -20,8 +20,8 @@ USE pramaan_db;
 -- ---------------------------------------------------------------------
 CREATE TABLE roles (
     role_id       INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    role_code     VARCHAR(40)       NOT NULL,
     role_name     VARCHAR(100)      NOT NULL,
+    verification_form ENUM('GENERAL','SALE','AUCTION','SITE') NOT NULL DEFAULT 'GENERAL',  -- the check this section fills
     role_name_hi  VARCHAR(100)      NULL,
     description   VARCHAR(255)      NULL,
     sla_days      SMALLINT UNSIGNED NOT NULL DEFAULT 5,
@@ -33,7 +33,6 @@ CREATE TABLE roles (
     updated_by    INT UNSIGNED      NULL,
     updated_at    DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (role_id),
-    UNIQUE KEY uq_roles_code (role_code),
     UNIQUE KEY uq_roles_name (role_name),
     KEY ix_roles_active (is_active, sort_order),
     CONSTRAINT ck_roles_sla CHECK (sla_days BETWEEN 1 AND 365)
@@ -41,14 +40,10 @@ CREATE TABLE roles (
 
 CREATE TABLE users (
     user_id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    username             VARCHAR(50)   NOT NULL,
-    emp_code             VARCHAR(30)   NOT NULL,
     name                 VARCHAR(120)  NOT NULL,
-    designation          VARCHAR(100)  NOT NULL,
     mobile               CHAR(10)      NOT NULL,
-    email                VARCHAR(150)  NOT NULL,
+    email                VARCHAR(150)  NULL DEFAULT NULL,
     password_hash        VARCHAR(255)  NOT NULL,
-    panel                ENUM('SUPER_ADMIN','DATA_ENTRY','OIC','ROLE_USER') NOT NULL,
     role_id              INT UNSIGNED  NULL,
     is_active            TINYINT(1)    NOT NULL DEFAULT 1,
     must_change_password TINYINT(1)    NOT NULL DEFAULT 0,
@@ -62,14 +57,10 @@ CREATE TABLE users (
     updated_by           INT UNSIGNED  NULL,
     updated_at           DATETIME      NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id),
-    UNIQUE KEY uq_users_username (username),
-    UNIQUE KEY uq_users_emp_code (emp_code),
     UNIQUE KEY uq_users_mobile (mobile),
     UNIQUE KEY uq_users_email (email),
-    KEY ix_users_panel (panel, is_active),
     KEY ix_users_role (role_id, is_active),
-    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles (role_id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_users_role CHECK ((panel = 'ROLE_USER' AND role_id IS NOT NULL) OR (panel <> 'ROLE_USER' AND role_id IS NULL))
+    CONSTRAINT fk_users_role FOREIGN KEY (role_id) REFERENCES roles (role_id) ON UPDATE CASCADE ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 CREATE TABLE login_attempts (
@@ -84,15 +75,16 @@ CREATE TABLE login_attempts (
     KEY ix_login_time (attempted_at)                       -- 90-day prune + Super Admin insights
 ) ENGINE=InnoDB;
 
--- what each panel may do (Super Admin → Permissions); codes are listed in app/Core/Permissions.php
-CREATE TABLE panel_permissions (
+-- what each role may do (Admin → Permissions); codes are listed in app/Core/Permissions.php
+CREATE TABLE role_permissions (
     grant_id    INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    panel       ENUM('SUPER_ADMIN','DATA_ENTRY','OIC','ROLE_USER') NOT NULL,
+    role_id     INT UNSIGNED NOT NULL,
     permission  VARCHAR(60)  NOT NULL,
     created_by  INT UNSIGNED NULL,
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (grant_id),
-    UNIQUE KEY uq_panel_permissions (panel, permission)
+    UNIQUE KEY uq_role_permissions (role_id, permission),
+    CONSTRAINT fk_role_permissions_role FOREIGN KEY (role_id) REFERENCES roles (role_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 -- one user's own exceptions to the permissions of the panel (Super Admin → User Master → Permissions)
@@ -113,7 +105,6 @@ CREATE TABLE user_permissions (
 -- ---------------------------------------------------------------------
 CREATE TABLE areas (
     area_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    area_code    VARCHAR(30)       NOT NULL,
     area_name    VARCHAR(60)       NOT NULL,
     name_hi      VARCHAR(60)       NULL,
     description  VARCHAR(150)      NULL,
@@ -125,14 +116,12 @@ CREATE TABLE areas (
     updated_by   INT UNSIGNED      NULL,
     updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (area_id),
-    UNIQUE KEY uq_areas_code (area_code),
     UNIQUE KEY uq_areas_name (area_name),
     KEY ix_areas_active (is_active, sort_order)
 ) ENGINE=InnoDB;
 
 CREATE TABLE plot_types (
     plot_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    code         VARCHAR(30)       NOT NULL,
     name         VARCHAR(60)       NOT NULL,
     name_hi      VARCHAR(60)       NULL,
     description  VARCHAR(150)      NULL,
@@ -144,13 +133,12 @@ CREATE TABLE plot_types (
     updated_by   INT UNSIGNED      NULL,
     updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (plot_type_id),
-    UNIQUE KEY uq_plot_types_code (code),
     UNIQUE KEY uq_plot_types_name (name)
 ) ENGINE=InnoDB;
 
+-- system statuses (is_system = 1) have fixed ids the workflow uses: App\Codes\PropertyStatus
 CREATE TABLE statuses (
     status_id    INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    code         VARCHAR(30)       NOT NULL,
     name         VARCHAR(40)       NOT NULL,
     name_hi      VARCHAR(40)       NULL,
     color        VARCHAR(20)       NOT NULL DEFAULT 'info',
@@ -164,14 +152,12 @@ CREATE TABLE statuses (
     updated_by   INT UNSIGNED      NULL,
     updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (status_id),
-    UNIQUE KEY uq_statuses_code (code),
     UNIQUE KEY uq_statuses_name (name)
 ) ENGINE=InnoDB;
 
 -- area units (sq m, sq ft, sq yard …): every area is also stored in sq m using to_sqm
 CREATE TABLE units (
     unit_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    code         VARCHAR(20)       NOT NULL,
     name         VARCHAR(40)       NOT NULL,
     name_hi      VARCHAR(40)       NULL,
     symbol       VARCHAR(15)       NOT NULL,              -- short label, e.g. "sq ft"
@@ -185,7 +171,6 @@ CREATE TABLE units (
     updated_by   INT UNSIGNED      NULL,
     updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (unit_id),
-    UNIQUE KEY uq_units_code (code),
     UNIQUE KEY uq_units_name (name),
     CONSTRAINT ck_units_factor CHECK (to_sqm > 0)
 ) ENGINE=InnoDB;
@@ -195,22 +180,18 @@ CREATE TABLE units (
 -- ---------------------------------------------------------------------
 CREATE TABLE schemes (
     scheme_id       INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-    scheme_code     VARCHAR(30)       NOT NULL,
     scheme_name     VARCHAR(150)      NOT NULL,
     scheme_type     ENUM('RESIDENTIAL','COMMERCIAL','INDUSTRIAL','MIXED','FARMHOUSE') NOT NULL,
     area_id         INT UNSIGNED      NULL,
-    year_of_scheme  SMALLINT UNSIGNED NOT NULL,
     is_active       TINYINT(1)        NOT NULL DEFAULT 1,
     created_by      INT UNSIGNED      NULL,
     created_at      DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by      INT UNSIGNED      NULL,
     updated_at      DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (scheme_id),
-    UNIQUE KEY uq_schemes_code (scheme_code),
     UNIQUE KEY uq_schemes_name (scheme_name),
     KEY ix_schemes_active (is_active, scheme_name),
     KEY ix_schemes_area (area_id),
-    CONSTRAINT ck_schemes_year CHECK (year_of_scheme BETWEEN 1950 AND 2100),
     CONSTRAINT fk_schemes_area FOREIGN KEY (area_id) REFERENCES areas(area_id)
 ) ENGINE=InnoDB;
 
@@ -253,19 +234,18 @@ CREATE TABLE scheme_users (
 -- ---------------------------------------------------------------------
 CREATE TABLE properties (
     property_id     INT UNSIGNED   NOT NULL AUTO_INCREMENT,
-    property_code   VARCHAR(20)    NULL,
     scheme_id       INT UNSIGNED   NOT NULL,
     sector_id       INT UNSIGNED   NULL,                  -- optional
     sector_key      INT UNSIGNED   AS (IFNULL(sector_id, 0)) STORED,  -- 0 = no sector; keeps plot no. unique also without a sector
     plot_no         VARCHAR(30)    NOT NULL,
-    property_type   VARCHAR(30)    NOT NULL,
+    plot_type_id    INT UNSIGNED   NOT NULL,
     area_value      DECIMAL(12,2)  NULL,                  -- optional (all three together)
-    area_unit       VARCHAR(20)    NULL,                  -- units.code
+    unit_id         INT UNSIGNED   NULL,
     area_sqm        DECIMAL(14,4)  NULL,
     is_corner       TINYINT(1)     NOT NULL DEFAULT 0,    -- marked Corner in the Add Property grid
     remarks         VARCHAR(500)   NULL,
     reserve_price   DECIMAL(14,2)  NULL,                  -- in rupees, optional
-    current_status  VARCHAR(30)    NOT NULL DEFAULT 'LISTED',
+    status_id       INT UNSIGNED   NOT NULL DEFAULT 1,    -- 1 = Listed
     current_round_id INT UNSIGNED  NULL,
     ready_round_id  INT UNSIGNED   NULL,
     valid_till      DATE           NULL,
@@ -275,39 +255,21 @@ CREATE TABLE properties (
     updated_by      INT UNSIGNED   NULL,
     updated_at      DATETIME       NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (property_id),
-    UNIQUE KEY uq_properties_code (property_code),
     KEY ix_properties_sector (sector_id),
     UNIQUE KEY uq_properties_plot (scheme_id, sector_key, plot_no),
     KEY ix_properties_scheme (scheme_id, is_active),
-    KEY ix_properties_status (current_status, is_active, valid_till),   -- expiry job, re-verification due, status filters
+    KEY ix_properties_status (status_id, is_active, valid_till),   -- expiry job, re-verification due, status filters
     KEY ix_properties_created (created_by, is_active),                 -- "entered by me"
     CONSTRAINT fk_properties_scheme   FOREIGN KEY (scheme_id)      REFERENCES schemes (scheme_id)       ON DELETE RESTRICT,
     CONSTRAINT fk_properties_sector   FOREIGN KEY (sector_id)      REFERENCES sectors (sector_id)       ON DELETE RESTRICT,
-    CONSTRAINT fk_properties_type     FOREIGN KEY (property_type)  REFERENCES plot_types (code)         ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_properties_unit     FOREIGN KEY (area_unit)      REFERENCES units (code)              ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_properties_status   FOREIGN KEY (current_status) REFERENCES statuses (code)           ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_type     FOREIGN KEY (plot_type_id)   REFERENCES plot_types (plot_type_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_unit     FOREIGN KEY (unit_id)        REFERENCES units (unit_id)           ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_status   FOREIGN KEY (status_id)      REFERENCES statuses (status_id)      ON DELETE RESTRICT,
     CONSTRAINT ck_properties_area CHECK (area_value IS NULL OR area_value > 0),
-    CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (area_unit IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL)),
+    CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL)),
     CONSTRAINT ck_properties_price CHECK (reserve_price IS NULL OR reserve_price > 0)
 ) ENGINE=InnoDB;
 
--- snapshot of the scheme's role users, taken when the property is created
-CREATE TABLE property_users (
-    pru_id       INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    property_id  INT UNSIGNED NOT NULL,
-    role_id      INT UNSIGNED NOT NULL,
-    user_id      INT UNSIGNED NOT NULL,
-    is_active    TINYINT(1)   NOT NULL DEFAULT 1,
-    created_by   INT UNSIGNED NULL,
-    created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (pru_id),
-    UNIQUE KEY uq_property_users (property_id, role_id, user_id),
-    KEY ix_property_users_active (property_id, is_active),
-    KEY ix_property_users_user (user_id),
-    CONSTRAINT fk_property_users_property FOREIGN KEY (property_id) REFERENCES properties (property_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_property_users_role     FOREIGN KEY (role_id)     REFERENCES roles (role_id)          ON DELETE RESTRICT,
-    CONSTRAINT fk_property_users_user     FOREIGN KEY (user_id)     REFERENCES users (user_id)          ON DELETE RESTRICT
-) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------
 -- 5. Verification: rounds -> one task per role -> assignees
@@ -377,13 +339,13 @@ CREATE TABLE task_assignees (
 CREATE TABLE site_inspections (
     inspection_id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     task_id               INT UNSIGNED  NOT NULL,
-    length_value          DECIMAL(10,2) NULL,                 -- as measured at the site, in area_unit's length
+    length_value          DECIMAL(10,2) NULL,                 -- as measured at the site, in the length of the unit
     width_value           DECIMAL(10,2) NULL,
     area_value            DECIMAL(12,2) NOT NULL,             -- length × width
-    area_unit             VARCHAR(20)   NOT NULL,             -- units.code
+    unit_id               INT UNSIGNED  NOT NULL,
     area_sqm              DECIMAL(14,4) NOT NULL,
     recorded_value        DECIMAL(12,2) NULL,                 -- property area at the time; NULL when the register has none
-    recorded_unit         VARCHAR(20)   NULL,                 -- units.code
+    recorded_unit_id      INT UNSIGNED  NULL,
     difference            DECIMAL(12,2) NOT NULL DEFAULT 0,
     difference_pct        DECIMAL(7,2)  NOT NULL DEFAULT 0,
     variance              ENUM('SAME','LESS','MORE') NULL,      -- NULL: nothing recorded to compare with
@@ -401,8 +363,8 @@ CREATE TABLE site_inspections (
     UNIQUE KEY uq_site_inspections_task (task_id),
     CONSTRAINT fk_site_inspections_task FOREIGN KEY (task_id)     REFERENCES tasks (task_id) ON DELETE CASCADE,
     CONSTRAINT fk_site_inspections_user FOREIGN KEY (measured_by) REFERENCES users (user_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_site_inspections_unit FOREIGN KEY (area_unit)     REFERENCES units (code) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_site_inspections_recorded_unit FOREIGN KEY (recorded_unit) REFERENCES units (code) ON UPDATE CASCADE ON DELETE RESTRICT
+    CONSTRAINT fk_site_inspections_unit FOREIGN KEY (unit_id) REFERENCES units (unit_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_site_inspections_recorded_unit FOREIGN KEY (recorded_unit_id) REFERENCES units (unit_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
 -- Department-wise answers filled with the decision: Sale (Sale Cell), Auction (Auction Cell), General (other cells, not Engineering).

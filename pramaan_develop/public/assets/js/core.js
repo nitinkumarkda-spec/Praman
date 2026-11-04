@@ -27,7 +27,7 @@
         Object.assign(PANELS, DB.lookup('panels'));
     }
     syncLookups();
-    const HOME = { SUPER_ADMIN: '/admin/dashboard', DATA_ENTRY: '/data-entry/dashboard', OIC: '/oic/dashboard', ROLE_USER: '/role/dashboard' };
+    const HOME = { ADMIN: '/admin/dashboard', SUPER_ADMIN: '/admin/dashboard', DATA_ENTRY: '/data-entry/dashboard', OIC: '/oic/dashboard', ROLE_USER: '/role/dashboard' };
     const SECURITY = {
         get password_min() { return Number(S('password_min_length', 10)); }
     };
@@ -37,8 +37,9 @@
         get SCHEME_TYPES() { return DB.lookup('scheme_types'); },
         get STATUS_COLORS() { return DB.lookup('status_colors'); },
         get STATUS_ICONS() { return DB.lookup('status_icons'); },
-        get PROPERTY_TYPES() { return masterMap('plot_types', 'code', 'name', false); },
-        get PROPERTY_STATUSES() { return masterMap('statuses', 'code', 'name', false); },
+        /* masters are linked by id: plot_type_id => name, status_id => name */
+        get PROPERTY_TYPES() { return masterMap('plot_types', 'plot_type_id', 'name', false); },
+        get PROPERTY_STATUSES() { return masterMap('statuses', 'status_id', 'name', false); },
         /** Only active rows (+ the current value, so old records still show it) — for entry forms. */
         activeMap: function (table, key, name, current) {
             const m = {};
@@ -46,20 +47,20 @@
                 .forEach(function (r) { if (r.is_active || String(r[key]) === String(current)) { m[r[key]] = r[name] + (r.is_active ? '' : ' (inactive)'); } });
             return m;
         },
-        /* Unit Master (sq m, sq ft, sq yard …) — code => name; sq m is the base unit */
-        BASE_UNIT: 'SQM',
-        get AREA_UNITS() { return masterMap('units', 'code', 'name', false); },
-        unit: function (code) { return DB.first('units', { code: code }); },
-        unitSymbol: function (code) { const u = Lookups.unit(code); return u ? u.symbol : (code || ''); },
-        unitName: function (code) { const u = Lookups.unit(code); return u ? u.name : (code || ''); },
+        /* Unit Master (sq m, sq ft, sq yard …) — unit_id => name; the base unit (sq m) is the system row */
+        get BASE_UNIT() { const u = DB.first('units', { is_system: 1 }); return u ? u.unit_id : null; },
+        get AREA_UNITS() { return masterMap('units', 'unit_id', 'name', false); },
+        unit: function (id) { return id ? DB.find('units', id) : null; },
+        unitSymbol: function (id) { const u = Lookups.unit(id); return u ? u.symbol : ''; },
+        unitName: function (id) { const u = Lookups.unit(id); return u ? u.name : ''; },
         /** Square metres in 1 unit. */
-        unitFactor: function (code) { const u = Lookups.unit(code); return u ? Number(u.to_sqm) : 1; },
+        unitFactor: function (id) { const u = Lookups.unit(id); return u ? Number(u.to_sqm) : 1; },
         toSqm: function (v, unit) { return Math.round(v * Lookups.unitFactor(unit) * 10000) / 10000; },
         convert: function (v, from, to) { return from === to ? v : v * Lookups.unitFactor(from) / Lookups.unitFactor(to); },
         /** "150.00 sq ft" (+ "= 13.94 sq m" when not in sq m and withSqm is set). */
-        area: function (value, code, sqm) {
+        area: function (value, unit, sqm) {
             if (value == null || value === '') { return '—'; } // area is optional on a property
-            return fmt_num(value, 2) + ' ' + Lookups.unitSymbol(code) + (sqm != null && code !== Lookups.BASE_UNIT ? ' (= ' + fmt_num(sqm, 2) + ' ' + Lookups.unitSymbol(Lookups.BASE_UNIT) + ')' : '');
+            return fmt_num(value, 2) + ' ' + Lookups.unitSymbol(unit) + (sqm != null && unit !== Lookups.BASE_UNIT ? ' (= ' + fmt_num(sqm, 2) + ' ' + Lookups.unitSymbol(Lookups.BASE_UNIT) + ')' : '');
         },
         options: function (map, selected, placeholder) {
             let html = placeholder ? '<option value="">' + e(placeholder) + '</option>' : '';
@@ -135,8 +136,12 @@
         NOT_REQUIRED: ['badge-muted', 'fa-minus'], OVERDUE: ['badge-danger', 'fa-stopwatch'], READY: ['badge-success', 'fa-circle-check'],
         ACTIVE: ['badge-success', 'fa-circle'], INACTIVE: ['badge-muted', 'fa-circle']
     };
+    /** Fixed ids of the workflow's statuses in the Status Master (same as App\Codes\PropertyStatus). */
+    const ST = DB.ST;
+    /** Name of a property status (status_id) from the Status Master. */
+    function statusName(id) { const s = DB.find('statuses', id); return s ? s.name : '—'; }
     function status_badge(s) {
-        const ms = DB.first('statuses', { code: s }); // property statuses: name / colour / icon from Status Master
+        const ms = typeof s === 'number' ? DB.find('statuses', s) : null; // property statuses (status_id): name / colour / icon from Status Master
         if (ms) { return '<span class="badge badge-' + e(ms.color) + '"><i class="fa-solid ' + e(ms.icon) + '" aria-hidden="true"></i> ' + e(ms.name) + '</span>'; }
         const b = BADGES[s] || ['badge-muted', 'fa-circle-info'];
         return '<span class="badge ' + b[0] + '"><i class="fa-solid ' + b[1] + '" aria-hidden="true"></i> ' + e(label(s)) + '</span>';
@@ -178,7 +183,23 @@
             const mine = (s && s.permissions) || [];
             return Array.prototype.some.call(arguments, function (c) { return mine.indexOf(c) !== -1; });
         },
-        home: function () { const u = Auth.user(); return u ? HOME[u.panel] : '/login'; }
+        home: function () {
+            const u = Auth.user();
+            if (!u) { return '/login'; }
+            if (Number(u.role_id) === 1 || Auth.can('role.view', 'user.view', 'master.view', 'settings.view', 'audit.view')) {
+                return '/admin/dashboard';
+            }
+            if (Auth.can('scheme.view', 'property.view')) {
+                return '/data-entry/dashboard';
+            }
+            if (Auth.can('verification.view')) {
+                return '/oic/dashboard';
+            }
+            if (Auth.can('task.view')) {
+                return '/role/dashboard';
+            }
+            return '/admin/dashboard';
+        }
     };
 
     /* ---------------- Server API ---------------- */
@@ -367,10 +388,9 @@
             .sort(function (a, b) { return b.log_id - a.log_id; }).slice(0, limit || 8);
     }
     function status_overview(counts, title) {
-        const colors = {
-            LISTED: 'bar-info', UNDER_VERIFICATION: 'bar-warning', AUCTION_READY: 'bar-success', NOT_READY: 'bar-danger',
-            SENT_FOR_AUCTION: 'bar-primary', SOLD: 'bar-dark', WITHHELD: 'bar-muted', ARCHIVED: 'bar-muted'
-        };
+        // bar colour = the badge colour of the status in the Status Master (counts are keyed by status_id)
+        const colors = {};
+        DB.all('statuses').forEach(function (s) { colors[s.status_id] = 'bar-' + s.color; });
         const total = Object.keys(counts).reduce(function (s, k) { return s + counts[k]; }, 0);
         let html = '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-chart-simple') + ' ' + e(title || 'Property status') + '</h3>' +
             '<span class="badge badge-muted">' + fmt_num(total) + ' total</span></div><div class="card-body">';
@@ -380,8 +400,8 @@
         } else {
             html += '<ul class="bar-list">' + Object.keys(counts).map(function (s) {
                 const pct = Math.round(counts[s] * 1000 / total) / 10;
-                return '<li><div class="bar-label"><span>' + e(label(s)) + '</span><strong>' + fmt_num(counts[s]) + ' <small class="text-muted">(' + pct + '%)</small></strong></div>' +
-                    '<div class="bar" role="img" aria-label="' + e(label(s) + ': ' + counts[s]) + '"><span class="bar-fill ' + colors[s] + '" data-pct="' + pct + '"></span></div></li>';
+                return '<li><div class="bar-label"><span>' + e(statusName(Number(s))) + '</span><strong>' + fmt_num(counts[s]) + ' <small class="text-muted">(' + pct + '%)</small></strong></div>' +
+                    '<div class="bar" role="img" aria-label="' + e(statusName(Number(s)) + ': ' + counts[s]) + '"><span class="bar-fill ' + colors[s] + '" data-pct="' + pct + '"></span></div></li>';
             }).join('') + '</ul>';
         }
         return html + '</div></div>';
@@ -390,7 +410,7 @@
         const out = {};
         Object.keys(Lookups.PROPERTY_STATUSES).forEach(function (s) { out[s] = 0; });
         DB.where('properties', function (p) { return p.is_active === 1 && (createdBy == null || p.created_by === createdBy); })
-            .forEach(function (p) { out[p.current_status]++; });
+            .forEach(function (p) { out[p.status_id] = (out[p.status_id] || 0) + 1; }); // keyed by status_id (P.ST)
         return out;
     }
     function pageHeader(title, subtitle, actions) {
@@ -416,31 +436,51 @@
 
     /* ---------------- Layout ---------------- */
     // [label, icon, path, permission] — an item shows only when the panel has that permission
-    const MENUS = {
-        SUPER_ADMIN: [['Dashboard', 'fa-gauge-high', '/admin/dashboard'], { section: 'Masters' },
-            ['Scheme', 'fa-map', '/admin/masters/schemes', 'scheme.view'], ['Sector', 'fa-table-cells', '/admin/masters/sectors', 'master.view'],
-            ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'], ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'], ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
-            ['Role', 'fa-sitemap', '/admin/roles', 'role.view'], ['User', 'fa-users', '/admin/users', 'user.view'],
-            { section: 'Administrators' },
-            ['Permissions', 'fa-user-shield', '/admin/permissions', 'permission.view'], ['App Settings', 'fa-sliders', '/admin/settings', 'settings.view'],
-            { section: 'Monitoring' }, ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs', 'audit.view']],
-        DATA_ENTRY: [['Dashboard', 'fa-gauge-high', '/data-entry/dashboard'], { section: 'Masters' }, ['Scheme Master', 'fa-map', '/data-entry/schemes', 'scheme.view'],
-            { section: 'Property' }, ['Property Register', 'fa-building', '/data-entry/properties', 'property.view'], ['Add Property', 'fa-circle-plus', '/data-entry/properties/create', 'property.create']],
-        OIC: [['Dashboard', 'fa-gauge-high', '/oic/dashboard'], { section: 'Verification' }, ['Properties', 'fa-list-check', '/oic/properties', 'verification.view']],
-        ROLE_USER: [['Dashboard', 'fa-gauge-high', '/role/dashboard'], { section: 'Verification' }, ['My Tasks', 'fa-clipboard-list', '/role/tasks', 'task.view']]
-    };
-    /** Menu of the panel without the items it has no permission for (and sections left empty). */
-    function menuFor(panel) {
+    function userRoleName(u) {
+        if (!u) return 'User';
+        const r = u.role_id ? DB.find('roles', u.role_id) : null;
+        return r ? r.role_name : 'Admin';
+    }
+
+    const ALL_MENU_ITEMS = [
+        ['Dashboard', 'fa-gauge-high', function () { return Auth.home(); }],
+        ['Reports', 'fa-chart-pie', '/admin/reports', 'report.view'],
+        { section: 'Schemes & Properties', requiresAny: ['scheme.view', 'property.view', 'verification.view', 'property.create'] },
+        ['Schemes', 'fa-map', '/admin/masters/schemes', 'scheme.view'],
+        ['Property Register', 'fa-building', '/admin/masters/properties', ['property.view', 'verification.view']],
+        { section: 'Masters', requiresAny: ['master.view'] },
+        ['Sector', 'fa-table-cells', '/admin/masters/sectors', 'master.view'],
+        ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'],
+        ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'],
+        ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
+        { section: 'Verification', requiresAny: ['task.view'] },
+        ['My Tasks', 'fa-clipboard-list', '/role/tasks', 'task.view'],
+        { section: 'Access Control', requiresAny: ['role.view', 'user.view', 'permission.view'] },
+        ['Role Master', 'fa-sitemap', '/admin/roles', 'role.view'],
+        ['User Master', 'fa-users', '/admin/users', 'user.view'],
+        ['Permissions', 'fa-user-shield', '/admin/permissions', 'permission.view'],
+        { section: 'System & Monitoring', requiresAny: ['settings.view', 'audit.view'] },
+        ['App Settings', 'fa-sliders', '/admin/settings', 'settings.view'],
+        ['Activity & Audit', 'fa-chart-line', '/admin/audit-logs', 'audit.view']
+    ];
+
+    /** Menu based dynamically on the user's role permissions. */
+    function menuFor(user) {
         const out = [];
-        (MENUS[panel] || []).forEach(function (it) {
-            if (it.section) { out.push(it); return; }
-            if (it[3] && !Auth.can(it[3])) { return; }
-            out.push(it);
+        ALL_MENU_ITEMS.forEach(function (it) {
+            if (it.section) {
+                if (it.requiresAny && !it.requiresAny.some(function (p) { return Auth.can(p); })) { return; }
+                out.push(it);
+                return;
+            }
+            if (it[3]) { const pms = [].concat(it[3]); if (!Auth.can.apply(null, pms)) { return; } }
+            const href = typeof it[2] === 'function' ? it[2]() : it[2];
+            out.push([it[0], it[1], href, it[3]]);
         });
         return out.filter(function (it, i) { return !it.section || (out[i + 1] && !out[i + 1].section); });
     }
     function sidebar(user, current) {
-        const items = menuFor(user.panel);
+        const items = menuFor(user);
         let active = '';
         items.forEach(function (it) {
             if (it[2] && (current === it[2] || current.indexOf(it[2] + '/') === 0) && it[2].length > active.length) { active = it[2]; }
@@ -458,7 +498,7 @@
             // KDA emblem — the same embedded image as the favicon (<link id="app-icon"> in <head>)
             '<span class="brand-logo"><img src="' + e((document.getElementById('app-icon') || {}).href || '') + '" alt="" width="50" height="50"></span><div class="brand-text"><strong>' + e(APP.name) + '</strong><small>' + e(APP.tagline) + '</small></div>' +
             '<button type="button" class="sidebar-close btn-icon" data-sidebar-close aria-label="Close menu">' + icon('fa-xmark') + '</button></div>' +
-            '<div class="sidebar-panel"><span class="panel-chip">' + icon('fa-shield-halved') + ' ' + e(PANELS[user.panel]) + ' Panel</span></div>' +
+            
             '<nav class="sidebar-nav">' + nav + '</nav></aside>';
     }
     function topbar(user, title) {
@@ -470,9 +510,9 @@
             (Praman.notifBell ? Praman.notifBell(user) : '') +
             '<span class="topbar-date"><i class="fa-regular fa-calendar" aria-hidden="true"></i> ' + p2(d.getDate()) + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear() + '</span>' +
             '<div class="user-menu" data-dropdown><button type="button" class="user-trigger" data-dropdown-toggle aria-haspopup="true" aria-expanded="false">' +
-            '<span class="avatar" aria-hidden="true">' + e(initials(user.name)) + '</span><span class="user-meta"><strong>' + e(user.name) + '</strong><small>' + e(user.designation) + '</small></span>' +
-            icon('fa-chevron-down user-caret') + '</button><div class="dropdown-menu" role="menu"><div class="dropdown-header"><strong>' + e(user.username) + '</strong>' +
-            '<small>Emp. Code: ' + e(user.emp_code) + '</small><small>Last login: ' + e(fmt_datetime(user.last_login_at)) + '</small></div>' +
+            '<span class="avatar" aria-hidden="true">' + e(initials(user.name)) + '</span><span class="user-meta"><strong>' + e(user.name) + '</strong><small>' + e(user.mobile || (user.role_id === 1 ? 'Admin' : '')) + '</small></span>' +
+            icon('fa-chevron-down user-caret') + '</button><div class="dropdown-menu" role="menu"><div class="dropdown-header"><strong>' + e(user.name) + '</strong>' +
+            (user.mobile ? '<small><i class="fa-solid fa-phone" aria-hidden="true"></i> ' + e(user.mobile) + '</small>' : '') + '<small>Last login: ' + e(fmt_datetime(user.last_login_at)) + '</small></div>' +
             '<a class="dropdown-item" role="menuitem" href="' + BASE + '/change-password">' + icon('fa-key') + ' Change Password</a>' +
             '<form method="post" data-action="logout"><button type="submit" class="dropdown-item text-danger" role="menuitem">' + icon('fa-right-from-bracket') + ' Logout</button></form>' +
             '</div></div></div></header>';
@@ -535,7 +575,7 @@
         const user = Auth.user();
 
         if (ctx.path === '/' || ctx.path === '' || ctx.path === '/login') {
-            if (user) { return go(HOME[user.panel]); }
+            if (user) { return go(Auth.home()); }
             // guests: landing page; the sign-in form opens in a popup (js/pages/landing.js)
             const landing = Praman.views.landing(ctx);
             document.body.className = 'landing-body';
@@ -555,7 +595,9 @@
             const m = ctx.path.match(r.re);
             if (!m) { continue; }
             matched = true;
-            if ((r.panel && [].concat(r.panel).indexOf(user.panel) === -1) || (r.perm && !Auth.can.apply(null, r.perm))) {
+                        const hasPerm = !r.perm || Auth.can.apply(null, r.perm);
+            const isAdmin = Number(user.role_id) === 1;
+            if (!isAdmin && !hasPerm) {
                 Praman.api('access-denied', { path: ctx.path });
                 page = errorPage(403, 'Access denied', 'You do not have permission to open this page.');
                 break;
@@ -867,7 +909,7 @@
     Object.assign(Praman, {
         APP: APP, PANELS: PANELS, HOME: HOME, SECURITY: SECURITY, Lookups: Lookups, DB: DB, Auth: Auth,
         e: e, url: url, label: label, fmt_date: fmt_date, dueText: dueText, fmt_datetime: fmt_datetime, fmt_num: fmt_num,
-        status_badge: status_badge, active_badge: active_badge, icon: icon, by: by,
+        status_badge: status_badge, active_badge: active_badge, icon: icon, by: by, ST: ST, statusName: statusName,
         flash: flash, go: go, render: render, route: route, actions: actions, fail: fail, unlock: unlock,
         paginate: paginate, th_sort: th_sort, list_toolbar: list_toolbar, pagination: pagination, empty_state: empty_state,
         activity: activity, recentActivity: recentActivity, status_overview: status_overview, propertyStatusCounts: propertyStatusCounts,

@@ -8,7 +8,7 @@
     function statusParts(counts, onlyNonZero) {
         const keys = Object.keys(counts).filter(function (k) { return !onlyNonZero || counts[k] > 0; });
         return {
-            keys: keys, labels: keys.map(P.label), data: keys.map(function (k) { return counts[k]; }),
+            keys: keys, labels: keys.map(function (k) { return P.statusName(Number(k)); }), data: keys.map(function (k) { return counts[k]; }),
             colors: keys.map(function (k) { return P.STATUS_COLORS[k] || P.COLORS.slate; })
         };
     }
@@ -111,7 +111,7 @@
                 P.statCard('navy', 'fa-map', DB.count('schemes', { is_active: 1 }), 'Active schemes', P.fmt_num(DB.count('schemes')) + ' in register', P.url('/data-entry/schemes', { status: 'active' })) +
                 P.statCard('gold', 'fa-table-cells', activeSectors, 'Active sectors', 'in active schemes', P.BASE + '/data-entry/schemes') +
                 P.statCard('blue', 'fa-building', DB.count('properties', { is_active: 1 }), 'All properties', 'registered', P.BASE + '/data-entry/properties') +
-                P.statCard('green', 'fa-list', DB.count('properties', { is_active: 1, current_status: 'LISTED' }), 'Listed (editable)', 'ready to send', P.url('/data-entry/properties', { status: 'LISTED' })) +
+                P.statCard('green', 'fa-list', DB.count('properties', { is_active: 1, status_id: P.ST.LISTED }), 'Listed (editable)', 'ready to send', P.url('/data-entry/properties', { status: P.ST.LISTED })) +
                 P.statCard('red', 'fa-user-pen', DB.count('properties', { is_active: 1, created_by: me }), 'Entered by me', 'your records', P.BASE + '/data-entry/properties') +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-status', 'My properties by status', 'fa-chart-pie', { sub: 'click a slice' }) +
@@ -124,12 +124,12 @@
                 const st = statusParts(P.propertyStatusCounts(me), true);
                 P.pie('ch-status', st.labels, st.data, st.colors, true, function (i) { P.go('/data-entry/properties', { status: st.keys[i] }); });
                 const types = Object.keys(L.PROPERTY_TYPES);
-                P.pie('ch-types', types.map(function (t) { return L.PROPERTY_TYPES[t]; }), types.map(function (t) { return DB.count('properties', { property_type: t, is_active: 1 }); }),
+                P.pie('ch-types', types.map(function (t) { return L.PROPERTY_TYPES[t]; }), types.map(function (t) { return DB.count('properties', { plot_type_id: Number(t), is_active: 1 }); }),
                     null, false, function (i) { P.go('/data-entry/properties', { type: types[i] }); });
                 const sch = DB.all('schemes');
-                P.bars('ch-units', sch.map(function (s) { return s.scheme_code; }), [{
+                P.bars('ch-units', sch.map(function (s) { return s.scheme_name; }), [{
                     label: 'Area (sq m)', backgroundColor: C.teal,
-                    data: sch.map(function (s) { return Math.round(DB.where('properties', { scheme_id: s.scheme_id, is_active: 1 }).reduce(function (t, p) { return t + p.area_sqm; }, 0)); })
+                    data: sch.map(function (s) { return Math.round(DB.where('properties', { scheme_id: s.scheme_id, is_active: 1 }).reduce(function (t, p) { return t + (p.area_sqm || 0); }, 0)); })
                 }], { horizontal: true });
                 const days = P.lastDays(14);
                 const props = DB.where('properties', { is_active: 1 });
@@ -137,7 +137,7 @@
                     { label: 'All', data: P.countByDay(props, 'created_at', days.keys), color: C.navy },
                     { label: 'By me', data: P.countByDay(props, 'created_at', days.keys, function (p) { return p.created_by === me; }), color: C.gold }
                 ]);
-                P.bars('ch-schemes', sch.map(function (s) { return s.scheme_code; }), [{
+                P.bars('ch-schemes', sch.map(function (s) { return s.scheme_name; }), [{
                     label: 'Properties', data: sch.map(function (s) { return DB.count('properties', { scheme_id: s.scheme_id, is_active: 1 }); }), backgroundColor: C.navy
                 }, {
                     label: 'Active sectors', data: sch.map(function (s) { return DB.Scheme.sectors(s.scheme_id, true).length; }), backgroundColor: C.gold
@@ -156,15 +156,15 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), 'Verification rounds and auction readiness.',
-                (can('verification.send') ? '<a href="' + P.url('/oic/properties', { status: 'LISTED' }) + '" class="btn btn-primary">' + icon('fa-paper-plane') + ' <span>Send for verification</span></a>' : '') +
-                (can('verification.view') ? '<a href="' + P.url('/oic/properties', { status: 'NOT_READY' }) + '" class="btn btn-light">' + icon('fa-rotate') + ' <span>Not ready properties</span></a>' : '')) +
+                (can('verification.send') ? '<a href="' + P.url('/oic/properties', { status: P.ST.LISTED }) + '" class="btn btn-primary">' + icon('fa-paper-plane') + ' <span>Send for verification</span></a>' : '') +
+                (can('verification.view') ? '<a href="' + P.url('/oic/properties', { status: P.ST.NOT_READY }) + '" class="btn btn-light">' + icon('fa-rotate') + ' <span>Not ready properties</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('blue', 'fa-list', sc.LISTED, 'Listed (to send)', 'ready to verify', P.url('/oic/properties', { status: 'LISTED' })) +
-                P.statCard('gold', 'fa-hourglass-half', sc.UNDER_VERIFICATION, 'Under verification', P.fmt_num(pending) + ' pending role tasks', P.url('/oic/properties', { status: 'UNDER_VERIFICATION' })) +
-                P.statCard('green', 'fa-circle-check', sc.AUCTION_READY, 'Auction ready', dueCount ? P.fmt_num(dueCount) + ' due for re-verify' : 'cleared by all cells', P.url('/oic/properties', { status: dueCount ? 'REVERIFY_DUE' : 'AUCTION_READY' })) +
-                P.statCard('red', 'fa-calendar-xmark', sc.EXPIRED || 0, 'Validity expired', 'need periodic re-verification', P.url('/oic/properties', { status: 'EXPIRED' })) +
-                P.statCard('red', 'fa-circle-xmark', sc.NOT_READY, 'Not ready', 'rejected / issues found', P.url('/oic/properties', { status: 'NOT_READY' })) +
-                P.statCard('navy', 'fa-folder-open', rr.open, 'Open rounds', P.fmt_num(rr.ready) + ' ready / ' + P.fmt_num(rr.notReady) + ' not ready closed', P.url('/oic/properties', { status: 'UNDER_VERIFICATION' })) +
+                P.statCard('blue', 'fa-list', sc[P.ST.LISTED] || 0, 'Listed (to send)', 'ready to verify', P.url('/oic/properties', { status: P.ST.LISTED })) +
+                P.statCard('gold', 'fa-hourglass-half', sc[P.ST.UNDER_VERIFICATION] || 0, 'Under verification', P.fmt_num(pending) + ' pending role tasks', P.url('/oic/properties', { status: P.ST.UNDER_VERIFICATION })) +
+                P.statCard('green', 'fa-circle-check', sc[P.ST.AUCTION_READY] || 0, 'Auction ready', dueCount ? P.fmt_num(dueCount) + ' due for re-verify' : 'cleared by all cells', P.url('/oic/properties', { status: dueCount ? 'REVERIFY_DUE' : P.ST.AUCTION_READY })) +
+                P.statCard('red', 'fa-calendar-xmark', sc[P.ST.EXPIRED] || 0, 'Validity expired', 'need periodic re-verification', P.url('/oic/properties', { status: P.ST.EXPIRED })) +
+                P.statCard('red', 'fa-circle-xmark', sc[P.ST.NOT_READY] || 0, 'Not ready', 'rejected / issues found', P.url('/oic/properties', { status: P.ST.NOT_READY })) +
+                P.statCard('navy', 'fa-folder-open', rr.open, 'Open rounds', P.fmt_num(rr.ready) + ' ready / ' + P.fmt_num(rr.notReady) + ' not ready closed', P.url('/oic/properties', { status: P.ST.UNDER_VERIFICATION })) +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-status', 'Property status', 'fa-chart-pie', { sub: 'click a slice' }) +
                     P.chartCard('ch-rounds', 'Verification rounds', 'fa-layer-group') +
@@ -177,8 +177,8 @@
                 P.pie('ch-status', st.labels, st.data, st.colors, true, function (i) { P.go('/oic/properties', { status: st.keys[i] }); });
                 P.pie('ch-rounds', ['Open', 'Closed — Ready', 'Closed — Not ready'], [rr.open, rr.ready, rr.notReady], [C.amber, C.green, C.red]);
                 const sch = DB.all('schemes');
-                P.bars('ch-ready', sch.map(function (s) { return s.scheme_code; }), ['AUCTION_READY', 'UNDER_VERIFICATION', 'NOT_READY', 'LISTED'].map(function (k) {
-                    return { label: P.label(k), backgroundColor: P.STATUS_COLORS[k], data: sch.map(function (s) { return DB.count('properties', { scheme_id: s.scheme_id, current_status: k, is_active: 1 }); }) };
+                P.bars('ch-ready', sch.map(function (s) { return s.scheme_name; }), [P.ST.AUCTION_READY, P.ST.UNDER_VERIFICATION, P.ST.NOT_READY, P.ST.LISTED].map(function (k) {
+                    return { label: P.statusName(k), backgroundColor: P.STATUS_COLORS[k], data: sch.map(function (s) { return DB.count('properties', { scheme_id: s.scheme_id, status_id: k, is_active: 1 }); }) };
                 }), { stacked: true, onClick: function (i) { P.go('/oic/properties', { scheme_id: sch[i].scheme_id }); } });
                 const so = sectionOutcomes();
                 P.bars('ch-sections', so.map(function (x) { return x.name; }), [
@@ -225,7 +225,7 @@
         const urgent = pending.slice().sort(P.by(function (x) { return x.sla_due_date; })).slice(0, 6);
         return {
             title: 'Dashboard',
-            html: P.pageHeader('Welcome, ' + e(ctx.user.name), e((ctx.user.role_name || '') + ' · ' + ctx.user.designation) + ' — properties sent to you for verification.',
+            html: P.pageHeader('Welcome, ' + e(ctx.user.name), e(ctx.user.role_name || '') + ' — properties sent to you for verification.',
                 (can('task.view') ? '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>' : '')) +
                 '<div class="stat-grid dash-stats">' +
                 P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', 'awaiting your response', P.url('/role/tasks', { status: 'pending' })) +
@@ -243,7 +243,7 @@
                 (urgent.length ? '<ul class="activity-list">' + urgent.map(function (x) {
                     const late = x.sla_due_date < t;
                     return '<li><span class="activity-icon">' + icon('fa-building') + '</span><div class="activity-body">' +
-                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.property_type]) + '</a>' +
+                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.plot_type_id] || '') + '</a>' +
                         '<span class="text-muted">' + e(x.scheme.scheme_name + (x.sector ? ' / ' + x.sector.sector_name : '')) + ' · R' + x.round_no + '</span>' +
                         '<small class="' + (late ? 'text-danger' : 'text-muted') + '"><i class="fa-regular fa-clock" aria-hidden="true"></i> Due ' + e(P.fmt_date(x.sla_due_date)) + (late ? ' — overdue' : '') + '</small></div>' +
                         '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '" class="btn btn-primary btn-sm ml-auto">' + icon('fa-clipboard-check') + ' <span>Verify</span></a></li>';
@@ -255,7 +255,7 @@
                 P.pie('ch-mine', keys.map(P.label), keys.map(function (k) { return all.filter(function (x) { return x.view === k; }).length; }),
                     [C.amber, C.green, C.red, C.slate], true, function (i) { P.go('/role/tasks', { status: tab[keys[i]] }); });
                 const sch = DB.all('schemes');
-                P.bars('ch-scheme', sch.map(function (s) { return s.scheme_code; }), [
+                P.bars('ch-scheme', sch.map(function (s) { return s.scheme_name; }), [
                     { label: 'Pending', data: sch.map(function (s) { return pending.filter(function (x) { return x.scheme.scheme_id === s.scheme_id; }).length; }), backgroundColor: C.amber },
                     { label: 'Responded', data: sch.map(function (s) { return all.filter(function (x) { return x.scheme.scheme_id === s.scheme_id && x.task_status !== 'PENDING'; }).length; }), backgroundColor: C.green }
                 ], { stacked: true, onClick: function (i) { P.go('/role/tasks', { scheme_id: sch[i].scheme_id }); } });

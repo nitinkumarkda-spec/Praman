@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
-use App\Codes\Panel;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
@@ -55,26 +54,23 @@ final class MasterController extends Controller
      */
     private function masters(): array
     {
-        $code = static fn ($label = 'Code') => [$label, 'required|code', true, true, true, false];
         $text = static fn ($label, $max, $req = false, $unique = false) => [$label, ($req ? 'required|min:2|' : '') . 'max:' . $max . '|text', $unique, false, false, false];
-        $lastSector = static fn ($r) => $r['is_active'] && Sector::count(['scheme_id' => $r['scheme_id'], 'is_active' => 1]) <= 1
-            ? 'This is the last active sector of the scheme. A scheme needs at least one active sector.' : null;
 
         return [
             'plot-types' => [
                 'model' => PlotType::class, 'entity' => 'PLOT_TYPE', 'one' => 'Plot type', 'name' => static fn ($r) => $r['name'],
-                'fields' => ['code' => $code(), 'name' => $text('Name', 60, true, true),
+                'fields' => ['name' => $text('Name', 60, true, true),
                     'description' => $text('Description', 150)],
-                'usage' => static fn ($r) => Property::count(['property_type' => $r['code']]),
+                'usage' => static fn ($r) => Property::count(['plot_type_id' => $r['plot_type_id']]),
                 'block' => static fn ($r) => PlotType::count(['is_active' => 1]) <= 1 ? 'At least one plot type must remain active.' : null,
             ],
             'units' => [
                 'model' => Unit::class, 'entity' => 'UNIT', 'one' => 'Unit', 'name' => static fn ($r) => $r['name'], 'system' => true,
-                'fields' => ['code' => $code(), 'name' => $text('Unit name', 40, true, true),
+                'fields' => ['name' => $text('Unit name', 40, true, true),
                     'symbol' => ['Symbol', 'required|max:15|text', true, false, false, false],
                     'to_sqm' => ['1 unit = sq m', 'required|decimal:8|positive', false, false, false, 'float'],
                     'description' => $text('Description', 150)],
-                'usage' => static fn ($r) => Property::count(['area_unit' => $r['code']]) + SiteInspection::count(['area_unit' => $r['code']]),
+                'usage' => static fn ($r) => Property::count(['unit_id' => $r['unit_id']]) + SiteInspection::count(['unit_id' => $r['unit_id']]),
                 'block' => static fn ($r) => $r['is_system'] ? 'The base unit (sq m) cannot be deactivated.' : null,
                 // stored areas were converted with the old factor
                 'check' => static fn ($d, $old, $used) => !$old || abs((float) $d['to_sqm'] - (float) $old['to_sqm']) <= 1e-9 ? null
@@ -83,11 +79,11 @@ final class MasterController extends Controller
             ],
             'statuses' => [
                 'model' => Status::class, 'entity' => 'STATUS', 'one' => 'Property status', 'name' => static fn ($r) => $r['name'], 'system' => true,
-                'fields' => ['code' => $code('Status code'), 'name' => $text('Display name', 40, true, true),
+                'fields' => ['name' => $text('Display name', 40, true, true),
                     'color' => ['Badge colour', 'required|in:' . Lookups::keys(Lookups::STATUS_COLORS), false, false, false, false],
                     'icon' => ['Icon', 'required|in:' . Lookups::keys(Lookups::STATUS_ICONS), false, false, false, false],
                     'description' => $text('Meaning', 150)],
-                'usage' => static fn ($r) => Property::count(['current_status' => $r['code']]),
+                'usage' => static fn ($r) => Property::count(['status_id' => $r['status_id']]),
                 'block' => static fn ($r) => $r['is_system'] ? 'System statuses cannot be deactivated.' : null,
             ],
             'sectors' => [
@@ -97,17 +93,15 @@ final class MasterController extends Controller
                     'sector_name' => ['Sector name(s)', 'required|max:400|text', true, false, false, false]],
                 'split' => 'sector_name',
                 'usage' => static fn ($r) => Property::count(['sector_id' => $r['sector_id']]),
-                'block' => $lastSector,
+                'block' => static fn ($r) => null, // sectors are optional: a scheme may have none
             ],
             // Scheme: details + its sectors + the role users who verify its properties (Data Entry and Super Admin)
             'schemes' => [
                 'model' => Scheme::class, 'entity' => 'SCHEME', 'one' => 'Scheme', 'name' => static fn ($r) => $r['scheme_name'],
                 'perm' => 'scheme', 'actions' => ['save', 'toggle'], 'keepActive' => true,
                 'fields' => [
-                    'scheme_code'    => ['Scheme code', 'required|ucode', true, true, true, false],
                     'scheme_name'    => ['Scheme name', 'required|min:3|max:150|text', true, false, false, false],
                     'scheme_type'    => ['Scheme type', 'required|in:' . Lookups::keys(Lookups::SCHEME_TYPES), false, false, false, false],
-                    'year_of_scheme' => ['Year of scheme', 'required|year', false, false, false, true],
                 ],
                 'usage' => static fn ($r) => Sector::count(['scheme_id' => $r['scheme_id']]),
                 'block' => static fn ($r) => null,
@@ -131,25 +125,7 @@ final class MasterController extends Controller
                         }
                         $seen[mb_strtolower($n)] = true;
                     }
-                    if (count(array_filter($existing, static fn ($x) => $x['active'])) + count($fresh) < 1) {
-                        return ['fail' => ['Add at least one (active) sector. A scheme cannot be saved without sectors.', null]];
-                    }
-                    // role-user mapping: every mandatory active role needs at least one valid user
-                    $map = [];
-                    foreach (Role::where(['is_active' => 1], 'sort_order') as $r) {
-                        $valid = array_column(User::where(['is_active' => 1, 'panel' => Panel::ROLE_USER, 'role_id' => $r['role_id']]), 'user_id');
-                        $ids = array_values(array_unique(array_map('intval', $in->list('role_users_' . $r['role_id']))));
-                        if (array_diff($ids, $valid)) {
-                            return ['fail' => ['Only active users of "' . $r['role_name'] . '" can be mapped to it.', null]];
-                        }
-                        if ($ids) {
-                            $map[$r['role_id']] = $ids;
-                        } elseif ($r['is_mandatory']) {
-                            return ['fail' => [$valid ? 'Select at least one user for "' . $r['role_name'] . '" (mandatory role).'
-                                : '"' . $r['role_name'] . '" is mandatory but has no active user. Ask the Super Admin to add one.', null]];
-                        }
-                    }
-                    return ['existing' => $existing, 'fresh' => $fresh, 'map' => $map];
+                    return ['existing' => $existing, 'fresh' => $fresh];
                 },
                 'saved' => static function (int $sid, array $x, ?int $by): void {
                     foreach ($x['existing'] as $e) {
@@ -159,23 +135,11 @@ final class MasterController extends Controller
                     foreach ($x['fresh'] as $n) {
                         Sector::insert(['scheme_id' => $sid, 'sector_name' => $n, 'sort_order' => ++$order, 'is_active' => 1, 'created_by' => $by]);
                     }
-                    foreach (SchemeUser::where(['scheme_id' => $sid, 'is_active' => 1]) as $m) {
-                        if (!in_array((int) $m['user_id'], $x['map'][$m['role_id']] ?? [], true)) {
-                            SchemeUser::update($m['map_id'], ['is_active' => 0]);
-                        }
-                    }
-                    foreach ($x['map'] as $rid => $uids) {
-                        foreach ($uids as $uid) {
-                            if (!SchemeUser::exists(['scheme_id' => $sid, 'role_id' => $rid, 'user_id' => $uid, 'is_active' => 1])) {
-                                SchemeUser::insert(['scheme_id' => $sid, 'role_id' => $rid, 'user_id' => $uid, 'is_active' => 1, 'created_by' => $by]);
-                            }
-                        }
-                    }
                 },
-                'audit' => static fn ($x) => ['sectors' => $x['fresh'], 'mapping' => $x['map']],
+                'audit' => static fn ($x) => ['sectors' => $x['fresh']],
                 'note' => static fn ($x, $isNew) => $isNew ? ' — ' . count($x['fresh']) . ' sector(s).' : ' Changes apply to new properties only.',
                 'list' => static fn (Request $in) => in_array($in->str('back'), self::SCHEME_LISTS, true) ? $in->str('back')
-                    : (Auth::panel() === Panel::SUPER_ADMIN ? '/admin/masters/schemes' : '/data-entry/schemes'),
+                    : (Auth::can('master.view') ? '/admin/masters/schemes' : '/data-entry/schemes'),
             ],
         ];
     }

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
-use App\Codes\Panel;
+use App\Codes\Section;
 
 /**
  * Fixed code lists (they match ENUM columns in database/schema.sql).
@@ -11,7 +11,7 @@ use App\Codes\Panel;
  */
 final class Lookups
 {
-    public const PANELS = Panel::LABELS;
+    public const PANELS = [];
     public const SCHEME_TYPES = ['RESIDENTIAL' => 'Residential', 'COMMERCIAL' => 'Commercial', 'INDUSTRIAL' => 'Industrial', 'MIXED' => 'Mixed', 'FARMHOUSE' => 'Farmhouse'];
     public const STATUS_COLORS = ['info' => 'Blue', 'warning' => 'Amber', 'success' => 'Green', 'danger' => 'Red', 'primary' => 'Navy', 'gold' => 'Gold', 'dark' => 'Dark', 'muted' => 'Grey'];
     public const STATUS_ICONS = ['fa-list' => 'List', 'fa-hourglass-half' => 'Hourglass', 'fa-circle-check' => 'Check', 'fa-circle-xmark' => 'Cross', 'fa-gavel' => 'Gavel',
@@ -22,6 +22,7 @@ final class Lookups
         return [
             'panels' => self::PANELS, 'scheme_types' => self::SCHEME_TYPES,
             'status_colors' => self::STATUS_COLORS, 'status_icons' => self::STATUS_ICONS,
+            'verification_forms' => Section::FORMS,
         ];
     }
 

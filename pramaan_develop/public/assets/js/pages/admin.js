@@ -26,7 +26,7 @@
     /* ================= Role Master ================= */
     function roleRows() {
         return DB.all('roles').map(function (r) {
-            const us = DB.where('users', { role_id: r.role_id, panel: 'ROLE_USER' });
+            const us = DB.where('users', { role_id: r.role_id });
             return Object.assign({}, r, { users_count: us.length, active_users: us.filter(function (u) { return u.is_active; }).length });
         });
     }
@@ -37,9 +37,9 @@
         if (st === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'order', dir: 'asc', filters: ['status'],
-            search: function (r) { return [r.role_name, r.role_code, r.role_name_hi]; },
+            search: function (r) { return [r.role_name, r.description, r.role_name_hi]; },
             sortable: {
-                order: function (r) { return r.sort_order; }, name: function (r) { return r.role_name; }, code: function (r) { return r.role_code; },
+                order: function (r) { return r.sort_order; }, name: function (r) { return r.role_name; }, form: function (r) { return r.verification_form; },
                 sla: function (r) { return r.sla_days; }, users: function (r) { return r.active_users; }
             }
         });
@@ -47,26 +47,26 @@
             L.options({ active: 'Active', inactive: 'Inactive' }, st, 'All status') + '</select>';
         return {
             title: 'Role Master',
-            html: P.pageHeader(icon('fa-sitemap') + ' Role Master', 'Each role is one verification section (Engineering, Sale, Legal …). Users are mapped to roles in the User Master.',
+            html: P.pageHeader(icon('fa-sitemap') + ' Role Master', 'Manage system roles and access levels. Assign module permissions to each role.',
                 Auth.can('role.create') ? '<a href="' + P.BASE + '/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>' : '') +
-                '<div class="card">' + P.list_toolbar(p, 'Search role name or code…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search role name or description…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'name', 'Role / Section') + P.th_sort(p, 'code', 'Code') + P.th_sort(p, 'sla', 'SLA (days)') +
-                '<th>Mandatory</th>' + P.th_sort(p, 'users', 'Users') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
+                P.th_sort(p, 'name', 'Role Name') + '<th>Description</th>' + P.th_sort(p, 'users', 'Users') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
-                    return '<tr><td data-label="Role"><strong>' + e(r.role_name) + '</strong></td>' +
-                        '<td data-label="Code"><span class="mono">' + e(r.role_code) + '</span></td><td data-label="SLA">' + r.sla_days + '</td>' +
-                        '<td data-label="Mandatory">' + (r.is_mandatory ? '<span class="badge badge-gold">' + icon('fa-star') + ' Mandatory</span>' : '<span class="badge badge-muted">Optional</span>') + '</td>' +
+                    const isAdmin = r.role_id === 1;
+                    return '<tr><td data-label="Role"><strong>' + e(r.role_name) + '</strong>' + (isAdmin ? ' <span class="badge badge-primary">Admin</span>' : '') + '</td>' +
+                        '<td data-label="Description"><span class="text-muted">' + e(r.description || '—') + '</span></td>' +
                         '<td data-label="Users"><a href="' + P.url('/admin/users', { role_id: r.role_id }) + '">' + r.active_users + ' active</a><span class="cell-sub">' + r.users_count + ' total</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions"><div class="btn-group">' +
                         (Auth.can('role.edit') ? '<a href="' + P.BASE + '/admin/roles/' + r.role_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + r.role_name) + '" aria-label="' + e('Edit ' + r.role_name) + '">' + icon('fa-pen') + '</a>' : '') +
-                        (Auth.can('role.toggle') ? '<form method="post" data-action="role-toggle" data-confirm="' + e(on ? 'Deactivate role "' + r.role_name + '"? It will not be used for new schemes and verification rounds.' : 'Activate role "' + r.role_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
+                        (Auth.can('permission.view') ? '<a href="' + P.url('/admin/permissions', { role: r.role_id }) + '" class="btn btn-light btn-sm btn-icon-only text-primary" title="' + e('Permissions of ' + r.role_name) + '" aria-label="' + e('Permissions of ' + r.role_name) + '">' + icon('fa-user-shield') + '</a>' : '') +
+                        (Auth.can('role.toggle') && !isAdmin ? '<form method="post" data-action="role-toggle" data-confirm="' + e(on ? 'Deactivate role "' + r.role_name + '"?' : 'Activate role "' + r.role_name + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                         '<input type="hidden" name="id" value="' + r.role_id + '">' +
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') +
                         '</form>' : '') + '</div></td></tr>';
-                }).join('') : P.empty_state(7, p.hasFilters(), 'No roles yet')) +
+                }).join('') : P.empty_state(5, p.hasFilters(), 'No roles yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'role.view');
@@ -79,24 +79,21 @@
             return '<div class="form-group"><label class="form-label" for="' + id + '">' + text + (req ? ' <span class="required">*</span>' : '') + '</label>' +
                 '<input id="' + id + '" name="' + id + '" value="' + e(value) + '" ' + attrs + '>' + (hint ? '<div class="form-hint">' + hint + '</div>' : '') + '<div class="invalid-feedback"></div></div>';
         };
+        const isAdmin = isEdit && role.role_id === 1;
         return {
             title: isEdit ? 'Edit Role' : 'Add Role',
             html: P.pageHeader(icon('fa-sitemap') + ' ' + (isEdit ? 'Edit Role' : 'Add Role'),
-                isEdit ? 'Changes apply to new schemes and new verification rounds.' : 'Create a verification section. Map users to it from the User Master.',
+                isEdit ? 'Update role details. You can configure module permissions for this role.' : 'Create a new role. Permissions can be granted to allow access to specific modules.',
                 '<a href="' + P.BASE + '/admin/roles" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>') +
-                (isEdit && usage > 0 ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This role is mapped in <strong>' + usage + '</strong> scheme(s). Existing properties keep their snapshot.</span></div>' : '') +
                 '<div class="card"><div class="card-body"><form method="post" data-action="role-save" novalidate data-validate>' +
                 (isEdit ? '<input type="hidden" name="id" value="' + role.role_id + '">' : '') + '<div class="form-grid">' +
-                input('role_name', 'Role name', true, 'type="text" class="form-control" maxlength="100" placeholder="e.g. Engineering Cell" data-rules="required|min:3|max:100|name" data-label="Role name"', v('role_name')) +
-                input('role_code', 'Role code', true, 'type="text" class="form-control mono" maxlength="40" placeholder="e.g. ENGINEERING_CELL" data-uppercase ' + (isEdit ? 'readonly' : 'data-rules="required|code" data-label="Role code"'), v('role_code'),
-                    isEdit ? 'Code cannot be changed after creation.' : 'CAPITAL letters, digits and underscore. Cannot be changed later.') +
-                input('sla_days', 'SLA (days to respond)', true, 'type="number" class="form-control" min="1" max="365" data-rules="required|integer|between:1,365" data-label="SLA days"', v('sla_days', 5)) +
-                input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="What does this section verify?" data-rules="max:255|text" data-label="Description"', v('description')) +
-                '<div class="form-group"><label class="check"><input type="checkbox" name="is_mandatory" value="1"' + (!isEdit || role.is_mandatory ? ' checked' : '') + '>' +
-                '<span><strong>Mandatory</strong><br><small class="text-muted">Every scheme must map at least one user of this role.</small></span></label></div>' +
-                '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || role.is_active ? ' checked' : '') + '>' +
-                '<span><strong>Active</strong><br><small class="text-muted">Inactive roles are skipped for new schemes and rounds.</small></span></label></div>' +
-                '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Role' : 'Create Role') + '</span></button>' +
+                input('role_name', 'Role name', true, 'type="text" class="form-control" maxlength="100" placeholder="e.g. Data Entry, OIC, Accounts, Engineering" data-rules="required|min:2|max:100|name" data-label="Role name"', v('role_name')) +
+                input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="Purpose or responsibility of this role" data-rules="max:255|text" data-label="Description"', v('description')) +
+                '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || role.is_active ? ' checked' : '') + (isAdmin ? ' disabled checked' : '') + '>' +
+                '<span><strong>Active</strong><br><small class="text-muted">Inactive roles cannot be assigned to new users.</small></span></label></div>' +
+                '</div>' +
+                '<div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Role' : 'Create Role') + '</span></button>' +
+                (isEdit ? '<a href="' + P.url('/admin/permissions', { role: role.role_id }) + '" class="btn btn-outline-primary">' + icon('fa-user-shield') + ' <span>Configure Permissions</span></a>' : '') +
                 '<a href="' + P.BASE + '/admin/roles" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>'
         };
     }
@@ -121,61 +118,89 @@
         if (q.status === 'locked') { rows = rows.filter(function (u) { return u.is_locked; }); }
         if (q.access === 'custom') { rows = rows.filter(function (u) { return Object.keys(overridesOf(u.user_id)).length > 0; }); }
         const p = P.paginate(rows, ctx, {
-            sort: 'name', dir: 'asc', filters: ['panel', 'role_id', 'status', 'access'],
-            search: function (u) { return [u.name, u.username, u.emp_code, u.mobile, u.email, u.designation]; },
+            sort: 'name', dir: 'asc', filters: ['role_id', 'status', 'access'],
+            search: function (u) { return [u.name, u.mobile, u.email]; },
             sortable: {
-                name: function (u) { return u.name; }, username: function (u) { return u.username; }, emp_code: function (u) { return u.emp_code; },
-                panel: function (u) { return u.panel; }, role: function (u) { return u.role_name; }, last_login: function (u) { return u.last_login_at; }
+                name: function (u) { return u.name; },
+                role: function (u) { return u.role_name; },
+                mobile: function (u) { return u.mobile; },
+                email: function (u) { return u.email; },
+                last_login: function (u) { return u.last_login_at; }
             }
         });
         const roles = {};
         DB.all('roles').sort(P.by(function (r) { return r.sort_order; })).forEach(function (r) { roles[r.role_id] = r.role_name; });
-        const filters = '<select name="panel" class="form-select" aria-label="Panel" data-auto-submit>' + L.options(P.PANELS, q.panel, 'All panels') + '</select>' +
+        const filters = 
             '<select name="role_id" class="form-select" aria-label="Role" data-auto-submit>' + L.options(roles, q.role_id, 'All roles') + '</select>' +
             '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' + L.options({ active: 'Active', inactive: 'Inactive', locked: 'Locked' }, q.status, 'All status') + '</select>' +
             (Auth.can('user.permissions') ? '<select name="access" class="form-select" aria-label="Permissions" data-auto-submit>' + L.options({ custom: 'With personal permissions' }, q.access, 'Any permissions') + '</select>' : '');
         const me = Auth.id();
         return {
             title: 'User Master',
-            html: P.pageHeader(icon('fa-users') + ' User Master', 'Panel users and role users (e.g. engineer-1 under Engineering). Many users can belong to one role.',
+            html: P.pageHeader(icon('fa-users') + ' User Master', 'Panel users and role users. Users authenticate using their mobile number as the Login ID.',
                 Auth.can('user.create') ? '<a href="' + P.BASE + '/admin/users/create" class="btn btn-primary">' + icon('fa-user-plus') + ' <span>Add User</span></a>' : '') +
-                '<div class="card">' + P.list_toolbar(p, 'Search name, username, emp code, mobile, email…', filters) +
+                '<div class="card">' + P.list_toolbar(p, 'Search name, mobile, email…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'name', 'Name') + P.th_sort(p, 'username', 'Username') + P.th_sort(p, 'emp_code', 'Emp. Code') + P.th_sort(p, 'panel', 'Panel') +
-                P.th_sort(p, 'role', 'Role') + '<th>Contact</th>' + P.th_sort(p, 'last_login', 'Last login') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
+                P.th_sort(p, 'name', 'Name') + P.th_sort(p, 'role', 'Role') + P.th_sort(p, 'mobile', 'Mobile (Login ID)') + P.th_sort(p, 'email', 'Email') + P.th_sort(p, 'last_login', 'Last login') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (u) {
                     const self = u.user_id === me;
-                    return '<tr><td data-label="Name"><strong>' + e(u.name) + '</strong>' + (self ? ' <span class="badge badge-gold">You</span>' : '') + '<span class="cell-sub">' + e(u.designation) + '</span></td>' +
-                        '<td data-label="Username"><span class="mono">' + e(u.username) + '</span></td><td data-label="Emp. Code">' + e(u.emp_code) + '</td>' +
-                        '<td data-label="Panel"><span class="badge badge-primary">' + e(P.PANELS[u.panel]) + '</span>' + (Auth.can('user.permissions') ? overrideBadge(u.user_id) : '') + '</td><td data-label="Role">' + e(u.role_name || '—') + '</td>' +
-                        '<td data-label="Contact">' + e(u.mobile) + '<span class="cell-sub">' + e(u.email) + '</span></td>' +
+                    return '<tr><td data-label="Name"><strong>' + e(u.name) + '</strong>' + (self ? ' <span class="badge badge-gold">You</span>' : '') + '</td>' +
+                        '<td data-label="Role"><span class="badge badge-primary">' + e(u.role_name || (u.role_id === 1 ? 'Admin' : '—')) + '</span>' + (Auth.can('user.permissions') ? overrideBadge(u.user_id) : '') + '</td>' +
+                        '<td data-label="Mobile (Login ID)"><span class="mono"><strong>' + e(u.mobile) + '</strong></span></td>' +
+                        '<td data-label="Email">' + (u.email ? e(u.email) : '<span class="text-muted">—</span>') + '</td>' +
                         '<td data-label="Last login">' + e(P.fmt_datetime(u.last_login_at)) + '</td><td data-label="Status">' + P.active_badge(u.is_active) +
                         (u.is_locked ? ' <span class="badge badge-danger">' + icon('fa-lock') + ' Locked</span>' : '') + '</td><td class="actions"><div class="btn-group">' +
-                        (!self && u.panel !== 'SUPER_ADMIN' && u.is_active && Auth.can('user.impersonate') ?'<form method="post" data-action="impersonate"><input type="hidden" name="id" value="' + u.user_id + '">' +
+                        (!self && Number(u.role_id) !== 1 && u.is_active && Auth.can('user.impersonate') ?'<form method="post" data-action="impersonate"><input type="hidden" name="id" value="' + u.user_id + '">' +
                             '<button type="submit" class="btn-switch" title="' + e('Login as ' + u.name) + '" aria-label="' + e('Login as ' + u.name) + '">' + icon('fa-right-to-bracket') + '</button></form>' : '') +
                         (Auth.can('user.edit') ? '<a href="' + P.BASE + '/admin/users/' + u.user_id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + u.name) + '" aria-label="' + e('Edit ' + u.name) + '">' + icon('fa-pen') + '</a>' : '') +
                         (Auth.can('user.permissions') ? '<a href="' + P.BASE + '/admin/users/' + u.user_id + '/permissions" class="btn btn-light btn-sm btn-icon-only" title="' + e('Permissions of ' + u.name) + '" aria-label="' + e('Permissions of ' + u.name) + '">' + icon('fa-user-shield') + '</a>' : '') +
-                        (u.is_locked && Auth.can('user.unlock') ? '<form method="post" data-action="user-unlock" data-confirm="' + e('Unlock account "' + u.username + '"?') + '"><input type="hidden" name="id" value="' + u.user_id + '">' +
+                        (u.is_locked && Auth.can('user.unlock') ? '<form method="post" data-action="user-unlock" data-confirm="' + e('Unlock account for "' + u.name + '" (' + u.mobile + ')?') + '"><input type="hidden" name="id" value="' + u.user_id + '">' +
                             '<button type="submit" class="btn btn-sm btn-warning btn-icon-only" title="Unlock account" aria-label="Unlock account">' + icon('fa-lock-open') + '</button></form>' : '') +
                         (!self && Auth.can('user.toggle') ? '<form method="post" data-action="user-toggle" data-confirm="' + e(u.is_active ? 'Deactivate "' + u.name + '"? They will not be able to login.' : 'Activate "' + u.name + '"?') + '" data-confirm-variant="' + (u.is_active ? 'danger' : 'success') + '">' +
                             '<input type="hidden" name="id" value="' + u.user_id + '">' +
                             (u.is_active ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-user-slash') + '</button>'
                                 : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-user-check') + '</button>') + '</form>' : '') +
                         '</div></td></tr>';
-                }).join('') : P.empty_state(9, p.hasFilters(), 'No users yet')) +
+                }).join('') : P.empty_state(7, p.hasFilters(), 'No users yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'user.view');
+
+    function generateStrongPassword(len) {
+        len = len || 10;
+        const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        const lower = 'abcdefghjkmnpqrstuvwxyz';
+        const digits = '23456789';
+        const special = '@#$&';
+        const all = upper + lower + digits + special;
+        const chars = [
+            upper.charAt(Math.floor(Math.random() * upper.length)),
+            lower.charAt(Math.floor(Math.random() * lower.length)),
+            digits.charAt(Math.floor(Math.random() * digits.length)),
+            special.charAt(Math.floor(Math.random() * special.length))
+        ];
+        for (let i = chars.length; i < len; i++) {
+            chars.push(all.charAt(Math.floor(Math.random() * all.length)));
+        }
+        for (let i = chars.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = chars[i];
+            chars[i] = chars[j];
+            chars[j] = tmp;
+        }
+        return chars.join('');
+    }
 
     function userForm(user) {
         const isEdit = !!user;
         const isSelf = isEdit && user.user_id === Auth.id();
         const v = function (k, d) { return isEdit ? (user[k] == null ? '' : user[k]) : (d || ''); };
-        const panel = v('panel', 'ROLE_USER');
         const roles = DB.where('roles', { is_active: 1 }).sort(P.by(function (r) { return r.sort_order; }));
         const mappings = isEdit ? DB.count('scheme_users', { user_id: user.user_id, is_active: 1 }) : 0;
-        const txt = function (id, text, attrs, value) {
-            return '<div class="form-group"><label class="form-label" for="' + id + '">' + text + ' <span class="required">*</span></label>' +
+        const initialPassword = !isEdit ? generateStrongPassword(10) : '';
+        const txt = function (id, text, attrs, value, req, spanClass) {
+            const isReq = req !== false;
+            return '<div class="form-group' + (spanClass ? ' ' + spanClass : '') + '"><label class="form-label" for="' + id + '">' + text + (isReq ? ' <span class="required">*</span>' : '') + '</label>' +
                 '<input id="' + id + '" name="' + id + '" value="' + e(value) + '" ' + attrs + '><div class="invalid-feedback"></div></div>';
         };
         const pw = function (id, text, rules) {
@@ -193,30 +218,45 @@
         if (isEdit && !found && user.role_id) { roleOpts += '<option value="' + user.role_id + '" selected>' + e(DB.find('roles', user.role_id).role_name) + ' (inactive)</option>'; }
 
         let html = P.pageHeader(icon('fa-user-gear') + ' ' + (isEdit ? 'Edit User' : 'Add User'),
-            isEdit ? e(user.name + ' · ' + user.username) : 'Create a login for a panel user or a role user.',
+            isEdit ? e(user.name + (user.mobile ? ' · ' + user.mobile : '')) : 'Create a login for a panel user or a role user using mobile number.',
             '<a href="' + P.BASE + '/admin/users" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>' +
             (isEdit && Auth.can('user.permissions') ? '<a href="' + P.BASE + '/admin/users/' + user.user_id + '/permissions" class="btn btn-light">' + icon('fa-user-shield') + ' <span>Permissions</span></a>' : '')) +
             (mappings > 0 ? '<div class="alert alert-info">' + icon('fa-circle-info') + '<span>This user is mapped in <strong>' + mappings + '</strong> scheme role mapping(s). Changing the role or deactivating removes them from <em>new</em> properties only.</span></div>' : '') +
-            '<div class="' + (isEdit ? 'grid-2' : '') + '"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-id-card') + ' User details</h3></div><div class="card-body">' +
+            '<div class="' + (isEdit ? 'grid-2' : '') + '"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-id-card') + ' ' + (isEdit ? 'Edit user profile' : 'User registration form') + '</h3></div><div class="card-body">' +
             '<form method="post" data-action="user-save" novalidate data-validate autocomplete="off">' + (isEdit ? '<input type="hidden" name="id" value="' + user.user_id + '">' : '') +
             '<div class="form-grid">' +
-            txt('name', 'Full name', 'type="text" class="form-control" maxlength="120" data-rules="required|min:3|max:120|name" data-label="Full name"', v('name')) +
-            txt('designation', 'Designation', 'type="text" class="form-control" maxlength="100" placeholder="e.g. Junior Engineer" data-rules="required|min:2|max:100|text" data-label="Designation"', v('designation')) +
-            txt('username', 'Username (login id)', 'type="text" class="form-control mono" maxlength="50" placeholder="e.g. eng3" autocomplete="off" data-rules="required|min:3|max:50|alpha_dash" data-label="Username"', v('username')) +
-            txt('emp_code', 'Employee code', 'type="text" class="form-control" maxlength="30" placeholder="e.g. KDA-ENG-003" data-uppercase data-rules="required|ucode" data-label="Employee code"', v('emp_code')) +
-            txt('mobile', 'Mobile', 'type="tel" class="form-control" maxlength="10" inputmode="numeric" placeholder="10-digit mobile" data-rules="required|mobile" data-label="Mobile"', v('mobile')) +
-            txt('email', 'Email', 'type="email" class="form-control" maxlength="150" data-rules="required|max:150|email" data-label="Email"', v('email')) +
-            '<div class="form-group"><label class="form-label" for="panel">Panel type <span class="required">*</span></label>' +
-            '<select id="panel" name="panel" class="form-select" data-rules="required" data-label="Panel type" data-panel-select' + (isSelf ? ' disabled' : '') + '>' + L.options(P.PANELS, panel) + '</select>' +
-            (isSelf ? '<input type="hidden" name="panel" value="' + e(user.panel) + '"><div class="form-hint">You cannot change your own panel.</div>' : '') + '<div class="invalid-feedback"></div></div>' +
-            '<div class="form-group" data-role-group' + (panel === 'ROLE_USER' ? '' : ' hidden') + '><label class="form-label" for="role_id">Role / Section <span class="required">*</span></label>' +
-            '<select id="role_id" name="role_id" class="form-select" data-label="Role"' + (panel === 'ROLE_USER' ? ' data-rules="required"' : '') + '>' + roleOpts + '</select>' +
-            '<div class="form-hint">The verification section this user works for.</div><div class="invalid-feedback"></div></div>' +
-            (!isEdit ? pw('password', 'Password', 'required|password') + '<div class="form-hint">≥ ' + P.SECURITY.password_min + ' chars with upper, lower, digit &amp; special character.</div><div class="invalid-feedback"></div></div>' +
-                pw('confirm_password', 'Confirm password', 'required|same:password') + '<div class="invalid-feedback"></div></div>' : '') +
-            '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || user.is_active ? ' checked' : '') + (isSelf ? ' disabled checked' : '') + '>' +
-            '<span><strong>Active</strong><br><small class="text-muted">Inactive users cannot login.</small></span></label></div>' +
-            '</div><div class="form-actions"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update User' : 'Create User') + '</span></button>' +
+            // --- Section 1: User Profile & Role ---
+            '<div class="form-section span-2" style="margin: 0 0 16px 0; font-size: 14.5px; font-weight: 600; color: var(--navy-800);">' + 
+                icon('fa-user') + ' <span>1. User Details</span>' +
+            '</div>' +
+            txt('name', 'Full name', 'type="text" class="form-control" maxlength="120" placeholder="e.g. Ramesh Kumar" data-rules="required|min:3|max:120|name" data-label="Full name"', v('name')) +
+            txt('email', 'Email (Optional)', 'type="email" class="form-control" maxlength="150" placeholder="e.g. user@kda.local (optional)" data-rules="max:150|email" data-label="Email"', v('email'), false) +
+            '<div class="form-group span-2"><label class="form-label" for="role_id">Role <span class="required">*</span></label>' +
+            '<select id="role_id" name="role_id" class="form-select" data-rules="required" data-label="Role"' + (isSelf ? ' disabled' : '') + '>' + roleOpts + '</select>' +
+            (isSelf ? '<input type="hidden" name="role_id" value="' + e(user.role_id || 1) + '"><div class="form-hint">You cannot change your own role.</div>' : '') +
+            '<div class="form-hint">Permissions and module access are inherited from the assigned role.</div><div class="invalid-feedback"></div></div>' +
+            '<div class="form-group span-2" style="margin-top: 2px; padding-top: 12px; border-top: 1px dashed var(--border-strong);"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || user.is_active ? ' checked' : '') + (isSelf ? ' disabled checked' : '') + '>' +
+            '<span><strong>Active Account</strong><br><small class="text-muted">Inactive users cannot login to the system.</small></span></label></div>' +
+
+            // --- Section 2: Login Credentials ---
+            '<div class="form-section span-2" style="margin: 14px 0 16px 0; font-size: 14.5px; font-weight: 600; color: var(--navy-800);">' + 
+                icon('fa-shield-halved') + ' <span>2. Login Credentials</span>' +
+            '</div>' +
+            txt('mobile', 'Mobile Number (Login ID)', 'type="tel" class="form-control mono" maxlength="10" inputmode="numeric" placeholder="10-digit registered mobile" data-rules="required|mobile" data-label="Mobile Number"', v('mobile'), true, isEdit ? 'span-2' : '') +
+            (!isEdit ? 
+                '<div class="form-group">' +
+                '<label class="form-label" for="password">Password <span class="required">*</span></label>' +
+                '<div class="unified-input-group" style="display:flex; width:100%; align-items:stretch;">' +
+                    '<div class="input-icon input-password" style="flex:1; min-width:0; position:relative;">' + icon('fa-key') +
+                    '<input type="text" id="password" name="password" class="form-control mono" maxlength="72" autocomplete="new-password" data-rules="required|password" data-label="Password" value="' + e(initialPassword) + '" style="border-top-right-radius:0; border-bottom-right-radius:0; font-weight:600; font-size:14px; letter-spacing:0.5px; height:40px;">' +
+                    '<button type="button" class="toggle-password" data-toggle-password="password" aria-label="Hide password" style="right:4px;">' + icon('fa-eye-slash') + '</button>' +
+                    '</div>' +
+                    '<button type="button" class="btn btn-light" id="btn-copy-pw" title="Copy password" style="border-radius:0; border-left:0; border-color:var(--border-strong); height:40px; padding:0 14px; display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:500; white-space:nowrap;">' + icon('fa-copy') + ' <span>Copy</span></button>' +
+                    '<button type="button" class="btn btn-light" id="btn-regen-pw" title="Generate another password" style="border-top-left-radius:0; border-bottom-left-radius:0; border-left:0; border-color:var(--border-strong); height:40px; padding:0 12px; display:inline-flex; align-items:center; justify-content:center; white-space:nowrap;">' + icon('fa-rotate') + '</button>' +
+                '</div>' +
+                '<div class="form-hint">Auto-filled 10-char password (uppercase, lowercase, digit &amp; @#$&amp; special characters). You can copy or regenerate it.</div>' +
+                '<div class="invalid-feedback"></div></div>' : '') +
+            '</div><div class="form-actions" style="margin-top: 8px;"><button type="submit" class="btn btn-primary" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update User' : 'Create User') + '</span></button>' +
             '<a href="' + P.BASE + '/admin/users" class="btn btn-light">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form></div></div>';
         if (isEdit) {
             html += '<div>' + (Auth.can('user.reset_password') ? '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-unlock-keyhole') + ' Reset password</h3></div><div class="card-body">' +
@@ -233,7 +273,60 @@
                 '<dt>Locked until</dt><dd>' + e(P.fmt_datetime(user.locked_until)) + '</dd>' +
                 '<dt>Created</dt><dd>' + e(P.fmt_datetime(user.created_at)) + '</dd></dl></div></div></div>';
         }
-        return { title: isEdit ? 'Edit User' : 'Add User', html: html + '</div>' };
+        return {
+            title: isEdit ? 'Edit User' : 'Add User',
+            html: html + '</div>',
+            init: function (el) {
+                if (isEdit) { return; }
+                const copyBtn = el.querySelector('#btn-copy-pw');
+                const regenBtn = el.querySelector('#btn-regen-pw');
+                const pwInput = el.querySelector('#password');
+                if (copyBtn && pwInput) {
+                    copyBtn.addEventListener('click', function () {
+                        if (!pwInput.value) { return; }
+                        const doFeedback = function () {
+                            P.toast('success', 'Password copied to clipboard!');
+                            const origHtml = copyBtn.innerHTML;
+                            copyBtn.innerHTML = icon('fa-check') + ' <span>Copied!</span>';
+                            copyBtn.classList.remove('btn-light');
+                            copyBtn.classList.add('btn-success');
+                            setTimeout(function () {
+                                copyBtn.innerHTML = origHtml;
+                                copyBtn.classList.remove('btn-success');
+                                copyBtn.classList.add('btn-light');
+                            }, 1500);
+                        };
+                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                            navigator.clipboard.writeText(pwInput.value).then(doFeedback).catch(function () {
+                                pwInput.select();
+                                document.execCommand('copy');
+                                doFeedback();
+                            });
+                        } else {
+                            pwInput.select();
+                            document.execCommand('copy');
+                            doFeedback();
+                        }
+                    });
+                }
+                if (regenBtn && pwInput) {
+                    regenBtn.addEventListener('click', function () {
+                        const iconEl = regenBtn.querySelector('i');
+                        if (iconEl) { iconEl.classList.add('fa-spin'); }
+                        pwInput.value = generateStrongPassword(10);
+                        P.toast('info', 'New password generated!');
+                        setTimeout(function () {
+                            if (iconEl) { iconEl.classList.remove('fa-spin'); }
+                        }, 400);
+                        if (pwInput.classList.contains('is-invalid')) {
+                            pwInput.classList.remove('is-invalid');
+                            const fb = pwInput.closest('.form-group') ? pwInput.closest('.form-group').querySelector('.invalid-feedback') : null;
+                            if (fb) { fb.textContent = ''; }
+                        }
+                    });
+                }
+            }
+        };
     }
     P.route('/admin/users/create', PANEL, function () { return userForm(null); }, 'user.create');
     P.route('/admin/users/{id}/edit', PANEL, function (ctx) {
@@ -246,15 +339,14 @@
         const user = DB.find('users', ctx.params.id);
         if (!user) { return P.notFound('User not found.'); }
         const data = permData();
-        const panel = user.panel, panelName = P.PANELS[panel];
-        const grants = data.grants[panel] || [];
-        const locked = data.locked[panel] || [];
-        const ov = overridesOf(user.user_id);
         const role = user.role_id ? DB.find('roles', user.role_id) : null;
+        const roleName = role ? role.role_name : 'Admin';
+        const roleId = Number(user.role_id) || 1;
+        const grants = data.grants[roleId] || (roleId === 1 ? Object.keys(data.modules.reduce(function (acc, m) { m.items.forEach(function (it) { acc[it.code] = true; }); return acc; }, {})) : []);
+        const locked = data.locked[roleId] || [];
+        const ov = overridesOf(user.user_id);
         const isSelf = user.user_id === Auth.id();
-        const modules = data.modules.map(function (m) {
-            return Object.assign({}, m, { items: m.items.filter(function (it) { return it.panels.indexOf(panel) !== -1; }) });
-        }).filter(function (m) { return m.items.length; });
+        const modules = data.modules;
         const total = modules.reduce(function (n, m) { return n + m.items.length; }, 0);
 
         const yes = '<span class="badge badge-success">' + icon('fa-check') + ' Yes</span>';
@@ -265,7 +357,7 @@
                     '<span>' + icon(ic) + ' ' + text + '</span></label>';
             };
             return '<div class="yn perm-ov" role="radiogroup" aria-label="' + e(code) + '">' +
-                opt('inherit', 'Panel', 'fa-layer-group', 'yn-no') + opt('ALLOW', 'Allow', 'fa-check', 'yn-allow') + opt('DENY', 'Deny', 'fa-ban', 'yn-deny') + '</div>';
+                opt('inherit', 'Role Default', 'fa-layer-group', 'yn-no') + opt('ALLOW', 'Allow', 'fa-check', 'yn-allow') + opt('DENY', 'Deny', 'fa-ban', 'yn-deny') + '</div>';
         };
         const rows = modules.map(function (m) {
             return '<tbody data-perm-group><tr class="perm-module"><th colspan="4">' + icon(m.icon) + ' ' + e(m.label) + '</th></tr>' +
@@ -274,7 +366,7 @@
                     const base = grants.indexOf(it.code) !== -1 || fixed;
                     return '<tr data-perm-row data-code="' + e(it.code) + '" data-base="' + (base ? 1 : 0) + '" data-search="' + e((it.label + ' ' + it.code + ' ' + m.label).toLowerCase()) + '">' +
                         '<td data-label="Permission">' + e(it.label) + '<span class="cell-sub mono">' + e(it.code) + '</span></td>' +
-                        '<td data-label="' + e(panelName) + ' panel">' + (base ? yes : no) + '</td>' +
+                        '<td data-label="' + e(roleName) + ' panel">' + (base ? yes : no) + '</td>' +
                         '<td data-label="This user">' + (fixed ? '<span class="badge badge-gold">' + icon('fa-lock') + ' Always on</span>' : choice(it.code, ov[it.code] || 'inherit')) + '</td>' +
                         '<td data-label="Result" data-perm-result></td></tr>';
                 }).join('') + '</tbody>';
@@ -283,11 +375,11 @@
         return {
             title: 'Permissions — ' + user.name,
             html: P.pageHeader(icon('fa-user-shield') + ' Permissions — ' + e(user.name),
-                e(user.username + ' · ' + panelName + ' panel' + (role ? ' · ' + role.role_name : '') + ' · ' + user.designation),
+                e(user.name + (user.mobile ? ' (' + user.mobile + ')' : '') + ' · ' + roleName + ' panel' + (role ? ' · ' + role.role_name : '')),
                 '<a href="' + P.BASE + '/admin/users" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to users</span></a>' +
                 (Auth.can('user.edit') ? '<a href="' + P.BASE + '/admin/users/' + user.user_id + '/edit" class="btn btn-light">' + icon('fa-pen') + ' <span>Edit user</span></a>' : '') +
                 (Auth.can('permission.view') ? '<a href="' + P.BASE + '/admin/permissions" class="btn btn-light">' + icon('fa-table-cells') + ' <span>Panel permissions</span></a>' : '')) +
-                '<div class="alert alert-info">' + icon('fa-circle-info') + '<span><strong>Panel</strong> = same as every ' + e(panelName) + ' user (Super Admin → Permissions). ' +
+                '<div class="alert alert-info">' + icon('fa-circle-info') + '<span><strong>Panel</strong> = same as every ' + e(roleName) + ' user (Super Admin → Permissions). ' +
                 '<strong>Allow</strong> gives this user an extra permission, <strong>Deny</strong> takes one away — only for this user. Changing the user\'s panel removes these exceptions.</span></div>' +
                 (user.is_active ? '' : '<div class="alert alert-warning">' + icon('fa-user-slash') + '<span>This user is inactive and cannot login; the permissions apply once the account is active again.</span></div>') +
                 '<div class="stat-grid perm-stats">' +
@@ -301,7 +393,7 @@
                 '<input type="search" class="form-control" placeholder="Search permission or module…" aria-label="Search permissions" data-perm-search></div>' +
                 '<label class="check"><input type="checkbox" data-perm-only-changed><span>Only exceptions</span></label>' +
                 '<button type="button" class="btn btn-light btn-sm" data-perm-reset>' + icon('fa-rotate-left') + ' <span>All as panel</span></button></div>' +
-                '<div class="table-wrap"><table class="table table-stack table-top perm-table"><thead><tr><th>Permission</th><th>' + e(panelName) + ' panel</th><th>This user</th><th>Result</th></tr></thead>' +
+                '<div class="table-wrap"><table class="table table-stack table-top perm-table"><thead><tr><th>Permission</th><th>' + e(roleName) + ' panel</th><th>This user</th><th>Result</th></tr></thead>' +
                 (rows || '<tbody>' + P.empty_state(4, false, 'No permissions for this panel') + '</tbody>') +
                 '<tbody data-perm-empty hidden>' + P.empty_state(4, true, 'No permission matches') + '</tbody></table></div></div>' +
                 '<div class="form-actions sticky-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…">' + icon('fa-floppy-disk') + ' <span>Save permissions</span></button>' +
@@ -535,37 +627,38 @@
     /* ================= Permission Manager: pick a role, give it what it needs ================= */
     P.route('/admin/permissions', PANEL, function (ctx) {
         const data = permData();
-        const panels = Object.keys(P.PANELS);
+        const rolesList = DB.all('roles').sort(P.by(function (r) { return r.sort_order; }));
+        const roleIds = rolesList.map(function (r) { return r.role_id; });
         const canEdit = Auth.can('permission.edit');
         const view = ctx.query.view === 'matrix' ? 'matrix' : 'role';
-        const role = panels.indexOf(ctx.query.role) !== -1 ? ctx.query.role : panels[0];
-        const has = function (panel, code) { return (data.grants[panel] || []).indexOf(code) !== -1; };
-        const locked = function (panel, code) { return (data.locked[panel] || []).indexOf(code) !== -1; };
-        const applicable = function (panel) {
-            return data.modules.map(function (m) { return Object.assign({}, m, { items: m.items.filter(function (it) { return it.panels.indexOf(panel) !== -1; }) }); })
-                .filter(function (m) { return m.items.length; });
+        const activeRoleId = Number(ctx.query.role) || (roleIds[0] || 1);
+        const currentRole = DB.find('roles', activeRoleId) || rolesList[0] || { role_id: 1, role_name: 'Admin' };
+        const roleId = currentRole.role_id;
+
+        const has = function (rId, code) { return (data.grants[rId] || []).indexOf(code) !== -1; };
+        const locked = function (rId, code) { return (data.locked[rId] || []).indexOf(code) !== -1; };
+        const countFor = function (rId) {
+            const items = [].concat.apply([], data.modules.map(function (m) { return m.items; }));
+            return { total: items.length, on: items.filter(function (it) { return has(rId, it.code) || locked(rId, it.code); }).length };
         };
-        const countFor = function (panel) {
-            const items = [].concat.apply([], applicable(panel).map(function (m) { return m.items; }));
-            return { total: items.length, on: items.filter(function (it) { return has(panel, it.code) || locked(panel, it.code); }).length };
-        };
-        const usersOf = function (panel) { return DB.where('users', { panel: panel }); };
+        const usersOf = function (rId) { return DB.where('users', { role_id: rId }); };
         const exceptionUsers = new Set((data.overrides || []).map(function (o) { return o.user_id; }));
 
-        // the dropdown: roles (panels) first, then users for a personal exception
-        const groups = [{ label: 'Roles', items: panels.map(function (p) {
-            const c = countFor(p), n = usersOf(p).length;
-            return { value: 'role:' + p, label: P.PANELS[p], sub: c.on + ' of ' + c.total + ' permissions · ' + n + ' user' + (n === 1 ? '' : 's'), icon: 'fa-user-shield' };
+        // Dropdown: roles first, then individual users for overrides
+        const groups = [{ label: 'Roles', items: rolesList.map(function (r) {
+            const c = countFor(r.role_id), n = usersOf(r.role_id).length;
+            return { value: 'role:' + r.role_id, label: r.role_name, sub: c.on + ' of ' + c.total + ' permissions · ' + n + ' user' + (n === 1 ? '' : 's'), icon: 'fa-user-shield' };
         }) }];
         if (Auth.can('user.permissions')) {
             groups.push({ label: 'One user (personal exceptions)', items: DB.all('users').filter(function (u) { return u.is_active; })
                 .sort(P.by(function (u) { return u.name; })).map(function (u) {
-                    return { value: 'user:' + u.user_id, label: u.name, sub: u.username + ' · ' + P.PANELS[u.panel] + ' · ' + u.designation, icon: 'fa-user',
+                    const r = u.role_id ? DB.find('roles', u.role_id) : null;
+                    return { value: 'user:' + u.user_id, label: u.name, sub: (u.mobile || '') + ' · ' + (r ? r.role_name : 'No role'), icon: 'fa-user',
                         badge: exceptionUsers.has(u.user_id) ? 'exceptions' : '' };
                 }) });
         }
         const tabs = '<div class="perm-tabs" role="tablist">' +
-            '<a role="tab" class="perm-tab' + (view === 'role' ? ' active' : '') + '" aria-selected="' + (view === 'role') + '" href="' + P.url('/admin/permissions', { role: role }) + '">' + icon('fa-user-shield') + ' By role</a>' +
+            '<a role="tab" class="perm-tab' + (view === 'role' ? ' active' : '') + '" aria-selected="' + (view === 'role') + '" href="' + P.url('/admin/permissions', { role: roleId }) + '">' + icon('fa-user-shield') + ' By role</a>' +
             '<a role="tab" class="perm-tab' + (view === 'matrix' ? ' active' : '') + '" aria-selected="' + (view === 'matrix') + '" href="' + P.url('/admin/permissions', { view: 'matrix' }) + '">' + icon('fa-table-cells') + ' All roles side by side</a></div>';
         const exceptionsNote = (function () {
             const n = exceptionUsers.size;
@@ -578,17 +671,18 @@
                 '<button type="button" class="btn btn-light btn-lg" data-perm-discard>' + icon('fa-xmark') + ' <span>Discard changes</span></button>' +
                 '<span class="perm-dirty-note" data-perm-dirty hidden>' + icon('fa-pen-to-square') + ' <span></span></span></div>' : '';
         };
-        const box = function (panel, it) {
-            const fixed = locked(panel, it.code), on = has(panel, it.code) || fixed;
-            return '<input type="checkbox" name="perm_' + panel + '[]" value="' + e(it.code) + '"' + (on ? ' checked' : '') + (fixed || !canEdit ? ' disabled' : '') +
-                ' data-perm-module="' + e(it.code.split('.')[0]) + '" data-perm-panel="' + panel + '" data-saved="' + (on ? 1 : 0) + '" aria-label="' + e(it.label + ' — ' + P.PANELS[panel]) + '">';
+        const box = function (rId, it) {
+            const fixed = locked(rId, it.code), on = has(rId, it.code) || fixed;
+            const rObj = DB.find('roles', rId) || {};
+            return '<input type="checkbox" name="perm_' + rId + '[]" value="' + e(it.code) + '"' + (on ? ' checked' : '') + (fixed || !canEdit ? ' disabled' : '') +
+                ' data-perm-module="' + e(it.code.split('.')[0]) + '" data-perm-panel="' + rId + '" data-saved="' + (on ? 1 : 0) + '" aria-label="' + e(it.label + ' — ' + (rObj.role_name || rId)) + '">';
         };
 
         let body;
         if (view === 'role') {
-            const mods = applicable(role);
-            const c = countFor(role);
-            const roleUsers = usersOf(role);
+            const mods = data.modules;
+            const c = countFor(roleId);
+            const roleUsers = usersOf(roleId);
             const fact = function (ic, html, href) {
                 return href ? '<a class="perm-fact" href="' + href + '">' + icon(ic) + '<span>' + html + '</span></a>' : '<span class="perm-fact">' + icon(ic) + '<span>' + html + '</span></span>';
             };
@@ -597,51 +691,50 @@
                     e(text) + ' <span class="perm-seg-count" data-perm-seg-count="' + val + '">' + n + '</span></button>';
             };
             body = '<div class="card perm-picker"><div class="card-body perm-picker-row"><div class="perm-picker-field"><label class="form-label" for="perm-role">Role</label>' +
-                comboHtml('perm-role', 'Role', 'role:' + role, groups, 'Select a role') + '</div>' +
+                comboHtml('perm-role', 'Role', 'role:' + roleId, groups, 'Select a role') + '</div>' +
                 '<div class="perm-role-facts">' +
                 fact('fa-key', '<strong data-perm-count>' + c.on + '</strong> / ' + c.total + ' permissions') +
-                fact('fa-users', '<strong>' + roleUsers.length + '</strong> user' + (roleUsers.length === 1 ? '' : 's'), P.url('/admin/users', { panel: role })) +
+                fact('fa-users', '<strong>' + roleUsers.length + '</strong> user' + (roleUsers.length === 1 ? '' : 's'), P.url('/admin/users', { role_id: roleId })) +
                 fact('fa-user-gear', '<strong>' + roleUsers.filter(function (u) { return exceptionUsers.has(u.user_id); }).length + '</strong> with personal exceptions') +
                 '</div></div></div>' +
-                '<form method="post" data-action="permission-save" data-perm-form data-confirm="' + e('Save the permissions of the ' + P.PANELS[role] + ' role? They apply to all its users.') + '">' +
-                '<input type="hidden" name="panels[]" value="' + role + '">' +
+                '<form method="post" data-action="permission-save" data-perm-form data-confirm="' + e('Save permissions for the ' + currentRole.role_name + ' role? They apply to all its users.') + '">' +
+                '<input type="hidden" name="roles[]" value="' + roleId + '">' +
                 '<div class="card"><div class="toolbar perm-toolbar"><div class="toolbar-search">' + icon('fa-magnifying-glass') +
                 '<input type="search" class="form-control" placeholder="Search a permission — e.g. add user, scheme, audit…" aria-label="Search permissions" data-perm-search></div>' +
                 '<div class="perm-seg" role="group" aria-label="Show">' + seg('', 'All', c.total) + seg('on', 'Given', c.on) + seg('off', 'Not given', c.total - c.on) + '</div>' +
                 (canEdit ? '<div class="toolbar-actions perm-bulk"><button type="button" class="btn btn-light btn-sm" data-perm-all="1">' + icon('fa-square-check') + ' <span>Give all</span></button>' +
                     '<button type="button" class="btn btn-light btn-sm" data-perm-all="0">' + icon('fa-square') + ' <span>Remove all</span></button></div>' : '') + '</div>' +
                 '<div class="card-body perm-modules">' + (mods.length ? mods.map(function (m) {
-                    const on = m.items.filter(function (it) { return has(role, it.code) || locked(role, it.code); }).length;
+                    const on = m.items.filter(function (it) { return has(roleId, it.code) || locked(roleId, it.code); }).length;
                     return '<section class="perm-mod" data-perm-group><header class="perm-mod-head"><h3>' + icon(m.icon) + ' ' + e(m.label) + '</h3>' +
                         '<span class="badge badge-info" data-perm-mod-count>' + on + '/' + m.items.length + '</span>' +
                         (canEdit ? '<label class="check perm-mod-all"><input type="checkbox" data-perm-mod-all' + (on === m.items.length ? ' checked' : '') + '><span>All</span></label>' : '') + '</header>' +
                         '<ul class="perm-items">' + m.items.map(function (it) {
-                            const fixed = locked(role, it.code);
-                            return '<li data-perm-row data-search="' + e((it.label + ' ' + it.code + ' ' + m.label).toLowerCase()) + '"><label class="check">' + box(role, it) +
+                            const fixed = locked(roleId, it.code);
+                            return '<li data-perm-row data-search="' + e((it.label + ' ' + it.code + ' ' + m.label).toLowerCase()) + '"><label class="check">' + box(roleId, it) +
                                 '<span><strong>' + e(it.label) + '</strong>' + (fixed ? ' <span class="badge badge-gold">' + icon('fa-lock') + ' Always on</span>' : '') +
                                 '<small class="mono">' + e(it.code) + '</small></span></label></li>';
                         }).join('') + '</ul></section>';
                 }).join('') : '<p class="text-muted">This role has no permissions to set.</p>') +
                 '<p class="text-muted perm-none" data-perm-empty hidden>' + icon('fa-magnifying-glass') + ' No permission matches your search.</p></div></div>' +
-                saveBar('Save ' + P.PANELS[role] + ' permissions') + '</form>';
+                saveBar('Save ' + currentRole.role_name + ' permissions') + '</form>';
         } else {
             const rows = data.modules.map(function (m) {
-                return '<tbody data-perm-group><tr class="perm-module"><th colspan="' + (panels.length + 1) + '">' + icon(m.icon) + ' ' + e(m.label) + '</th></tr>' +
+                return '<tbody data-perm-group><tr class="perm-module"><th colspan="' + (rolesList.length + 1) + '">' + icon(m.icon) + ' ' + e(m.label) + '</th></tr>' +
                     m.items.map(function (it) {
                         return '<tr data-perm-row data-search="' + e((it.label + ' ' + it.code + ' ' + m.label).toLowerCase()) + '"><td data-label="Permission">' + e(it.label) + '<span class="cell-sub mono">' + e(it.code) + '</span></td>' +
-                            panels.map(function (p) {
-                                return it.panels.indexOf(p) === -1 ? '<td data-label="' + e(P.PANELS[p]) + '" class="text-center text-muted" title="Not used by this role">—</td>'
-                                    : '<td data-label="' + e(P.PANELS[p]) + '" class="text-center"><label class="check perm-check">' + box(p, it) + '</label></td>';
+                            rolesList.map(function (r) {
+                                return '<td data-label="' + e(r.role_name) + '" class="text-center"><label class="check perm-check">' + box(r.role_id, it) + '</label></td>';
                             }).join('') + '</tr>';
                     }).join('') + '</tbody>';
             }).join('');
             body = '<form method="post" data-action="permission-save" data-perm-form data-confirm="Save the permissions of all roles? They apply to all their users.">' +
-                panels.map(function (p) { return '<input type="hidden" name="panels[]" value="' + p + '">'; }).join('') +
+                rolesList.map(function (r) { return '<input type="hidden" name="roles[]" value="' + r.role_id + '">'; }).join('') +
                 '<div class="card"><div class="toolbar perm-toolbar"><div class="toolbar-search">' + icon('fa-magnifying-glass') +
                 '<input type="search" class="form-control" placeholder="Search a permission…" aria-label="Search permissions" data-perm-search></div></div>' +
                 '<div class="table-wrap"><table class="table table-stack table-top perm-table"><thead><tr><th>Permission</th>' +
-                panels.map(function (p) { return '<th class="text-center"><a href="' + P.url('/admin/permissions', { role: p }) + '">' + e(P.PANELS[p]) + '</a></th>'; }).join('') + '</tr></thead>' +
-                (rows || '<tbody>' + P.empty_state(panels.length + 1, false, 'No permissions defined') + '</tbody>') + '</table></div>' +
+                rolesList.map(function (r) { return '<th class="text-center"><a href="' + P.url('/admin/permissions', { role: r.role_id }) + '">' + e(r.role_name) + '</a></th>'; }).join('') + '</tr></thead>' +
+                (rows || '<tbody>' + P.empty_state(rolesList.length + 1, false, 'No permissions defined') + '</tbody>') + '</table></div>' +
                 '<p class="text-muted perm-none" data-perm-empty hidden>' + icon('fa-magnifying-glass') + ' No permission matches your search.</p></div>' +
                 saveBar('Save all roles') + '</form>';
         }
