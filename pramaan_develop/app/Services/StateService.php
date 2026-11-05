@@ -54,7 +54,7 @@ final class StateService
         $uid = (int) $u['user_id'];
         $roleId = (int) ($u['role_id'] ?? 1);
         $admin = $roleId === 1 || Auth::can('role.view', 'user.view', 'settings.edit');
-        if (Auth::can('task.view')) {
+        if ($roleId > 1 && !Auth::can('property.view', 'verification.view')) {
             Verification::overdueReminders($uid);
         }
         if (Auth::can('verification.view')) {
@@ -71,7 +71,7 @@ final class StateService
         }
         $t['users'] = self::users($admin, $uid, $imp ? (int) $imp['user_id'] : null);
 
-        if (Auth::can('task.view') && !Auth::can('property.view', 'verification.view')) {
+        if ($roleId > 1 && !Auth::can('property.view', 'verification.view')) {
             $propertyIds = TaskAssignee::propertyIdsFor($uid);
             $t['scheme_users'] = [];
         } else {

@@ -189,13 +189,18 @@
             if (Number(u.role_id) === 1 || Auth.can('role.view', 'user.view', 'master.view', 'settings.view', 'audit.view')) {
                 return '/admin/dashboard';
             }
-            if (Auth.can('scheme.view', 'property.view')) {
-                return '/data-entry/dashboard';
-            }
-            if (Auth.can('verification.view')) {
+            const roleId = Number(u.role_id);
+            if (roleId === 7 || Auth.can('verification.send')) {
                 return '/oic/dashboard';
             }
-            if (Auth.can('task.view')) {
+            const rObj = roleId ? DB.find('roles', roleId) : null;
+            if (roleId > 1 && rObj && rObj.status_id) {
+                return '/role/dashboard';
+            }
+            if (roleId === 6 || (Auth.can('scheme.view') && Auth.can('property.create', 'scheme.create'))) {
+                return '/data-entry/dashboard';
+            }
+            if (roleId > 1) {
                 return '/role/dashboard';
             }
             return '/admin/dashboard';
@@ -453,8 +458,8 @@
         ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'],
         ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'],
         ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
-        { section: 'Verification', requiresAny: ['task.view'] },
-        ['My Tasks', 'fa-clipboard-list', '/role/tasks', 'task.view'],
+
+
         { section: 'Access Control', requiresAny: ['role.view', 'user.view', 'permission.view'] },
         ['Role Master', 'fa-sitemap', '/admin/roles', 'role.view'],
         ['User Master', 'fa-users', '/admin/users', 'user.view'],

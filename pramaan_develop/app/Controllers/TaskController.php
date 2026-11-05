@@ -46,7 +46,8 @@ final class TaskController extends Controller
             $this->fail('This task is no longer pending.');
         }
         $role = Role::find($t['role_id']);
-        $site = $role['verification_form'] === Section::SITE ? $this->siteCheck($round['property_id'], $me) : null;
+        $explicitDecision = $this->request->str('decision');
+        $site = ($explicitDecision === '' && $role['verification_form'] === Section::SITE) ? $this->siteCheck($round['property_id'], $me) : null;
         $photos = $site ? $this->sitePhotos() : [];
         if ($site) {
             // Engineering gives a site report, not a decision: encroachment = Objection, otherwise No Objection
@@ -58,10 +59,26 @@ final class TaskController extends Controller
             $section = null;
             $letters = [];
         } else {
-            $section = $this->sectionCheck($role['verification_form'], $me);
+            $section = $explicitDecision === '' ? $this->sectionCheck($role['verification_form'], $me) : null;
             $letters = $section ? $this->letters($section) : [];
             $taken = $section && (!empty($section['is_sale_allotted']) || !empty($section['is_auctioned']) || !empty($section['is_inst_allotted']) || !empty($section['is_inst_in_process']));
             $decision = $taken ? TaskStatus::REJECTED : TaskStatus::APPROVED;
+        }
+
+        $explicitDecision = $this->request->str('decision');
+        if (in_array($explicitDecision, TaskStatus::DECISIONS, true)) {
+            if (trim($remarks) === '') {
+                $this->fail('Please enter a description / remark before submitting.', 'remarks');
+            }
+            $decision = $explicitDecision;
+        }
+
+        $statusId = $this->id('status_id') ?: null;
+        if ($statusId) {
+            $stObj = \App\Models\Status::find($statusId);
+            if (!$stObj || !$stObj['is_active']) {
+                $this->fail('Please select an active status.', 'status_id');
+            }
         }
 
         $files = $this->request->files('attachments');
@@ -72,7 +89,7 @@ final class TaskController extends Controller
 
         $stored = [];
         try {
-            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $photos, $section, $letters, $checked, &$stored) {
+            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $photos, $section, $letters, $checked, $statusId, &$stored) {
                 $saved = [];
                 $ctx = ['task_id' => $t['task_id'], 'round_id' => $t['round_id'], 'property_id' => $round['property_id'], 'by' => $me];
                 foreach ($photos as $f) {
@@ -90,7 +107,7 @@ final class TaskController extends Controller
                     $stored[] = $a['path'];
                     $saved[] = $a['file_name'];
                 }
-                $res = Verification::respond($t['task_id'], $decision, $remarks !== '' ? $remarks : null, $me, ['attachments' => $saved]);
+                $res = Verification::respond($t['task_id'], $decision, $remarks !== '' ? $remarks : null, $me, ['attachments' => $saved, 'status_id' => $statusId]);
                 if (!$res['ok']) {
                     throw new \DomainException($res['message']);
                 }
@@ -109,7 +126,9 @@ final class TaskController extends Controller
             Uploads::discard($stored);
             throw $e;
         }
-        $this->done($res['message'] . ($res['files'] ? ' ' . $res['files'] . ' attachment(s) uploaded.' : ''), '/role/tasks?status=pending');
+        $back = $this->request->str('back');
+        $target = $back !== '' ? $back : '/admin/masters/properties';
+        $this->done($res['message'] . ($res['files'] ? ' ' . $res['files'] . ' attachment(s) uploaded.' : ''), $target);
     }
 
     /**

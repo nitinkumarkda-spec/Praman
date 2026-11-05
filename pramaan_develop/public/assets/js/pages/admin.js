@@ -27,23 +27,40 @@
     function roleRows() {
         return DB.all('roles').map(function (r) {
             const us = DB.where('users', { role_id: r.role_id });
-            return Object.assign({}, r, { users_count: us.length, active_users: us.filter(function (u) { return u.is_active; }).length });
+            const stObj = r.status_id ? DB.find('statuses', r.status_id) : null;
+            return Object.assign({}, r, {
+                status_name: stObj ? stObj.name : '',
+                users_count: us.length,
+                active_users: us.filter(function (u) { return u.is_active; }).length
+            });
         });
     }
     P.route('/admin/roles', PANEL, function (ctx) {
         let rows = roleRows();
         const st = ctx.query.status || '';
+        const assignedSt = ctx.query.assigned_status || '';
         if (st === 'active') { rows = rows.filter(function (r) { return r.is_active; }); }
         if (st === 'inactive') { rows = rows.filter(function (r) { return !r.is_active; }); }
+        if (assignedSt !== '') { rows = rows.filter(function (r) { return String(r.status_id || '') === assignedSt; }); }
         const p = P.paginate(rows, ctx, {
-            sort: 'order', dir: 'asc', filters: ['status'],
-            search: function (r) { return [r.role_name, r.description, r.role_name_hi]; },
+            sort: 'order', dir: 'asc', filters: ['status', 'assigned_status'],
+            search: function (r) { return [r.role_name, r.description, r.role_name_hi, r.status_name]; },
             sortable: {
-                order: function (r) { return r.sort_order; }, name: function (r) { return r.role_name; }, form: function (r) { return r.verification_form; },
-                sla: function (r) { return r.sla_days; }, users: function (r) { return r.active_users; }
+                order: function (r) { return r.sort_order; },
+                name: function (r) { return r.role_name; },
+                status: function (r) { return r.status_name; },
+                form: function (r) { return r.verification_form; },
+                sla: function (r) { return r.sla_days; },
+                users: function (r) { return r.active_users; }
             }
         });
-        const filters = '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' +
+        const statusMap = {};
+        DB.all('statuses').filter(function (s) { return s.is_active; }).forEach(function (s) {
+            statusMap[s.status_id] = s.name;
+        });
+        const filters = '<select name="assigned_status" class="form-select" aria-label="Assigned Status" data-auto-submit>' +
+            L.options(statusMap, assignedSt, 'All assigned statuses') + '</select>' +
+            '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' +
             L.options({ active: 'Active', inactive: 'Inactive' }, st, 'All status') + '</select>';
         return {
             title: 'Role Master',
@@ -51,11 +68,17 @@
                 Auth.can('role.create') ? '<a href="' + P.BASE + '/admin/roles/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Role</span></a>' : '') +
                 '<div class="card">' + P.list_toolbar(p, 'Search role name or description…', filters) +
                 '<div class="table-wrap"><table class="table table-stack table-top"><thead><tr>' +
-                P.th_sort(p, 'name', 'Role Name') + '<th>Description</th>' + P.th_sort(p, 'users', 'Users') + '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
+                P.th_sort(p, 'name', 'Role Name') +
+                P.th_sort(p, 'status', 'Assigned Status') +
+                '<th>Description</th>' +
+                P.th_sort(p, 'users', 'Users') +
+                '<th>Status</th><th class="text-right">Actions</th></tr></thead><tbody>' +
                 (p.items.length ? p.items.map(function (r) {
                     const on = r.is_active === 1;
                     const isAdmin = r.role_id === 1;
+                    const assignedBadge = r.status_id ? P.status_badge(r.status_id) : '<span class="text-muted">—</span>';
                     return '<tr><td data-label="Role"><strong>' + e(r.role_name) + '</strong>' + (isAdmin ? ' <span class="badge badge-primary">Admin</span>' : '') + '</td>' +
+                        '<td data-label="Assigned Status">' + assignedBadge + '</td>' +
                         '<td data-label="Description"><span class="text-muted">' + e(r.description || '—') + '</span></td>' +
                         '<td data-label="Users"><a href="' + P.url('/admin/users', { role_id: r.role_id }) + '">' + r.active_users + ' active</a><span class="cell-sub">' + r.users_count + ' total</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions"><div class="btn-group">' +
@@ -66,7 +89,7 @@
                         (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                             : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') +
                         '</form>' : '') + '</div></td></tr>';
-                }).join('') : P.empty_state(5, p.hasFilters(), 'No roles yet')) +
+                }).join('') : P.empty_state(6, p.hasFilters(), 'No roles yet')) +
                 '</tbody></table></div>' + P.pagination(p) + '</div>'
         };
     }, 'role.view');
@@ -80,6 +103,7 @@
                 '<input id="' + id + '" name="' + id + '" value="' + e(value) + '" ' + attrs + '>' + (hint ? '<div class="form-hint">' + hint + '</div>' : '') + '<div class="invalid-feedback"></div></div>';
         };
         const isAdmin = isEdit && role.role_id === 1;
+        const activeStatuses = L.activeMap('statuses', 'status_id', 'name', v('status_id'));
         return {
             title: isEdit ? 'Edit Role' : 'Add Role',
             html: P.pageHeader(icon('fa-sitemap') + ' ' + (isEdit ? 'Edit Role' : 'Add Role'),
@@ -88,6 +112,11 @@
                 '<div class="card"><div class="card-body"><form method="post" data-action="role-save" novalidate data-validate>' +
                 (isEdit ? '<input type="hidden" name="id" value="' + role.role_id + '">' : '') + '<div class="form-grid">' +
                 input('role_name', 'Role name', true, 'type="text" class="form-control" maxlength="100" placeholder="e.g. Data Entry, OIC, Accounts, Engineering" data-rules="required|min:2|max:100|name" data-label="Role name"', v('role_name')) +
+                '<div class="form-group"><label class="form-label" for="status_id">Assigned Status <small class="text-muted">(optional)</small></label>' +
+                '<select id="status_id" name="status_id" class="form-select" data-label="Assigned Status">' +
+                '<option value="">No status assigned</option>' +
+                L.options(activeStatuses, v('status_id')) +
+                '</select><div class="form-hint">Select the property status associated with this role in the workflow.</div><div class="invalid-feedback"></div></div>' +
                 input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="Purpose or responsibility of this role" data-rules="max:255|text" data-label="Description"', v('description')) +
                 '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || role.is_active ? ' checked' : '') + (isAdmin ? ' disabled checked' : '') + '>' +
                 '<span><strong>Active</strong><br><small class="text-muted">Inactive roles cannot be assigned to new users.</small></span></label></div>' +

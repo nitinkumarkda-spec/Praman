@@ -60,7 +60,7 @@ final class Auth
         if (self::can('verification.view')) {
             return '/oic/dashboard';
         }
-        if (self::can('task.view')) {
+        if ($roleId > 1 && !self::can('scheme.view', 'property.view', 'verification.view')) {
             return '/role/dashboard';
         }
         return '/admin/dashboard';

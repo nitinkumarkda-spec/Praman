@@ -286,4 +286,77 @@ final class MasterController extends Controller
         $this->done(count($created) === 1 ? $one . ' "' . $name($created[0]) . '" created successfully.' . $note
             : count($created) . ' ' . strtolower($one) . 's added.', $list);
     }
+
+    /** Assign role users to a scheme (modal popup from Schemes list). */
+    public function schemeUsers(): void
+    {
+        $this->authorize('scheme.edit');
+
+        $schemeId = $this->id('scheme_id');
+        $scheme = Scheme::find($schemeId);
+        if (!$scheme) {
+            $this->fail('Scheme not found.', 'scheme_id');
+        }
+
+        // Only active roles that have an assigned status
+        $roles = array_values(array_filter(
+            Role::where(['is_active' => 1], 'sort_order'),
+            static fn ($r) => !empty($r['status_id'])
+        ));
+        $roleIdsWithStatus = array_map('intval', array_column($roles, 'role_id'));
+        $map = [];
+
+        foreach ($roles as $r) {
+            $roleId = (int) $r['role_id'];
+            $validUsers = array_column(User::where(['is_active' => 1, 'role_id' => $roleId]), 'user_id');
+            $validUsers = array_map('intval', $validUsers);
+
+            $inputList = $this->request->list('role_users_' . $roleId);
+            $selectedIds = array_values(array_unique(array_filter(array_map('intval', $inputList))));
+
+            // Validate that all selected user IDs are valid active users of this role
+            if (array_diff($selectedIds, $validUsers)) {
+                $this->fail('Only active users of "' . $r['role_name'] . '" can be assigned to it.');
+            }
+
+            if (!empty($selectedIds)) {
+                $map[$roleId] = $selectedIds;
+            }
+        }
+
+        $by = Auth::id();
+        Database::transaction(static function () use ($schemeId, $map, $roleIdsWithStatus, $by): void {
+            // Deactivate existing assignments for eligible roles that are no longer selected
+            foreach (SchemeUser::where(['scheme_id' => $schemeId, 'is_active' => 1]) as $m) {
+                $roleId = (int) $m['role_id'];
+                $userId = (int) $m['user_id'];
+                if (in_array($roleId, $roleIdsWithStatus, true) && !in_array($userId, $map[$roleId] ?? [], true)) {
+                    SchemeUser::update($m['map_id'], ['is_active' => 0]);
+                }
+            }
+
+            // Insert new assignments or reactivate previously deactivated ones
+            foreach ($map as $roleId => $userIds) {
+                foreach ($userIds as $userId) {
+                    $existing = SchemeUser::first(['scheme_id' => $schemeId, 'role_id' => $roleId, 'user_id' => $userId]);
+                    if ($existing) {
+                        if (!$existing['is_active']) {
+                            SchemeUser::update($existing['map_id'], ['is_active' => 1]);
+                        }
+                    } else {
+                        SchemeUser::insert([
+                            'scheme_id'  => $schemeId,
+                            'role_id'    => $roleId,
+                            'user_id'    => $userId,
+                            'is_active'  => 1,
+                            'created_by' => $by,
+                        ]);
+                    }
+                }
+            }
+        });
+
+        Audit::log('SCHEME', $schemeId, 'MAPPED_USERS', null, ['mapping' => $map]);
+        $this->done('Role users assigned successfully for scheme "' . $scheme['scheme_name'] . '".');
+    }
 }

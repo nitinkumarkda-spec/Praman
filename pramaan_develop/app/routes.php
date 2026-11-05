@@ -43,6 +43,7 @@ $router->group(['csrf'], static function ($r): void {
         // every master (key = areas | plot-types | units | statuses | sectors | schemes), every action (do = save | toggle | delete);
         // the controller checks the exact permission (master.* or, for schemes, scheme.*)
         $r->post('/api/master', 'Master@handle', ['can:master.create,master.edit,master.toggle,master.delete,scheme.create,scheme.edit,scheme.toggle']);
+        $r->post('/api/scheme-users', 'Master@schemeUsers', ['can:scheme.edit']);
 
         $r->post('/api/publish-direction', 'Insight@publishDirection', ['can:direction.publish']);
         $r->post('/api/settings-save', 'Settings@save', ['can:settings.edit']);
@@ -53,7 +54,7 @@ $router->group(['csrf'], static function ($r): void {
 
         $r->post('/api/property-save', 'Property@save', ['can:property.create,property.edit']);
         $r->post('/api/oic-send', 'Verification@send', ['can:verification.send']);
-        $r->post('/api/task-respond', 'Task@respond', ['can:task.respond']);
+        $r->post('/api/task-respond', 'Task@respond');
     });
 });
 

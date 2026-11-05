@@ -33,9 +33,17 @@ final class RoleController extends Controller
         if (!isset(Section::FORMS[$form])) {
             $form = Section::GENERAL;
         }
+        $statusId = $this->id('status_id') ?: null;
+        if ($statusId) {
+            $st = \App\Models\Status::find($statusId);
+            if (!$st || !$st['is_active']) {
+                $this->fail('Please select an active status.', 'status_id');
+            }
+        }
         $isActive = $id === 1 ? 1 : ($this->request->input('is_active') === '1' ? 1 : 0);
         $data = [
             'role_name' => $d['role_name'],
+            'status_id' => $statusId,
             'verification_form' => $form,
             'role_name_hi' => $this->request->str('role_name_hi') ?: null,
             'description' => $d['description'] ?: null,

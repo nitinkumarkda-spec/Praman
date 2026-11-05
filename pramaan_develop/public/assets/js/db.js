@@ -162,7 +162,7 @@
                 .filter(function (r) {
                     return !DB.where('scheme_users', { scheme_id: schemeId, role_id: r.role_id, is_active: 1 }).some(function (m) {
                         const u = DB.find('users', m.user_id);
-                        return u && u.is_active && u.panel === 'ROLE_USER' && u.role_id === r.role_id;
+                        return u && u.is_active && Number(u.role_id) === Number(r.role_id);
                     });
                 }).map(function (r) { return r.role_name; });
         }
@@ -182,18 +182,25 @@
         /** role_id => user_ids currently mapped */
         mapping: function (schemeId) {
             const out = {};
-            DB.where('scheme_users', { scheme_id: Number(schemeId), is_active: 1 }).forEach(function (m) {
-                (out[m.role_id] = out[m.role_id] || []).push(m.user_id);
+            DB.where('scheme_users', function (m) {
+                return Number(m.scheme_id) === Number(schemeId) && Number(m.is_active) === 1;
+            }).forEach(function (m) {
+                (out[m.role_id] = out[m.role_id] || []).push(Number(m.user_id));
             });
             return out;
         },
-        /** Active roles with their active role users — the mapping form options. */
+        /** Active roles that have an assigned status, with their active users — the mapping form options. */
         roleUserOptions: function () {
-            return DB.where('roles', { is_active: 1 }).sort(function (a, b) { return a.sort_order - b.sort_order; }).map(function (r) {
+            return DB.where('roles', function (r) {
+                return Number(r.is_active) === 1 && r.status_id != null && Number(r.status_id) > 0;
+            }).sort(function (a, b) { return a.sort_order - b.sort_order; }).map(function (r) {
+                const st = DB.find('statuses', r.status_id);
                 return {
                     role: r,
-                    users: DB.where('users', { is_active: 1, panel: 'ROLE_USER', role_id: r.role_id })
-                        .sort(function (a, b) { return a.name.localeCompare(b.name); })
+                    status_name: st ? st.status_name : '',
+                    users: DB.where('users', function (u) {
+                        return Number(u.is_active) === 1 && Number(u.role_id) === Number(r.role_id);
+                    }).sort(function (a, b) { return a.name.localeCompare(b.name); })
                 };
             });
         }

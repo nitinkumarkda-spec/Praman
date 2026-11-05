@@ -14,6 +14,8 @@ final class VerificationController extends Controller
 
     public function send(): void
     {
+        $this->authorize('verification.send');
+
         $ids = array_values(array_unique(array_filter(array_map('intval', $this->request->list('ids')))));
         $reason = $this->request->str('reason');
         if (!$ids) {

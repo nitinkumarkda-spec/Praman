@@ -309,17 +309,21 @@
             '<th>Not Ready</th><th>Expired</th><th>Sold / Sent</th><th>Readiness %</th>' +
             '</tr></thead><tbody>' +
             rows.map(function (r, i) {
+                const isAdmin = Auth.check() && Number(Auth.user().role_id) === 1;
+                const schemeUrl = P.BASE + (isAdmin ? '/admin/masters/schemes/' : '/data-entry/schemes/') + r.scheme.scheme_id;
+                const propUrl = P.BASE + (isAdmin ? '/admin/masters/properties' : '/data-entry/properties') + '?scheme_id=' + r.scheme.scheme_id;
                 return '<tr>' +
                     '<td class="cell-no">' + (i + 1) + '</td>' +
-                    '<td><a href="' + P.BASE + '/admin/masters/schemes/' + r.scheme.scheme_id + '"><strong>' + e(r.scheme.scheme_name) + '</strong></a></td>' +
+                    '<td><a href="' + schemeUrl + '"><strong>' + e(r.scheme.scheme_name) + '</strong></a></td>' +
                     '<td>' + (L.SCHEME_TYPES[r.scheme.scheme_type] || r.scheme.scheme_type) + '</td>' +
                     '<td>' + r.sectorsCount + '</td>' +
-                    '<td><strong>' + r.total + '</strong></td>' +
-                    '<td>' + (r.listed ? '<span class="badge badge-info">' + r.listed + '</span>' : '0') + '</td>' +
-                    '<td>' + (r.underVf ? '<span class="badge badge-warning">' + r.underVf + '</span>' : '0') + '</td>' +
-                    '<td>' + (r.ready ? '<span class="badge badge-success">' + r.ready + '</span>' : '0') + '</td>' +
-                    '<td>' + (r.notReady ? '<span class="badge badge-danger">' + r.notReady + '</span>' : '0') + '</td>' +
-                    '<td>' + r.expired + '</td><td>' + r.sold + '</td>' +
+                    '<td><a href="' + propUrl + '" title="View all plots in ' + e(r.scheme.scheme_name) + '"><strong>' + r.total + '</strong></a></td>' +
+                    '<td>' + (r.listed ? '<a href="' + propUrl + '&status=' + ST.LISTED + '" title="View Listed plots"><span class="badge badge-info">' + r.listed + '</span></a>' : '0') + '</td>' +
+                    '<td>' + (r.underVf ? '<a href="' + propUrl + '&status=' + ST.UNDER_VERIFICATION + '" title="View Under Verification plots"><span class="badge badge-warning">' + r.underVf + '</span></a>' : '0') + '</td>' +
+                    '<td>' + (r.ready ? '<a href="' + propUrl + '&status=' + ST.AUCTION_READY + '" title="View Auction Ready plots"><span class="badge badge-success">' + r.ready + '</span></a>' : '0') + '</td>' +
+                    '<td>' + (r.notReady ? '<a href="' + propUrl + '&status=' + ST.NOT_READY + '" title="View Not Ready plots"><span class="badge badge-danger">' + r.notReady + '</span></a>' : '0') + '</td>' +
+                    '<td>' + (r.expired ? '<a href="' + propUrl + '&status=' + ST.EXPIRED + '" title="View Expired plots">' + r.expired + '</a>' : '0') + '</td>' +
+                    '<td>' + (r.sold ? '<a href="' + propUrl + '&status=' + ST.SOLD + '" title="View Sold plots">' + r.sold + '</a>' : '0') + '</td>' +
                     '<td><strong>' + r.readyPct + '%</strong></td>' +
                     '</tr>';
             }).join('') +

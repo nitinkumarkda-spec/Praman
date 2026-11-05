@@ -176,7 +176,7 @@
             else if (title === 'Sector Master') { listHref = P.BASE + BASE + '/sectors'; }
             else if (title === 'Schemes' || title === 'Scheme Master') { listHref = P.BASE + BASE + '/schemes'; }
         }
-        return '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="' + P.BASE + '/admin/dashboard">Home</a><span>/</span>' +
+        return '<nav class="ins-crumbs" aria-label="Breadcrumb"><a href="' + P.url(Auth.home ? Auth.home() : '/admin/dashboard') + '">Home</a><span>/</span>' +
             (last ? (listHref ? '<a href="' + listHref + '">' + e(title) + '</a>' : '<span>' + e(title) + '</span>') + '<span>/</span><strong>' + e(last) + '</strong>' : '<strong>' + e(title) + '</strong>') + '</nav>';
     }
 

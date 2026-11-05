@@ -226,39 +226,39 @@
         return {
             title: 'Dashboard',
             html: P.pageHeader('Welcome, ' + e(ctx.user.name), e(ctx.user.role_name || '') + ' — properties sent to you for verification.',
-                (can('task.view') ? '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>' : '')) +
+                '<a href="' + P.BASE + '/admin/masters/properties?status=MY_PENDING" class="btn btn-primary">' + icon('fa-clipboard-list') + ' <span>Pending tasks</span></a>') +
                 '<div class="stat-grid dash-stats">' +
-                P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', 'awaiting your response', P.url('/role/tasks', { status: 'pending' })) +
-                P.statCard('red', 'fa-stopwatch' + (c.overdue > 0 ? ' fa-shake' : ''), c.overdue, 'Overdue (SLA)', c.overdue > 0 ? 'action required now' : 'all SLA on track', P.url('/role/tasks', { status: 'overdue' })) +
-                P.statCard('green', 'fa-circle-check', c.approved, 'Approved by me', 'verified & approved', P.url('/role/tasks', { status: 'approved' })) +
-                P.statCard('navy', 'fa-circle-xmark', c.rejected, 'Rejected by me', 'objections raised', P.url('/role/tasks', { status: 'rejected' })) +
-                P.statCard('blue', 'fa-minus', c.closed, 'Not required', 'round closed by another section', P.url('/role/tasks', { status: 'closed' })) +
+                P.statCard('gold', 'fa-hourglass-half', c.pending, 'Pending', 'awaiting your response', P.BASE + '/admin/masters/properties?status=MY_PENDING') +
+                P.statCard('red', 'fa-stopwatch' + (c.overdue > 0 ? ' fa-shake' : ''), c.overdue, 'Overdue (SLA)', c.overdue > 0 ? 'action required now' : 'all SLA on track', P.BASE + '/admin/masters/properties?status=MY_PENDING') +
+                P.statCard('green', 'fa-circle-check', c.approved, 'Approved by me', 'verified & approved', P.BASE + '/admin/masters/properties') +
+                P.statCard('navy', 'fa-circle-xmark', c.rejected, 'Rejected by me', 'objections raised', P.BASE + '/admin/masters/properties') +
+                P.statCard('blue', 'fa-minus', c.closed, 'Not required', 'round closed by another section', P.BASE + '/admin/masters/properties') +
                 '</div>' +
                 grid('cols-3', P.chartCard('ch-mine', 'My tasks by status', 'fa-chart-pie', { sub: 'click a slice' }) +
                     P.chartCard('ch-scheme', 'My tasks by scheme', 'fa-map') +
                     P.chartCard('ch-sla', 'Pending — days to SLA', 'fa-stopwatch')) +
                 grid('cols-1', P.chartCard('ch-trend', 'Received vs responded — last 14 days', 'fa-chart-line', { height: 260 })) +
                 '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-fire') + ' Most urgent</h3>' +
-                '<a href="' + P.url('/role/tasks', { status: 'pending' }) + '" class="small">View all ' + icon('fa-arrow-right') + '</a></div><div class="card-body p-0">' +
+                '<a href="' + P.BASE + '/admin/masters/properties?status=MY_PENDING" class="small">View all ' + icon('fa-arrow-right') + '</a></div><div class="card-body p-0">' +
                 (urgent.length ? '<ul class="activity-list">' + urgent.map(function (x) {
                     const late = x.sla_due_date < t;
                     return '<li><span class="activity-icon">' + icon('fa-building') + '</span><div class="activity-body">' +
-                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.plot_type_id] || '') + '</a>' +
+                        '<a href="' + P.BASE + '/admin/masters/properties/' + x.property.property_id + '"><strong>Plot ' + e(x.property.plot_no) + '</strong> · ' + e(L.PROPERTY_TYPES[x.property.plot_type_id] || '') + '</a>' +
                         '<span class="text-muted">' + e(x.scheme.scheme_name + (x.sector ? ' / ' + x.sector.sector_name : '')) + ' · R' + x.round_no + '</span>' +
                         '<small class="' + (late ? 'text-danger' : 'text-muted') + '"><i class="fa-regular fa-clock" aria-hidden="true"></i> Due ' + e(P.fmt_date(x.sla_due_date)) + (late ? ' — overdue' : '') + '</small></div>' +
-                        '<a href="' + P.BASE + '/role/tasks/' + x.task_id + '" class="btn btn-primary btn-sm ml-auto">' + icon('fa-clipboard-check') + ' <span>Verify</span></a></li>';
+                        '<button type="button" class="btn btn-primary btn-sm ml-auto" data-update-status="' + x.task_id + '" data-plot-no="' + e(x.property.plot_no) + '" data-scheme-name="' + e(x.scheme.scheme_name) + '" data-sector-name="' + e(x.sector ? x.sector.sector_name : '') + '" data-role-name="' + e(ctx.user.role_name || '') + '" data-status-name="' + e(P.statusName(x.property.status_id)) + '" data-current-status-id="' + x.property.status_id + '" data-property-id="' + x.property.property_id + '">' + icon('fa-pen-to-square') + ' <span>Update Status</span></button></li>';
                 }).join('') + '</ul>' : '<div class="empty-state compact">' + icon('fa-mug-hot', 'empty-icon') + '<p class="empty-title">No pending task</p><p class="text-muted">New properties sent by the OIC will appear here.</p></div>') +
                 '</div></div>' + P.activity(P.recentActivity(8, me), 'My recent activity') + '</div>',
             after: function () {
                 const keys = ['PENDING', 'APPROVED', 'REJECTED', 'NOT_REQUIRED'];
                 const tab = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected', NOT_REQUIRED: 'closed' };
                 P.pie('ch-mine', keys.map(P.label), keys.map(function (k) { return all.filter(function (x) { return x.view === k; }).length; }),
-                    [C.amber, C.green, C.red, C.slate], true, function (i) { P.go('/role/tasks', { status: tab[keys[i]] }); });
+                    [C.amber, C.green, C.red, C.slate], true, function (i) { P.go('/admin/masters/properties', { status: 'MY_PENDING' }); });
                 const sch = DB.all('schemes');
                 P.bars('ch-scheme', sch.map(function (s) { return s.scheme_name; }), [
                     { label: 'Pending', data: sch.map(function (s) { return pending.filter(function (x) { return x.scheme.scheme_id === s.scheme_id; }).length; }), backgroundColor: C.amber },
                     { label: 'Responded', data: sch.map(function (s) { return all.filter(function (x) { return x.scheme.scheme_id === s.scheme_id && x.task_status !== 'PENDING'; }).length; }), backgroundColor: C.green }
-                ], { stacked: true, onClick: function (i) { P.go('/role/tasks', { scheme_id: sch[i].scheme_id }); } });
+                ], { stacked: true, onClick: function (i) { P.go('/admin/masters/properties', { scheme_id: sch[i].scheme_id, status: 'MY_PENDING' }); } });
                 const buckets = { 'Overdue': 0, 'Due today': 0, '1–3 days': 0, '4+ days': 0 };
                 pending.forEach(function (x) {
                     const d = Math.round((new Date(x.sla_due_date + 'T00:00:00') - new Date(t + 'T00:00:00')) / 864e5);

@@ -21,6 +21,7 @@ USE pramaan_db;
 CREATE TABLE roles (
     role_id       INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     role_name     VARCHAR(100)      NOT NULL,
+    status_id     INT UNSIGNED      NULL,
     verification_form ENUM('GENERAL','SALE','AUCTION','SITE') NOT NULL DEFAULT 'GENERAL',  -- the check this section fills
     role_name_hi  VARCHAR(100)      NULL,
     description   VARCHAR(255)      NULL,
@@ -34,7 +35,9 @@ CREATE TABLE roles (
     updated_at    DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (role_id),
     UNIQUE KEY uq_roles_name (role_name),
+    KEY ix_roles_status (status_id),
     KEY ix_roles_active (is_active, sort_order),
+    CONSTRAINT fk_roles_status FOREIGN KEY (status_id) REFERENCES statuses (status_id) ON DELETE SET NULL,
     CONSTRAINT ck_roles_sla CHECK (sla_days BETWEEN 1 AND 365)
 ) ENGINE=InnoDB;
 

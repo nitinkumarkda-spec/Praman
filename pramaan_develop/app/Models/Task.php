@@ -29,7 +29,7 @@ final class Task extends Model
     public static function overdueFor(int $userId, string $today): array
     {
         return static::castAll(Database::all(
-            "SELECT t.task_id, t.sla_due_date, p.plot_no FROM {task_assignees} a
+            "SELECT t.task_id, t.sla_due_date, p.plot_no, p.property_id FROM {task_assignees} a
              JOIN {tasks} t ON t.task_id = a.task_id JOIN {rounds} r ON r.round_id = t.round_id JOIN {properties} p ON p.property_id = r.property_id
              WHERE a.user_id = ? AND t.task_status = ? AND r.round_status = ? AND t.sla_due_date < ?",
             [$userId, TaskStatus::PENDING, RoundStatus::OPEN, $today]

@@ -56,10 +56,6 @@ final class Permissions
             'verification.view' => ['View properties for verification'],
             'verification.send' => ['Send / re-send for verification'],
         ]],
-        'task' => ['My Tasks (verification inspections)', 'fa-clipboard-list', [
-            'task.view'    => ['View assigned tasks'],
-            'task.respond' => ['Submit verification response'],
-        ]],
         'audit' => ['Activity & Audit', 'fa-chart-line', [
             'audit.view'        => ['View activity & audit'],
             'direction.publish' => ['Publish directions'],
