@@ -611,12 +611,64 @@ body .stat-grid.dash-stats {
     .table td.actions .btn-group { flex-wrap: nowrap; }
     .table td.actions .btn span { display: none; }      /* icon-only buttons on phones */
     .table td.actions .btn { width: 32px; min-width: 32px; padding: 0; justify-content: center; }
-    .table-scroll-hint { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px 12px; font-size: 12px; color: var(--text-muted);
-        background: var(--navy-50); border-bottom: 1px solid var(--border); }
-    .table-scroll-hint i { animation: hintSwipe 1.6s ease-in-out infinite; color: var(--navy-600); }
-    .table-scroll-hint[hidden] { display: none; }
 }
-@media (min-width: 768px) { .table-scroll-hint { display: none; } }
+/* swipe hint: shown on any screen (phone, iPad, small laptop) while the table is wider than its box — js/tables.js hides it otherwise */
+.table-scroll-hint { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 6px 12px; font-size: 12px; color: var(--text-muted);
+    background: var(--navy-50); border-bottom: 1px solid var(--border); }
+.table-scroll-hint i { animation: hintSwipe 1.6s ease-in-out infinite; color: var(--navy-600); }
+.table-scroll-hint[hidden] { display: none; }
+/* "no records" message stays in view (not centred on the full scroll width) when the table scrolls sideways */
+.table-wrap .table tbody tr.empty-row > td { padding: 0; }
+.table-wrap .empty-row .empty-state { position: sticky; left: 0; width: var(--wrap-w, 100%); max-width: 100vw; }
+/* verification card keeps a readable width on iPad / laptop instead of being squeezed */
+.table td.cell-vf { min-width: 190px; }
+
+/* compact verification card on phones + iPad: count + bar on one line, notes below → shorter rows */
+@media (max-width: 1199.98px) {
+    .table td.cell-vf .vf { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 8px; max-width: 230px; padding: 6px 8px; }
+    .table td.cell-vf .vf-head { gap: 6px; }
+    .table td.cell-vf .vf-count strong { font-size: 15px; }
+    .table td.cell-vf .vf-round { margin-left: 0; }
+    .table td.cell-vf .vf-bar { margin-top: 0; }
+    .table td.cell-vf .vf-notes { grid-column: 1 / -1; margin-top: 2px; white-space: normal; }
+    .table td.cell-vf .vf-empty { display: flex; }
+}
+/* ---------- Property register on phones: narrow checkbox column, Plot no. stays fixed beside it, verification card has a set width ---------- */
+@media (max-width: 767.98px) {
+    .table th.cell-check, .table tbody tr > td.cell-check:first-child { width: 40px; min-width: 40px; max-width: 40px; padding-left: 10px; padding-right: 6px; box-shadow: none; }
+    .table th.cell-check + th.cell-no, .table td.cell-check + td.cell-no { padding-left: 6px; }
+    .table tbody tr > td.cell-no:first-child { min-width: 0; }
+    .table thead th.cell-check ~ th.cell-title, .table tbody td.cell-check ~ td.cell-title {
+        position: sticky; left: 40px; z-index: 2; min-width: 84px; background: var(--surface);
+        box-shadow: 1px 0 0 var(--border), 6px 0 8px -6px rgba(15, 43, 82, .18);
+    }
+    .table thead th.cell-check ~ th.cell-title { z-index: 3; background: var(--navy-50); }
+    .table tbody tr.row-success > td.cell-title { background: #f0fdf4; }
+    .table tbody tr.row-danger > td.cell-title { background: #fef2f2; }
+    .table tbody tr.row-warning > td.cell-title { background: #fffaeb; }
+    .table td.cell-vf { min-width: 210px; white-space: normal; }
+
+    /* stat cards in a 2-up phone grid: labels wrap instead of being cut with "…" */
+    .stat-card { padding: 14px 10px 14px 14px; gap: 10px; min-height: 0; }
+    .stat-icon { width: 38px; height: 38px; flex: 0 0 38px; font-size: 16px; border-radius: 10px; }
+    .stat-value { font-size: 22px; white-space: normal; overflow-wrap: anywhere; }
+    .stat-label, .stat-sub { white-space: normal; overflow: visible; text-overflow: clip; }
+    .stat-label { font-size: 12.5px; line-height: 1.3; }
+    .stat-sub { font-size: 11px; line-height: 1.35; }
+
+    /* report tabs: one swipeable row instead of four stacked rows */
+    body .report-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: -2px; margin-right: -2px; padding: 2px 2px 10px; }
+    body .report-tabs::-webkit-scrollbar { display: none; }
+    body .report-tab { flex: 0 0 auto; white-space: nowrap; padding: 8px 14px; }
+
+    /* dashboard section-outcome tiles: 2 × 2 */
+    .so-sum { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .so-row { grid-template-columns: 96px minmax(0, 1fr) 32px; }
+}
+@media (min-width: 768px) and (max-width: 1199.98px) {
+    .so-tile { padding: 8px; }
+    .so-tile span { font-size: 11px; gap: 4px; }
+}
 @keyframes hintSwipe { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(5px); } }
 
 /* ---------- Notifications ---------- */

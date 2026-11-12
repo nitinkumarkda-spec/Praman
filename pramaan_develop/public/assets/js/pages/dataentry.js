@@ -1052,8 +1052,8 @@
                     (can ? '<input type="checkbox" name="ids[]" value="' + r.property_id + '" aria-label="Select plot ' + e(r.plot_no) + '" data-status="' + st + '">'
                         : '<input type="checkbox" disabled aria-label="Not sendable">') + '</td>' : '') +
                 '<td data-label="S.No" class="cell-no">' + (p.from() + i) + '</td>' +
-                '<td data-label="Plot no."><a href="' + view + '"><strong>' + e(r.plot_no) + '</strong></a>' + (r.is_corner ? '<span class="cell-sub">Corner</span>' : '') + '</td>' +
-                '<td data-label="Scheme">' + e(r.scheme_name) + '</td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
+                '<td data-label="Plot no." class="cell-title"><a href="' + view + '"><strong>' + e(r.plot_no) + '</strong></a>' + (r.is_corner ? '<span class="cell-sub">Corner</span>' : '') + '</td>' +
+                '<td data-label="Scheme" class="nowrap">' + e(r.scheme_name) + '</td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
                 '<td data-label="Plot type">' + e(r.type_name) + '</td>' +
                 '<td data-label="Area" class="nowrap">' + P.areaCell(r) + '</td>' +
                 '<td data-label="Verification" class="cell-vf">' + verificationCell(r) + '</td>' +
@@ -1108,7 +1108,7 @@
                 bulkBar +
                 '<div class="table-wrap"><table class="table table-stack"><thead><tr>' +
                 (canSend ? '<th class="cell-check"><input type="checkbox" data-check-all="ids[]" aria-label="Select all sendable properties"></th>' : '') +
-                '<th class="cell-no">S.No</th>' + P.th_sort(p, 'plot', 'Plot no.') + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'sector', 'Sector') +
+                '<th class="cell-no">S.No</th>' + P.th_sort(p, 'plot', 'Plot no.', 'cell-title') + P.th_sort(p, 'scheme', 'Scheme') + P.th_sort(p, 'sector', 'Sector') +
                 P.th_sort(p, 'type', 'Plot type') + P.th_sort(p, 'area', 'Area') + '<th class="cell-vf">Verification</th>' +
                 P.th_sort(p, 'status', 'Status') + '<th class="text-right">Actions</th></tr></thead><tbody>' +
                 (rows || P.empty_state(colCount, p.hasFilters(), 'No properties found')) +

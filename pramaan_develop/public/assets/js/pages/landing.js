@@ -117,7 +117,7 @@
     function hero() {
         const sections = DB.count('roles', { is_active: 1 });
         return '<main class="lp-hero" id="lp-main"><div class="lp-container lp-hero-grid"><div class="lp-copy">' +
-            '<p class="lp-eyebrow anim-fade-up"><span class="lp-eyebrow-tag">' + icon('fa-shield-halved') + ' ' + e(P.APP.org_short) + '</span>' + e(S('hero_eyebrow', '')) + '</p>' +
+            '<p class="lp-eyebrow anim-fade-up"><span class="lp-eyebrow-tag">' + icon('fa-shield-halved') + ' ' + e(P.APP.org_short) + '</span><span class="lp-eyebrow-text">' + e(S('hero_eyebrow', '')) + '</span></p>' +
             '<h1 class="lp-title anim-fade-up lp-d1">' + e(S('hero_line1', '')) + '<br><span class="lp-accent">' + e(S('hero_line2', '')) + '<br>' + e(S('hero_line3', '')) + '</span></h1>' +
             '<p class="lp-lead anim-fade-up lp-d2"><strong>' + e(P.APP.name) + '</strong> brings Data Entry, OIC Auction and ' + (sections ? 'all ' + sections : 'every') +
             ' verification sections of the ' + e(P.APP.org) + ' onto one secure, fully audited workflow.</p>' +

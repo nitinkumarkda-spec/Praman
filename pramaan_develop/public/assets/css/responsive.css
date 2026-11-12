@@ -126,7 +126,8 @@
     .decision-row { grid-template-columns: 1fr; }
     .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }
     .tab { white-space: nowrap; }
-    .activity-list li { flex-wrap: wrap; }
+    .activity-list li { padding: 12px 14px; }
+    .activity-body { flex: 1 1 0; }
 }
 
 @media (max-width: 575.98px) {

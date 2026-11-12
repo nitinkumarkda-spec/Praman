@@ -6,6 +6,7 @@
 
     function sync(wrap) {
         const hint = wrap.previousElementSibling && wrap.previousElementSibling.classList.contains('table-scroll-hint') ? wrap.previousElementSibling : null;
+        wrap.style.setProperty('--wrap-w', wrap.clientWidth + 'px');
         if (!hint) { return; }
         const overflow = wrap.scrollWidth - wrap.clientWidth > 4;
         const atEnd = wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 4;

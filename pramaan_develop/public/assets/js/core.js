@@ -431,7 +431,7 @@
             : '<small class="stat-sub stat-sub-empty" aria-hidden="true">&nbsp;</small>';
         const inner = '<span class="stat-icon">' + icon(ic) + '</span>' +
             '<div class="stat-content">' +
-                '<p class="stat-value">' + fmt_num(value) + '</p>' +
+                '<p class="stat-value">' + (typeof value === 'number' || /^-?\d+(\.\d+)?$/.test(String(value)) ? fmt_num(value) : e(String(value))) + '</p>' +
                 '<p class="stat-label" data-tooltip="' + e(text) + '">' + e(text) + '</p>' +
                 subHtml +
             '</div>';

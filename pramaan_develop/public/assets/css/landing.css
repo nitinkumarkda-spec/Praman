@@ -89,6 +89,9 @@
     flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px;
     background: linear-gradient(135deg, #f8cf5a, #e9a91c); color: var(--navy-900); font-size: 12px; font-weight: 700; letter-spacing: .06em;
 }
+/* label stays on a single line; shrinks on phones and ellipsises only as a last resort */
+.lp-eyebrow { max-width: 100%; white-space: nowrap; }
+.lp-eyebrow-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .lp-title { margin-top: 24px; font-family: inherit; font-size: clamp(34px, 3.4vw, 48px); font-weight: 700; line-height: 1.14; letter-spacing: -.02em; color: var(--lp-ink); }
 /* blue text with a gold highlighter stroke under each line */
 .lp-accent {
@@ -342,7 +345,8 @@ html.lp-lock { overflow: hidden; }
     .lp-header .lp-btn { min-height: 40px; padding: 9px 16px; font-size: 14px; }
     .lp-hero { padding: 108px 0 48px; }
     .lp-hero::before { display: none; }
-    .lp-eyebrow { gap: 10px; font-size: 12px; }
+    .lp-eyebrow { gap: 8px; padding: 4px 12px 4px 4px; font-size: min(12px, 3.1vw); letter-spacing: -.01em; }
+    .lp-eyebrow-tag { gap: 5px; padding: 4px 9px; font-size: min(11px, 2.9vw); letter-spacing: .04em; }
     .lp-title { font-size: 34px; }
     .lp-cta .lp-btn { flex: 1 1 100%; }
     .lp-slider::after { top: -18px; right: -12px; width: 96px; height: 96px; }

@@ -69,6 +69,11 @@
             plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 8, padding: 14 } }, tooltip: { padding: 10 } }
         }, extra || {});
     }
+    function pieLegendPos(id) {
+        const el = document.getElementById(id);
+        const box = el && el.parentElement;
+        return box && box.clientWidth && box.clientWidth < 460 ? 'bottom' : 'right';
+    }
     P.pie = function (id, labels, data, colors, doughnut, onClick) {
         const total = data.reduce(function (s, v) { return s + v; }, 0);
         return P.makeChart(id, {
@@ -78,8 +83,13 @@
                 cutout: doughnut === false ? 0 : '62%',
                 onClick: onClick ? function (ev, els) { if (els.length) { onClick(els[0].index); } } : undefined,
                 onHover: onClick ? function (ev, els) { ev.native.target.style.cursor = els.length ? 'pointer' : 'default'; } : undefined,
+                // narrow card (phone / iPad 2-column): legend under the donut so long status names are not cut
+                onResize: function (chart, size) {
+                    const pos = size.width < 460 ? 'bottom' : 'right';
+                    if (chart.options.plugins.legend.position !== pos) { chart.options.plugins.legend.position = pos; chart.update('none'); }
+                },
                 plugins: {
-                    legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 10 } },
+                    legend: { position: pieLegendPos(id), labels: { usePointStyle: true, boxWidth: 8, padding: 10 } },
                     tooltip: { callbacks: { label: function (c) { return ' ' + c.label + ': ' + c.parsed + ' (' + (total ? Math.round(c.parsed * 100 / total) : 0) + '%)'; } } }
                 }
             })
