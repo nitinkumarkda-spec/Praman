@@ -37,9 +37,17 @@ foreach (SchemaTool::tables() as $key => $create) {
     }
 }
 
+// renamed columns: [table key, old name, new name, new definition]
+foreach ([['schemes', 'area_registration_no', 'rera_registration_no', 'VARCHAR(30) NULL']] as [$key, $old, $new, $def]) {
+    $q = static fn (string $c) => $pdo->query('SHOW COLUMNS FROM ' . Table::q($key) . ' LIKE ' . $pdo->quote($c))->fetch();
+    if ($q($old) && !$q($new)) {
+        $pdo->exec('ALTER TABLE ' . Table::q($key) . ' CHANGE `' . $old . '` `' . $new . '` ' . $def);
+        echo '  ~ ' . Table::name($key) . ".{$old} → {$new}\n";
+    }
+}
+
 // columns added after the first release: [table key, column, definition]
 foreach ([['notifications', 'deleted_at', 'DATETIME NULL AFTER read_at'],
-             ['properties', 'reserve_price', 'DECIMAL(14,2) NULL AFTER remarks'],
              ['site_inspections', 'length_value', 'DECIMAL(10,2) NULL AFTER task_id'],
              ['site_inspections', 'width_value', 'DECIMAL(10,2) NULL AFTER length_value'],
              ['site_inspections', 'encroachment_type', "ENUM('PARTIAL','COMPLETE') NULL AFTER encroachment"],
@@ -49,7 +57,21 @@ foreach ([['notifications', 'deleted_at', 'DATETIME NULL AFTER read_at'],
              ['site_inspections', 'latitude', 'DECIMAL(10,8) NULL AFTER is_corner'],
              ['site_inspections', 'longitude', 'DECIMAL(11,8) NULL AFTER latitude'],
              ['properties', 'sector_key', 'INT UNSIGNED AS (IFNULL(sector_id, 0)) STORED AFTER sector_id'],
-             ['properties', 'is_corner', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER area_sqm']] as [$key, $col, $def]) {
+             ['properties', 'is_corner', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER area_sqm'],
+             ['developer_types', 'default_developer', 'VARCHAR(150) NULL AFTER name'],
+             ['schemes', 'developer_type_id', 'INT UNSIGNED NULL AFTER area_id'],
+             ['schemes', 'developer_name', 'VARCHAR(150) NULL AFTER developer_type_id'],
+             ['schemes', 'scheme_landmark', 'VARCHAR(255) NULL AFTER scheme_name'],
+             ['schemes', 'plot_type_id', 'INT UNSIGNED NULL AFTER scheme_landmark'],
+             ['schemes', 'approve_date', 'DATE NULL AFTER developer_name'],
+             ['schemes', 'rera_registration_no', 'VARCHAR(30) NULL AFTER approve_date'],
+             ['schemes', 'reserve_price', 'DECIMAL(14,2) NULL AFTER plot_type_id'],
+             ['attachments', 'scheme_id', 'INT UNSIGNED NULL AFTER property_id'],
+             ['properties', 'sub_plot_type_id', 'INT UNSIGNED NULL AFTER plot_no'], // plot_no always exists (plot_type_id comes later on very old databases)
+             ['properties', 'facing', "ENUM('EAST','NORTH','NORTH_EAST','NORTH_WEST','SOUTH','SOUTH_EAST','SOUTH_WEST','WEST') NULL AFTER sub_plot_type_id"],
+             ['properties', 'road_type_id', 'INT UNSIGNED NULL AFTER facing'],
+             ['properties', 'latitude', 'DECIMAL(10,8) NULL AFTER is_corner'],
+             ['properties', 'longitude', 'DECIMAL(11,8) NULL AFTER latitude']] as [$key, $col, $def]) {
     if (!$pdo->query('SHOW COLUMNS FROM ' . Table::q($key) . ' LIKE ' . $pdo->quote($col))->fetch()) {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' ADD COLUMN `' . $col . '` ' . $def);
         echo '  + added ' . Table::name($key) . ".{$col}\n";
@@ -71,7 +93,8 @@ $nullable = $pdo->prepare('SELECT IS_NULLABLE FROM information_schema.COLUMNS WH
 foreach ([['properties', 'sector_id', 'INT UNSIGNED NULL'], ['properties', 'area_value', 'DECIMAL(12,2) NULL'],
              ['properties', 'area_unit', 'VARCHAR(20) NULL'], ['properties', 'area_sqm', 'DECIMAL(14,4) NULL'],
              ['site_inspections', 'recorded_value', 'DECIMAL(12,2) NULL'], ['site_inspections', 'recorded_unit', 'VARCHAR(20) NULL'],
-             ['site_inspections', 'variance', "ENUM('SAME','LESS','MORE') NULL"]] as [$key, $col, $def]) {
+             ['site_inspections', 'variance', "ENUM('SAME','LESS','MORE') NULL"],
+             ['attachments', 'property_id', 'INT UNSIGNED NULL']] as [$key, $col, $def]) { // a scheme's site plan has no property
     $nullable->execute([Table::name($key), $col]);
     if ($nullable->fetchColumn() === 'NO') {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' MODIFY `' . $col . '` ' . $def);
@@ -132,7 +155,7 @@ if ($hasCol('statuses', 'code')) {
 // [table key, old code column, new id column, its definition, master table key, master id, old FK, index on the old column]
 foreach ([['properties', 'property_type', 'plot_type_id', 'INT UNSIGNED NULL AFTER plot_no', 'plot_types', 'plot_type_id', 'fk_properties_type', null],
              ['properties', 'area_unit', 'unit_id', 'INT UNSIGNED NULL AFTER area_value', 'units', 'unit_id', 'fk_properties_unit', null],
-             ['properties', 'current_status', 'status_id', 'INT UNSIGNED NULL AFTER reserve_price', 'statuses', 'status_id', 'fk_properties_status', 'ix_properties_status'],
+             ['properties', 'current_status', 'status_id', 'INT UNSIGNED NULL AFTER remarks', 'statuses', 'status_id', 'fk_properties_status', 'ix_properties_status'],
              ['site_inspections', 'area_unit', 'unit_id', 'INT UNSIGNED NULL AFTER area_value', 'units', 'unit_id', 'fk_site_inspections_unit', null],
              ['site_inspections', 'recorded_unit', 'recorded_unit_id', 'INT UNSIGNED NULL AFTER recorded_value', 'units', 'unit_id', 'fk_site_inspections_recorded_unit', null]]
          as [$key, $old, $new, $def, $master, $mid, $oldFk, $oldIndex]) {
@@ -170,6 +193,36 @@ if (!$hasCol('roles', 'verification_form')) {
     echo "  + roles.verification_form\n";
 }
 $dropCheck('schemes', 'ck_schemes_year');
+// Scheme Type Master: schemes.scheme_type used to be a fixed ENUM. Its values (and any value a scheme holds)
+// become rows of scheme_types, the schemes are linked by scheme_type_id and the ENUM column goes.
+if ($hasCol('schemes', 'scheme_type')) {
+    $col = $pdo->query('SHOW COLUMNS FROM ' . Table::q('schemes') . " LIKE 'scheme_type'")->fetch(PDO::FETCH_ASSOC);
+    preg_match_all("/'((?:[^']|'')*)'/", (string) $col['Type'], $m);
+    $codes = array_values(array_unique(array_merge(array_map(static fn ($v) => str_replace("''", "'", $v), $m[1]),
+        $pdo->query('SELECT DISTINCT scheme_type FROM ' . Table::q('schemes') . ' WHERE scheme_type IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN))));
+    $label = static fn (string $code): string => ucwords(strtolower(str_replace('_', ' ', $code)));
+    $find = $pdo->prepare('SELECT scheme_type_id FROM ' . Table::q('scheme_types') . ' WHERE name = ?');
+    $add = $pdo->prepare('INSERT INTO ' . Table::q('scheme_types') . ' (name, sort_order, is_active, is_system) VALUES (?, ?, 1, 0)');
+    $ids = [];
+    foreach ($codes as $i => $code) {
+        $find->execute([$label($code)]);
+        $id = $find->fetchColumn();
+        if ($id === false) {
+            $add->execute([$label($code), $i + 1]);
+            $id = $pdo->lastInsertId();
+        }
+        $ids[$code] = (int) $id;
+    }
+    if (!$hasCol('schemes', 'scheme_type_id')) {
+        $pdo->exec('ALTER TABLE ' . Table::q('schemes') . ' ADD COLUMN scheme_type_id INT UNSIGNED NULL AFTER scheme_name');
+    }
+    $set = $pdo->prepare('UPDATE ' . Table::q('schemes') . ' SET scheme_type_id = ? WHERE scheme_type = ?');
+    foreach ($ids as $code => $id) {
+        $set->execute([$id, $code]);
+    }
+    $pdo->exec('ALTER TABLE ' . Table::q('schemes') . ' DROP COLUMN scheme_type, MODIFY scheme_type_id INT UNSIGNED NOT NULL');
+    echo '  ~ schemes.scheme_type → scheme_type_id (' . count($ids) . " scheme types)\n";
+}
 // [table key, column, its unique index]
 foreach ([['roles', 'role_code', 'uq_roles_code'], ['areas', 'area_code', 'uq_areas_code'], ['plot_types', 'code', 'uq_plot_types_code'],
              ['statuses', 'code', 'uq_statuses_code'], ['units', 'code', 'uq_units_code'], ['schemes', 'scheme_code', 'uq_schemes_code'],
@@ -187,7 +240,15 @@ foreach ([['roles', 'role_code', 'uq_roles_code'], ['areas', 'area_code', 'uq_ar
 foreach ([['properties', 'fk_properties_type', 'FOREIGN KEY (plot_type_id) REFERENCES ' . Table::q('plot_types') . ' (plot_type_id) ON DELETE RESTRICT'],
              ['properties', 'fk_properties_unit', 'FOREIGN KEY (unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
              ['properties', 'fk_properties_status', 'FOREIGN KEY (status_id) REFERENCES ' . Table::q('statuses') . ' (status_id) ON DELETE RESTRICT'],
-             ['properties', 'ck_properties_price', 'CHECK (reserve_price IS NULL OR reserve_price > 0)'],
+             ['schemes', 'fk_schemes_scheme_type', 'FOREIGN KEY (scheme_type_id) REFERENCES ' . Table::q('scheme_types') . ' (scheme_type_id) ON DELETE RESTRICT'],
+             ['schemes', 'fk_schemes_plot_type', 'FOREIGN KEY (plot_type_id) REFERENCES ' . Table::q('plot_types') . ' (plot_type_id) ON DELETE RESTRICT'],
+             ['schemes', 'fk_schemes_developer_type', 'FOREIGN KEY (developer_type_id) REFERENCES ' . Table::q('developer_types') . ' (developer_type_id) ON DELETE RESTRICT'],
+             ['schemes', 'ck_schemes_price', 'CHECK (reserve_price IS NULL OR reserve_price > 0)'],
+             ['properties', 'fk_properties_sub_type', 'FOREIGN KEY (sub_plot_type_id) REFERENCES ' . Table::q('sub_plot_types') . ' (sub_plot_type_id) ON DELETE RESTRICT'],
+             ['properties', 'fk_properties_road', 'FOREIGN KEY (road_type_id) REFERENCES ' . Table::q('road_types') . ' (road_type_id) ON DELETE RESTRICT'],
+             ['properties', 'ck_properties_geo', 'CHECK ((latitude IS NULL) = (longitude IS NULL))'],
+             ['attachments', 'fk_attachments_scheme', 'FOREIGN KEY (scheme_id) REFERENCES ' . Table::q('schemes') . ' (scheme_id) ON DELETE RESTRICT'],
+             ['attachments', 'ck_attachments_owner', 'CHECK (property_id IS NOT NULL OR scheme_id IS NOT NULL)'],
              ['properties', 'ck_properties_area_unit', 'CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))'],
              ['site_inspections', 'fk_site_inspections_unit', 'FOREIGN KEY (unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
              ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT']] as [$key, $name, $def]) {
@@ -210,6 +271,45 @@ if ($c && strtolower((string) $c['Type']) !== 'varchar(300)') {
 }
 
 // removed features: dropped only while they hold no data, otherwise reported and kept
+// Facing is a fixed list (properties.facing), no longer a master: facing_id → facing, then the facings table and its permissions go
+if ($hasCol('properties', 'facing_id')) {
+    $names = $pdo->query("SHOW TABLES LIKE 'facings'")->fetch()
+        ? $pdo->query('SELECT facing_id, name FROM `facings`')->fetchAll(PDO::FETCH_KEY_PAIR) : [];
+    $codeOf = array_flip(array_map('strtolower', \App\Core\Lookups::FACINGS)); // "north-east" => NORTH_EAST
+    $set = $pdo->prepare('UPDATE ' . Table::q('properties') . ' SET facing = ? WHERE facing_id = ?');
+    $unknown = [];
+    foreach ($pdo->query('SELECT DISTINCT facing_id FROM ' . Table::q('properties') . ' WHERE facing_id IS NOT NULL')->fetchAll(PDO::FETCH_COLUMN) as $fid) {
+        $code = $codeOf[strtolower((string) ($names[$fid] ?? ''))] ?? null;
+        if ($code) {
+            $set->execute([$code, $fid]);
+        } else {
+            $unknown[] = $names[$fid] ?? '#' . $fid;
+        }
+    }
+    if ($unknown) {
+        echo '  ! properties.facing_id kept: "' . implode('", "', $unknown) . "\" is not in the fixed facing list\n";
+    } else {
+        $dropFk('properties', 'fk_properties_facing');
+        $pdo->exec('ALTER TABLE ' . Table::q('properties') . ' DROP COLUMN facing_id');
+        echo "  ~ properties.facing_id → facing (fixed list)\n";
+    }
+}
+if (!$hasCol('properties', 'facing_id') && $pdo->query("SHOW TABLES LIKE 'facings'")->fetch()) {
+    $pdo->exec('DROP TABLE `facings`');
+    $pdo->exec("DELETE FROM " . Table::q('role_permissions') . " WHERE permission LIKE 'facing.%'");
+    $pdo->exec("DELETE FROM " . Table::q('user_permissions') . " WHERE permission LIKE 'facing.%'");
+    echo "  - removed the Facing master (table facings and its permissions)\n";
+}
+// reserve price moved from the property to its scheme (Scheme form)
+if ($hasCol('properties', 'reserve_price')) {
+    if ((int) $pdo->query('SELECT COUNT(*) FROM ' . Table::q('properties') . ' WHERE reserve_price IS NOT NULL')->fetchColumn() === 0) {
+        $dropCheck('properties', 'ck_properties_price');
+        $pdo->exec('ALTER TABLE ' . Table::q('properties') . ' DROP COLUMN reserve_price');
+        echo "  - removed properties.reserve_price (now on the scheme)\n";
+    } else {
+        echo "  ! properties.reserve_price kept: it holds data — move it to the schemes, then run again\n";
+    }
+}
 $c = array_column($pdo->query('SHOW COLUMNS FROM ' . Table::q('section_checks'))->fetchAll(PDO::FETCH_ASSOC), 'Field');
 if (array_intersect(['is_mutated', 'mutation_name', 'mutation_date'], $c)) {
     if ((int) $pdo->query('SELECT COUNT(*) FROM ' . Table::q('section_checks') . ' WHERE is_mutated IS NOT NULL OR mutation_name IS NOT NULL OR mutation_date IS NOT NULL')->fetchColumn() === 0) {

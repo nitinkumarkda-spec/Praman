@@ -8,11 +8,16 @@ use App\Core\Controller;
 use App\Core\Database;
 use App\Core\Lookups;
 use App\Core\Request;
+use App\Core\Validator;
 use App\Models\Area;
+use App\Models\DeveloperType;
 use App\Models\PlotType;
 use App\Models\Property;
 use App\Models\Role;
 use App\Models\Scheme;
+use App\Models\RoadType;
+use App\Models\SchemeType;
+use App\Models\SubPlotType;
 use App\Models\SchemeUser;
 use App\Models\Sector;
 use App\Models\SiteInspection;
@@ -20,10 +25,12 @@ use App\Models\Status;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\Audit;
+use App\Services\PropertyService;
+use App\Services\Uploads;
 
 /**
  * Every master (Area, Plot Type, Unit, Status, Sector, Scheme) through ONE action:
- *   POST /api/master   key = areas | plot-types | units | statuses | sectors | schemes
+ *   POST /api/master   key = areas | plot-types | developer-types | scheme-types | units | statuses | sectors | schemes
  *                      do  = save | toggle | delete
  * What differs between masters is data in masters() below, not separate functions.
  * Same rules as the screens in public/assets/js/pages/masters.js and dataentry.js (Scheme).
@@ -36,7 +43,8 @@ final class MasterController extends Controller
     /**
      * key => [
      *   model, entity (audit), one (label), name(row),
-     *   fields:  name => [label, rules, unique, upper, lockOnEdit, number(false|true|'float')]
+     *   fields:  name => [label, rules, unique, case(false|true = ALL CAPITALS|'words' = First Letter Of Every Word), lockOnEdit,
+     *                     type(false|true = int|'float'|'date' = dd/mm/yyyy → Y-m-d)]
      *   create:  fields when adding (default: fields), split: field holding "a, b, c" to add several rows
      *   scope:   column the unique check is limited to (sector name is unique inside its scheme)
      *   system:  rows with is_system = 1 are always active and cannot be deleted
@@ -50,6 +58,7 @@ final class MasterController extends Controller
      *   saved(id, extra, by): writes that extra input in the same transaction as the row
      *   audit(extra): extra values for the audit trail;  note(extra, isNew): text added to the message
      *   list(request): screen to return to (default /admin/masters/<key>)
+     *   ordered: the list is shown by sort_order, so a new row gets the next sort_order (goes to the end)
      * ]
      */
     private function masters(): array
@@ -61,8 +70,43 @@ final class MasterController extends Controller
                 'model' => PlotType::class, 'entity' => 'PLOT_TYPE', 'one' => 'Plot type', 'name' => static fn ($r) => $r['name'],
                 'fields' => ['name' => $text('Name', 60, true, true),
                     'description' => $text('Description', 150)],
-                'usage' => static fn ($r) => Property::count(['plot_type_id' => $r['plot_type_id']]),
+                'usage' => static fn ($r) => Property::count(['plot_type_id' => $r['plot_type_id']]) + Scheme::count(['plot_type_id' => $r['plot_type_id']]),
                 'block' => static fn ($r) => PlotType::count(['is_active' => 1]) <= 1 ? 'At least one plot type must remain active.' : null,
+            ],
+            'developer-types' => [
+                'model' => DeveloperType::class, 'entity' => 'DEVELOPER_TYPE', 'one' => 'Developer type', 'name' => static fn ($r) => $r['name'],
+                'perm' => 'developer_type', // own module in the Permissions screen (developer_type.view / create / edit / toggle / delete)
+                'fields' => ['name' => $text('Name', 60, true, true),
+                    'default_developer' => $text('Default developer', 150),
+                    'description' => $text('Description', 150)],
+                'usage' => static fn ($r) => Scheme::count(['developer_type_id' => $r['developer_type_id']]),
+                'block' => static fn ($r) => DeveloperType::count(['is_active' => 1]) <= 1 ? 'At least one developer type must remain active.' : null,
+            ],
+            'scheme-types' => [
+                'model' => SchemeType::class, 'entity' => 'SCHEME_TYPE', 'one' => 'Scheme type', 'name' => static fn ($r) => $r['name'],
+                'perm' => 'scheme_type', // own module in the Permissions screen (scheme_type.view / create / edit / toggle / delete)
+                'fields' => ['name' => $text('Name', 60, true, true),
+                    'description' => $text('Description', 150)],
+                'usage' => static fn ($r) => Scheme::count(['scheme_type_id' => $r['scheme_type_id']]),
+                'block' => static fn ($r) => SchemeType::count(['is_active' => 1]) <= 1 ? 'At least one scheme type must remain active.' : null,
+            ],
+            'sub-plot-types' => [
+                'model' => SubPlotType::class, 'entity' => 'SUB_PLOT_TYPE', 'one' => 'Sub plot type', 'name' => static fn ($r) => $r['name'],
+                'perm' => 'sub_plot_type', // own module in the Permissions screen (sub_plot_type.view / create / edit / toggle / delete)
+                // name saved with the first letter of every word in capitals ("water works" → "Water Works"; EWS, MIG-A stay as typed)
+                'fields' => ['name' => ['Name', 'required|min:2|max:60|text', true, 'words', false, false],
+                    'description' => $text('Description', 150)],
+                'usage' => static fn ($r) => Property::count(['sub_plot_type_id' => $r['sub_plot_type_id']]),
+                'block' => static fn ($r) => SubPlotType::count(['is_active' => 1]) <= 1 ? 'At least one sub plot type must remain active.' : null,
+            ],
+            'road-types' => [
+                'model' => RoadType::class, 'entity' => 'ROAD_TYPE', 'one' => 'Road type', 'name' => static fn ($r) => $r['name'],
+                'perm' => 'road_type', // own module in the Permissions screen (road_type.view / create / edit / toggle / delete)
+                'ordered' => true,     // listed by sort_order (9, 18 … Meter); a new road type goes to the end
+                'fields' => ['name' => ['Name', 'required|min:2|max:60|text', true, 'words', false, false], // "9 meter" → "9 Meter"
+                    'description' => $text('Description', 150)],
+                'usage' => static fn ($r) => Property::count(['road_type_id' => $r['road_type_id']]),
+                'block' => static fn ($r) => RoadType::count(['is_active' => 1]) <= 1 ? 'At least one road type must remain active.' : null,
             ],
             'units' => [
                 'model' => Unit::class, 'entity' => 'UNIT', 'one' => 'Unit', 'name' => static fn ($r) => $r['name'], 'system' => true,
@@ -99,13 +143,53 @@ final class MasterController extends Controller
             'schemes' => [
                 'model' => Scheme::class, 'entity' => 'SCHEME', 'one' => 'Scheme', 'name' => static fn ($r) => $r['scheme_name'],
                 'perm' => 'scheme', 'actions' => ['save', 'toggle'], 'keepActive' => true,
+                // same order as the Scheme form, so the first error found is the first one on screen
                 'fields' => [
-                    'scheme_name'    => ['Scheme name', 'required|min:3|max:150|text', true, false, false, false],
-                    'scheme_type'    => ['Scheme type', 'required|in:' . Lookups::keys(Lookups::SCHEME_TYPES), false, false, false, false],
+                    'developer_type_id'    => ['Developer type', 'required|integer', false, false, false, true],
+                    'developer_name'       => ['Developer', 'required|min:2|max:150|text', false, false, false, false],
+                    'scheme_type_id'       => ['Scheme type', 'required|integer', false, false, false, true],
+                    'plot_type_id'         => ['Plot type', 'required|integer', false, false, false, true],
+                    'scheme_name'          => ['Scheme name', 'required|min:3|max:150|text', true, false, false, false],
+                    'scheme_landmark'      => ['Scheme landmark', 'max:255|text', false, false, false, false],        // optional
+                    'approve_date'         => ['Approve date', 'dmy', false, false, false, 'date'],                    // optional
+                    // optional; saved in capitals, CAPITAL letters / digits / "/ _ -" (2–30), and no two schemes may share one
+                    'rera_registration_no' => ['Rera registration number', 'ucode', true, true, false, false],
+                    'reserve_price'        => ['Reserve price', 'decimal:2|positive', false, false, false, 'float'],    // optional, in rupees
+                    // site plan PDF (optional): checked in prepare, saved as the scheme's attachment in saved
                 ],
                 'usage' => static fn ($r) => Sector::count(['scheme_id' => $r['scheme_id']]),
+                'check' => static function (array $d, ?array $old): ?array {
+                    // types come from their masters: an active row, or the inactive one the scheme already has
+                    if (!($t = self::pick(DeveloperType::class, 'developer_type_id', $d, $old))) {
+                        return ['Please select an active developer type.', 'developer_type_id'];
+                    }
+                    // a developer type with a default developer always uses that name
+                    $default = trim((string) ($t['default_developer'] ?? ''));
+                    if ($default !== '' && $d['developer_name'] !== $default) {
+                        return ['Developer for "' . $t['name'] . '" must be "' . $default . '".', 'developer_name'];
+                    }
+                    if (!self::pick(SchemeType::class, 'scheme_type_id', $d, $old)) {
+                        return ['Please select an active scheme type.', 'scheme_type_id'];
+                    }
+                    if (!self::pick(PlotType::class, 'plot_type_id', $d, $old)) {
+                        return ['Please select an active plot type.', 'plot_type_id'];
+                    }
+                    $approved = $d['approve_date']; // optional: null when left empty
+                    if ($approved !== null && $approved > today()) {
+                        return ['Approve date cannot be in the future.', 'approve_date'];
+                    }
+                    return $approved !== null && $approved < '1950-01-01' ? ['Approve date must be after 01/01/1950.', 'approve_date'] : null;
+                },
                 'block' => static fn ($r) => null,
                 'prepare' => static function (Request $in, ?int $id): array {
+                    // site plan (optional): one PDF up to 5 MB; a new upload becomes the current one, older ones stay as history
+                    $plan = null;
+                    if ($f = $in->file('site_plan')) {
+                        $plan = Uploads::checkPdf($f, 'Site plan');
+                        if (is_string($plan)) {
+                            return ['fail' => [$plan, 'site_plan']];
+                        }
+                    }
                     // sectors: existing (rename / deactivate) + new rows
                     $existing = [];
                     foreach ($id ? Sector::where(['scheme_id' => $id], 'sort_order') : [] as $s) {
@@ -125,7 +209,7 @@ final class MasterController extends Controller
                         }
                         $seen[mb_strtolower($n)] = true;
                     }
-                    return ['existing' => $existing, 'fresh' => $fresh];
+                    return ['existing' => $existing, 'fresh' => $fresh, 'plan' => $plan];
                 },
                 'saved' => static function (int $sid, array $x, ?int $by): void {
                     foreach ($x['existing'] as $e) {
@@ -135,13 +219,36 @@ final class MasterController extends Controller
                     foreach ($x['fresh'] as $n) {
                         Sector::insert(['scheme_id' => $sid, 'sector_name' => $n, 'sort_order' => ++$order, 'is_active' => 1, 'created_by' => $by]);
                     }
+                    // the file is moved last, so nothing after it in this transaction can fail and leave it orphaned
+                    if ($x['plan']) {
+                        Uploads::store($x['plan'], ['scheme_id' => $sid, 'context' => PropertyService::SITE_PLAN, 'by' => $by]);
+                    }
                 },
-                'audit' => static fn ($x) => ['sectors' => $x['fresh']],
+                'audit' => static fn ($x) => ['sectors' => $x['fresh']] + ($x['plan'] ? ['site_plan' => $x['plan']['name']] : []),
                 'note' => static fn ($x, $isNew) => $isNew ? ' — ' . count($x['fresh']) . ' sector(s).' : ' Changes apply to new properties only.',
                 'list' => static fn (Request $in) => in_array($in->str('back'), self::SCHEME_LISTS, true) ? $in->str('back')
                     : (Auth::can('master.view') ? '/admin/masters/schemes' : '/data-entry/schemes'),
             ],
         ];
+    }
+
+    /**
+     * The master row chosen in $d[$pk] when it may be used: active, or the inactive one $old already has
+     * (so an old record still saves). Null when it is missing or switched off.
+     */
+    private static function pick(string $model, string $pk, array $d, ?array $old): ?array
+    {
+        $row = $model::find((int) $d[$pk]);
+        return $row && ($row['is_active'] || (int) ($old[$pk] ?? 0) === (int) $row[$pk]) ? $row : null;
+    }
+
+    /**
+     * First letter of every word in capitals; the other letters stay as typed, so short forms keep their case
+     * ("retail shop (kiosk)" → "Retail Shop (Kiosk)", "MIG-a" → "MIG-A", "EWS" stays "EWS"). Same rule as data-capitalize in forms.js.
+     */
+    private static function capitalizeWords(string $v): string
+    {
+        return (string) preg_replace_callback('/(^|[\s(\/-])(\p{Ll})/u', static fn ($m) => $m[1] . mb_strtoupper($m[2]), $v);
     }
 
     /** The one action for every master: save (add / edit), toggle (active ↔ inactive) and delete. */
@@ -199,7 +306,7 @@ final class MasterController extends Controller
                 continue;
             }
             if ($upper) {
-                $_POST[$f] = strtoupper($this->request->str($f));
+                $_POST[$f] = $upper === 'words' ? self::capitalizeWords($this->request->str($f)) : strtoupper($this->request->str($f));
             }
             $rules[$f] = [$label, $rule];
         }
@@ -207,7 +314,12 @@ final class MasterController extends Controller
         $data = [];
         foreach ($rules as $f => $_) {
             $number = $fields[$f][5];
-            $data[$f] = $d[$f] === '' ? null : ($number === 'float' ? (float) $d[$f] : ($number ? (int) $d[$f] : $d[$f]));
+            $data[$f] = $d[$f] === '' ? null : match (true) {
+                $number === 'float' => (float) $d[$f],
+                $number === 'date'  => Validator::dmy($d[$f]),
+                (bool) $number      => (int) $d[$f],
+                default             => $d[$f],
+            };
         }
         $scope = [];
         if (isset($m['scope'])) {
@@ -274,6 +386,7 @@ final class MasterController extends Controller
             foreach ($values as $v) {
                 $new = $splitField ? [$splitField => $v, 'sort_order' => ++$next] + $data : $data;
                 $new += isset($m['system']) ? ['is_system' => 0] : [];
+                $new += !empty($m['ordered']) ? ['sort_order' => $model::max('sort_order') + 1] : [];
                 $newId = $model::insert($new + ['created_by' => $by]);
                 if (isset($m['saved'])) {
                     $m['saved']($newId, $extra, $by);

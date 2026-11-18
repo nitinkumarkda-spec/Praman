@@ -139,6 +139,75 @@ CREATE TABLE plot_types (
     UNIQUE KEY uq_plot_types_name (name)
 ) ENGINE=InnoDB;
 
+-- Developer Type master (Authority, Private, Any Other …) — rows are added / removed from the Masters screen
+CREATE TABLE developer_types (
+    developer_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    name              VARCHAR(60)       NOT NULL,
+    default_developer VARCHAR(150)      NULL,     -- filled in the Scheme form when this type is picked; empty = developer name is typed
+    name_hi           VARCHAR(60)       NULL,
+    description       VARCHAR(150)      NULL,
+    sort_order        SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active         TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system         TINYINT(1)        NOT NULL DEFAULT 0,
+    created_by        INT UNSIGNED      NULL,
+    created_at        DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by        INT UNSIGNED      NULL,
+    updated_at        DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (developer_type_id),
+    UNIQUE KEY uq_developer_types_name (name)
+) ENGINE=InnoDB;
+
+-- Sub Plot Type master (Park, School, EWS …) — rows are added / removed from the Masters screen
+CREATE TABLE sub_plot_types (
+    sub_plot_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    name             VARCHAR(60)       NOT NULL,
+    name_hi          VARCHAR(60)       NULL,
+    description      VARCHAR(150)      NULL,
+    sort_order       SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active        TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system        TINYINT(1)        NOT NULL DEFAULT 0,
+    created_by       INT UNSIGNED      NULL,
+    created_at       DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by       INT UNSIGNED      NULL,
+    updated_at       DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (sub_plot_type_id),
+    UNIQUE KEY uq_sub_plot_types_name (name)
+) ENGINE=InnoDB;
+
+-- Road Type master (road widths …) — rows are added / removed from the Masters screen
+CREATE TABLE road_types (
+    road_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    name         VARCHAR(60)       NOT NULL,
+    name_hi      VARCHAR(60)       NULL,
+    description  VARCHAR(150)      NULL,
+    sort_order   SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active    TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system    TINYINT(1)        NOT NULL DEFAULT 0,
+    created_by   INT UNSIGNED      NULL,
+    created_at   DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by   INT UNSIGNED      NULL,
+    updated_at   DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (road_type_id),
+    UNIQUE KEY uq_road_types_name (name)
+) ENGINE=InnoDB;
+
+-- Scheme Type master — rows are added / removed from the Masters screen
+CREATE TABLE scheme_types (
+    scheme_type_id INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    name           VARCHAR(60)       NOT NULL,
+    name_hi        VARCHAR(60)       NULL,
+    description    VARCHAR(150)      NULL,
+    sort_order     SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    is_active      TINYINT(1)        NOT NULL DEFAULT 1,
+    is_system      TINYINT(1)        NOT NULL DEFAULT 0,
+    created_by     INT UNSIGNED      NULL,
+    created_at     DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by     INT UNSIGNED      NULL,
+    updated_at     DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (scheme_type_id),
+    UNIQUE KEY uq_scheme_types_name (name)
+) ENGINE=InnoDB;
+
 -- system statuses (is_system = 1) have fixed ids the workflow uses: App\Codes\PropertyStatus
 CREATE TABLE statuses (
     status_id    INT UNSIGNED      NOT NULL AUTO_INCREMENT,
@@ -184,7 +253,14 @@ CREATE TABLE units (
 CREATE TABLE schemes (
     scheme_id       INT UNSIGNED      NOT NULL AUTO_INCREMENT,
     scheme_name     VARCHAR(150)      NOT NULL,
-    scheme_type     ENUM('RESIDENTIAL','COMMERCIAL','INDUSTRIAL','MIXED','FARMHOUSE') NOT NULL,
+    scheme_landmark VARCHAR(255)      NULL,
+    scheme_type_id  INT UNSIGNED      NOT NULL,
+    plot_type_id    INT UNSIGNED      NULL,
+    reserve_price   DECIMAL(14,2)     NULL,     -- in rupees, optional (site plan PDF: attachments with scheme_id, context SITE_PLAN)
+    developer_type_id INT UNSIGNED    NULL,
+    developer_name  VARCHAR(150)      NULL,
+    approve_date    DATE              NULL,
+    rera_registration_no VARCHAR(30)  NULL,     -- RERA registration number (e.g. RAJ/P/2019/1234); unique when given
     area_id         INT UNSIGNED      NULL,
     is_active       TINYINT(1)        NOT NULL DEFAULT 1,
     created_by      INT UNSIGNED      NULL,
@@ -193,9 +269,14 @@ CREATE TABLE schemes (
     updated_at      DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (scheme_id),
     UNIQUE KEY uq_schemes_name (scheme_name),
+    UNIQUE KEY uq_schemes_rera (rera_registration_no),
     KEY ix_schemes_active (is_active, scheme_name),
     KEY ix_schemes_area (area_id),
-    CONSTRAINT fk_schemes_area FOREIGN KEY (area_id) REFERENCES areas(area_id)
+    CONSTRAINT fk_schemes_area FOREIGN KEY (area_id) REFERENCES areas(area_id),
+    CONSTRAINT fk_schemes_scheme_type FOREIGN KEY (scheme_type_id) REFERENCES scheme_types(scheme_type_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_schemes_plot_type FOREIGN KEY (plot_type_id) REFERENCES plot_types(plot_type_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_schemes_developer_type FOREIGN KEY (developer_type_id) REFERENCES developer_types(developer_type_id) ON DELETE RESTRICT,
+    CONSTRAINT ck_schemes_price CHECK (reserve_price IS NULL OR reserve_price > 0)
 ) ENGINE=InnoDB;
 
 CREATE TABLE sectors (
@@ -242,12 +323,16 @@ CREATE TABLE properties (
     sector_key      INT UNSIGNED   AS (IFNULL(sector_id, 0)) STORED,  -- 0 = no sector; keeps plot no. unique also without a sector
     plot_no         VARCHAR(30)    NOT NULL,
     plot_type_id    INT UNSIGNED   NOT NULL,
+    sub_plot_type_id INT UNSIGNED  NULL,                  -- Sub Plot Type / Road Type masters + Facing (fixed list, App\Core\Lookups::FACINGS);
+    facing          ENUM('EAST','NORTH','NORTH_EAST','NORTH_WEST','SOUTH','SOUTH_EAST','SOUTH_WEST','WEST') NULL, -- required in the forms
+    road_type_id    INT UNSIGNED   NULL,                  -- (NULL only on properties entered before these fields existed)
     area_value      DECIMAL(12,2)  NULL,                  -- optional (all three together)
     unit_id         INT UNSIGNED   NULL,
     area_sqm        DECIMAL(14,4)  NULL,
     is_corner       TINYINT(1)     NOT NULL DEFAULT 0,    -- marked Corner in the Add Property grid
+    latitude        DECIMAL(10,8)  NULL,                  -- optional, both together
+    longitude       DECIMAL(11,8)  NULL,
     remarks         VARCHAR(500)   NULL,
-    reserve_price   DECIMAL(14,2)  NULL,                  -- in rupees, optional
     status_id       INT UNSIGNED   NOT NULL DEFAULT 1,    -- 1 = Listed
     current_round_id INT UNSIGNED  NULL,
     ready_round_id  INT UNSIGNED   NULL,
@@ -268,9 +353,11 @@ CREATE TABLE properties (
     CONSTRAINT fk_properties_type     FOREIGN KEY (plot_type_id)   REFERENCES plot_types (plot_type_id) ON DELETE RESTRICT,
     CONSTRAINT fk_properties_unit     FOREIGN KEY (unit_id)        REFERENCES units (unit_id)           ON DELETE RESTRICT,
     CONSTRAINT fk_properties_status   FOREIGN KEY (status_id)      REFERENCES statuses (status_id)      ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_sub_type FOREIGN KEY (sub_plot_type_id) REFERENCES sub_plot_types (sub_plot_type_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_properties_road     FOREIGN KEY (road_type_id)   REFERENCES road_types (road_type_id) ON DELETE RESTRICT,
+    CONSTRAINT ck_properties_geo CHECK ((latitude IS NULL) = (longitude IS NULL)),
     CONSTRAINT ck_properties_area CHECK (area_value IS NULL OR area_value > 0),
-    CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL)),
-    CONSTRAINT ck_properties_price CHECK (reserve_price IS NULL OR reserve_price > 0)
+    CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))
 ) ENGINE=InnoDB;
 
 
@@ -398,7 +485,8 @@ CREATE TABLE attachments (
     attachment_id  INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     task_id        INT UNSIGNED  NULL,
     round_id       INT UNSIGNED  NULL,
-    property_id    INT UNSIGNED  NOT NULL,
+    property_id    INT UNSIGNED  NULL,          -- a property's file, or …
+    scheme_id      INT UNSIGNED  NULL,          -- … a scheme's file (site plan)
     context        VARCHAR(30)   NOT NULL DEFAULT 'TASK_RESPONSE',
     file_name      VARCHAR(150)  NOT NULL,
     stored_name    VARCHAR(80)   NOT NULL,
@@ -414,7 +502,9 @@ CREATE TABLE attachments (
     CONSTRAINT fk_attachments_task     FOREIGN KEY (task_id)     REFERENCES tasks (task_id)          ON DELETE CASCADE,
     CONSTRAINT fk_attachments_round    FOREIGN KEY (round_id)    REFERENCES rounds (round_id)        ON DELETE CASCADE,
     CONSTRAINT fk_attachments_property FOREIGN KEY (property_id) REFERENCES properties (property_id) ON DELETE RESTRICT,
-    CONSTRAINT fk_attachments_user     FOREIGN KEY (uploaded_by) REFERENCES users (user_id)          ON DELETE RESTRICT
+    CONSTRAINT fk_attachments_user     FOREIGN KEY (uploaded_by) REFERENCES users (user_id)          ON DELETE RESTRICT,
+    CONSTRAINT fk_attachments_scheme   FOREIGN KEY (scheme_id)   REFERENCES schemes (scheme_id)      ON DELETE RESTRICT,
+    CONSTRAINT ck_attachments_owner CHECK (property_id IS NOT NULL OR scheme_id IS NOT NULL)
 ) ENGINE=InnoDB;
 
 -- ---------------------------------------------------------------------

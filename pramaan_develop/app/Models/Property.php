@@ -11,9 +11,10 @@ final class Property extends Model
 {
     protected static string $table = 'properties';
     protected static string $pk = 'property_id';
-    protected static array $columns = ['scheme_id', 'sector_id', 'plot_no', 'plot_type_id', 'area_value', 'unit_id',
-        'area_sqm', 'is_corner', 'remarks', 'reserve_price', 'status_id', 'current_round_id', 'ready_round_id', 'valid_till', 'is_active', 'created_by', 'updated_by'];
-    protected static array $floats = ['reserve_price'];
+    protected static array $columns = ['scheme_id', 'sector_id', 'plot_no', 'plot_type_id', 'sub_plot_type_id', 'facing', 'road_type_id', 'area_value', 'unit_id',
+        'area_sqm', 'is_corner', 'latitude', 'longitude', 'remarks', 'status_id', 'current_round_id', 'ready_round_id', 'valid_till', 'is_active', 'created_by', 'updated_by'];
+    protected static array $floats = ['latitude', 'longitude'];
+    // reserve price and site plan belong to the scheme (Scheme form)
 
 
     /** Active Auction Ready properties whose validity compares with $date ($op: '<' expired, '<=' due). */

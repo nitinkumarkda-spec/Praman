@@ -16,7 +16,8 @@ final class Response
         }
         header_remove('X-Powered-By');
         $secure = Request::current()->isSecure();
-        header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; "
+        // style-src-attr: the views build markup with style="" attributes; <style> blocks and external CSS stay blocked (style-src 'self')
+        header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; "
             . "connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
             . ($secure ? '; upgrade-insecure-requests' : ''));
         header('X-Frame-Options: DENY');

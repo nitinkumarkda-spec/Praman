@@ -3,6 +3,7 @@
    PRAMAAN — page-specific form behaviour (all hooked via data-* attributes)
    Sectors come from the data the server sent (core: PramanDB).
      • data-uppercase           live upper-casing (codes, plot no.)
+     • data-capitalize          live First Letter Of Every Word (master names)
      • data-panel-select        User Master: show Role only for Role Users
      • data-scheme-form         sector tag input (chips + search), active count, mandatory-role check
      • data-property-form       scheme → sectors (local DB), Yes/No confirmation, area preview
@@ -22,6 +23,12 @@
         if (el.matches && el.matches('input[data-uppercase]:not([readonly])')) {
             const pos = el.selectionStart;
             el.value = el.value.toUpperCase();
+            try { el.setSelectionRange(pos, pos); } catch (err) { /* number inputs */ }
+        }
+        // data-capitalize: first letter of every word in capitals, other letters as typed (same rule as MasterController::capitalizeWords)
+        if (el.matches && el.matches('input[data-capitalize]:not([readonly])')) {
+            const pos = el.selectionStart;
+            el.value = el.value.replace(/(^|[\s(\/-])(\p{Ll})/gu, function (m, a, b) { return a + b.toUpperCase(); });
             try { el.setSelectionRange(pos, pos); } catch (err) { /* number inputs */ }
         }
         // names of persons: letters and single spaces only; data-digits-only: whole numbers;
@@ -444,8 +451,11 @@
         const pbWid = form.querySelector('[data-pb-width]');
         const pbArea = form.querySelector('[data-pb-default="area_value"]');
         const pbHint = form.querySelector('[data-pb-area-calc-hint]');
-        const KEYS = ['plot_type_id', 'area_value', 'unit_id'];
-        // each plot: {plot_no, corner, own: {key: value}} — keys not in own follow the defaults above
+        // values set once at the top for every plot (sub plot type, facing, road type come from Praman.PROPERTY_MASTERS)
+        const MASTER_KEYS = Praman.PROPERTY_MASTERS.map(function (m) { return m[0]; });
+        const KEYS = ['plot_type_id', 'area_value', 'unit_id'].concat(MASTER_KEYS);
+        // each plot: {plot_no, corner, remarks, latitude, longitude, own: {key: value}} — keys not in own follow the defaults above;
+        // latitude / longitude differ per plot, so they are only set in the plot's Edit popup
         let plots = [];
 
         const mode = function () { const r = form.querySelector('input[name="pb_range"]:checked'); return r ? r.value : 'YES'; };
@@ -456,13 +466,17 @@
             return d;
         };
         const value = function (p, k) { return Object.prototype.hasOwnProperty.call(p.own, k) ? p.own[k] : defaults()[k]; };
+        const masterValues = function (p) { const o = {}; MASTER_KEYS.forEach(function (k) { o[k] = value(p, k); }); return o; };
 
         /* --- plot number rows --- */
         function rowHtml(m) {
             const del = '<button type="button" class="btn-icon pb-del" data-pb-del aria-label="Remove row" title="Remove row"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button>';
             if (m === 'YES') {
-                return '<div class="pb-row" data-pb-row><input type="text" class="form-control" data-pb-from inputmode="numeric" maxlength="6" placeholder="From e.g. 1" aria-label="From plot no." data-digits-only>' +
+                // prefix + every number of From – To + postfix: A- + 1…50 + /B → A-1/B … A-50/B (prefix / postfix optional)
+                return '<div class="pb-row is-range" data-pb-row><input type="text" class="form-control" data-pb-prefix maxlength="10" placeholder="Prefix (A-)" aria-label="Prefix" data-uppercase>' +
+                    '<input type="text" class="form-control" data-pb-from inputmode="numeric" maxlength="6" placeholder="From e.g. 1" aria-label="From plot no." data-digits-only>' +
                     '<span class="pb-dash" aria-hidden="true">–</span><input type="text" class="form-control" data-pb-to inputmode="numeric" maxlength="6" placeholder="To e.g. 50" aria-label="To plot no." data-digits-only>' +
+                    '<input type="text" class="form-control" data-pb-postfix maxlength="10" placeholder="Postfix (/B)" aria-label="Postfix" data-uppercase>' +
                     '<span class="pb-row-note" data-pb-note></span>' + del + '</div>';
             }
             return '<div class="pb-row is-single" data-pb-row><input type="text" class="form-control" data-pb-prefix maxlength="10" placeholder="Prefix (A-)" aria-label="Prefix" data-uppercase>' +
@@ -485,7 +499,8 @@
             const n = row.querySelector('[data-pb-note]');
             const r = readRow(row);
             n.classList.toggle('is-error', !!r.error);
-            n.textContent = r.error || (r.list.length ? (row.querySelector('[data-pb-from]') ? r.list.length + ' plot(s)' : '→ ' + r.list[0]) : '');
+            n.textContent = r.error || (!r.list.length ? '' : !row.querySelector('[data-pb-from]') ? '→ ' + r.list[0]
+                : r.list.length + ' plot(s) · ' + r.list[0] + (r.list.length > 1 ? ' … ' + r.list[r.list.length - 1] : ''));
         }
         /** Plot numbers one row stands for, or an error. */
         function readRow(row) {
@@ -498,8 +513,14 @@
                 if (x > y) { return { list: [], error: 'From is more than To' }; }
                 if (y - x + 1 > PB_MAX) { return { list: [], error: 'At most ' + PB_MAX + ' plots' }; }
                 const width = /^0/.test(a) && a.length > 1 ? a.length : 0; // 001 → keep three digits
+                const pre = row.querySelector('[data-pb-prefix]').value.trimStart().toUpperCase();
+                const post = row.querySelector('[data-pb-postfix]').value.trimEnd().toUpperCase();
                 const list = [];
-                for (let i = x; i <= y; i++) { list.push(width ? String(i).padStart(width, '0') : String(i)); }
+                for (let i = x; i <= y; i++) { list.push(pre + (width ? String(i).padStart(width, '0') : String(i)) + post); }
+                // the same rule as a single plot no. (checked on the longest one, the last)
+                if (!/^[A-Za-z0-9][A-Za-z0-9\/_ -]{0,29}$/.test(list[list.length - 1]) || !/^[A-Za-z0-9]/.test(list[0])) {
+                    return { list: [], error: 'Prefix / postfix: only letters, digits, space, / _ - (plot no. max 30)' };
+                }
                 return { list: list };
             }
             const no = row.querySelector('[data-pb-no]').value.trim();
@@ -555,7 +576,7 @@
             const old = {};
             plots.forEach(function (p) { old[p.plot_no] = p; });
             plots = list.map(function (no) {
-                const p = old[no] || { plot_no: no, corner: false, own: {}, remarks: '' };
+                const p = old[no] || { plot_no: no, corner: false, own: {}, remarks: '', latitude: '', longitude: '' };
                 if (Object.prototype.hasOwnProperty.call(descs, no)) { p.remarks = descs[no]; } // the row's description wins over an older edit
                 return p;
             });
@@ -566,12 +587,15 @@
 
         /* --- grid --- */
         function render() {
-            const types = L.PROPERTY_TYPES;
+            const types = L.PROPERTY_TYPES, subTypes = L.SUB_PLOT_TYPES, facings = L.FACINGS;
             grid.innerHTML = plots.map(function (p, i) {
                 const area = value(p, 'area_value');
+                const extra = [subTypes[value(p, 'sub_plot_type_id')], facings[value(p, 'facing')]].filter(Boolean).join(' · ');
                 return '<div class="pb-card' + (p.corner ? ' is-corner' : '') + '" data-pb-i="' + i + '">' +
                     '<div class="pb-no">' + esc(p.plot_no) + '</div><div class="pb-kind">' + (p.corner ? 'Corner' : 'Normal') + '</div>' +
                     '<div class="pb-meta">' + esc(types[value(p, 'plot_type_id')] || 'No plot type') + (area ? ' · ' + esc(area + ' ' + L.unitSymbol(value(p, 'unit_id'))) : '') + '</div>' +
+                    (extra ? '<div class="pb-meta">' + esc(extra) + '</div>' : '') +
+                    (p.latitude ? '<div class="pb-meta mono">' + esc(p.latitude + ', ' + p.longitude) + '</div>' : '') +
                     (p.remarks ? '<div class="pb-desc" title="' + esc(p.remarks) + '">' + esc(p.remarks) + '</div>' : '') +
                     '<div class="pb-card-actions"><button type="button" class="btn btn-light btn-sm" data-pb-edit>Edit</button>' +
                     '<button type="button" class="btn btn-light btn-sm" data-pb-corner aria-pressed="' + p.corner + '">' + (p.corner ? 'Unmark Corner' : 'Mark Corner') + '</button></div></div>';
@@ -583,8 +607,9 @@
         }
         function sync() {
             out.value = JSON.stringify(plots.map(function (p) {
-                return { plot_no: p.plot_no, plot_type_id: value(p, 'plot_type_id'), area_value: value(p, 'area_value'), unit_id: value(p, 'unit_id'),
-                    remarks: p.remarks || '', corner: p.corner ? 1 : 0 };
+                const row = { plot_no: p.plot_no, remarks: p.remarks || '', corner: p.corner ? 1 : 0, latitude: p.latitude || '', longitude: p.longitude || '' };
+                KEYS.forEach(function (k) { row[k] = value(p, k); });
+                return row;
             }));
             saveBtn.disabled = !plots.length;
             const where = (scheme.value ? scheme.options[scheme.selectedIndex].text : 'the scheme') + (sector.value ? ' · Sector ' + sector.options[sector.selectedIndex].text : '');
@@ -604,6 +629,8 @@
                 '<p>Changes here apply to this property only.</p></div></div><div class="modal-body"><div class="form-grid">' +
                 '<div class="form-group"><label class="form-label" for="pbm_no">Plot no. <span class="required">*</span></label><input type="text" id="pbm_no" class="form-control" maxlength="30" value="' + esc(p.plot_no) + '" data-uppercase><div class="invalid-feedback"></div></div>' +
                 '<div class="form-group"><label class="form-label" for="pbm_type">Plot type</label><select id="pbm_type" class="form-select">' + L.options(L.activeMap('plot_types', 'plot_type_id', 'name', value(p, 'plot_type_id')), value(p, 'plot_type_id'), 'Select plot type') + '</select></div>' +
+                Praman.propertyMasterSelects(masterValues(p), { idPrefix: 'pbm_' }) +
+                Praman.propertyGeoInputs({ latitude: p.latitude, longitude: p.longitude }, 'pbm_') +
                 '<div class="form-group span-2"><label class="form-label">Area (optional)</label>' +
                 '<div class="dim-row">' +
                 '<div class="form-group"><label class="form-label text-muted" for="pbm_length">Length</label><input type="text" id="pbm_length" class="form-control" inputmode="decimal" maxlength="10" placeholder="e.g. 30.00" data-decimals="2"></div>' +
@@ -670,12 +697,30 @@
                 const descErr = /[<>]/.test(desc) ? 'Description may not contain < or > characters.' : null;
                 fieldError($('#pbm_desc'), descErr);
                 if (descErr) { ok = false; }
+                // sub plot type, facing, road type are required; latitude / longitude optional but both together
+                MASTER_KEYS.forEach(function (k) {
+                    const el = $('#pbm_' + k);
+                    const msg = el.value ? null : 'Please select ' + el.getAttribute('data-label').toLowerCase() + '.';
+                    fieldError(el, msg);
+                    if (msg) { ok = false; }
+                });
+                const lat = $('#pbm_latitude'), lng = $('#pbm_longitude');
+                [lat, lng].forEach(function (el) {
+                    const other = el === lat ? lng : lat;
+                    const msg = el.value.trim() === '' ? (other.value.trim() !== '' ? 'Enter both latitude and longitude, or neither.' : null)
+                        : (V() ? V().validateField(el) : null);
+                    fieldError(el, msg);
+                    if (msg) { ok = false; }
+                });
                 if (!ok) { return; }
                 const d = defaults();
                 const next = { plot_type_id: $('#pbm_type').value, area_value: $('#pbm_area').value.trim(), unit_id: $('#pbm_unit').value };
+                MASTER_KEYS.forEach(function (k) { next[k] = $('#pbm_' + k).value; });
                 p.plot_no = no;
                 p.corner = $('#pbm_corner').checked;
                 p.remarks = desc;
+                p.latitude = lat.value.trim();
+                p.longitude = lng.value.trim();
                 KEYS.forEach(function (k) { if (next[k] !== d[k]) { p.own[k] = next[k]; } else { delete p.own[k]; } });
                 close();
                 render();
@@ -694,7 +739,8 @@
         /* --- sectors of the scheme (optional) --- */
         function loadSectors() {
             const list = scheme.value ? Praman.DB.Scheme.sectors(scheme.value, true) : [];
-            sector.innerHTML = '<option value="">' + (!scheme.value ? 'Select scheme first' : list.length ? 'No sector' : 'No active sector') + '</option>' +
+            // the empty option = no sector (sector is optional); with sectors it reads "Select sector" so the list does not look empty
+            sector.innerHTML = '<option value="">' + (!scheme.value ? 'Select scheme first' : list.length ? 'Select sector' : 'No active sector') + '</option>' +
                 list.map(function (s) { return '<option value="' + s.sector_id + '">' + esc(s.sector_name) + '</option>'; }).join('');
             sector.disabled = !list.length;
             sync();

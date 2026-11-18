@@ -41,6 +41,10 @@ final class AttachmentController extends Controller
         if (Auth::can('property.view', 'verification.view') || (int) ($u['role_id'] ?? 0) === 1) {
             return true;
         }
+        // a scheme's file (site plan): scheme users, and task users who verify a property of that scheme
+        if ($a['scheme_id'] !== null) {
+            return Auth::can('scheme.view') || TaskAssignee::userOnScheme((int) $u['user_id'], (int) $a['scheme_id']);
+        }
         // task-only users: only properties they have (had) a task on
         return TaskAssignee::userOnProperty((int) $u['user_id'], (int) $a['property_id']);
     }

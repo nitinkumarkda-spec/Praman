@@ -121,7 +121,7 @@
         // Aggregate KPIs
         const totalCount = allReady.length;
         const totalAreaSqm = allReady.reduce(function (sum, p) { return sum + (Number(p.area_sqm) || 0); }, 0);
-        const totalReserveVal = allReady.reduce(function (sum, p) { return sum + (Number(p.reserve_price) || 0); }, 0);
+        const totalReserveVal = P.schemeReserveTotal(allReady); // reserve price is per scheme: each scheme counted once
         const dueCount = allReady.filter(function (p) { return DB.Verification.isDue(p); }).length;
 
         // Scheme & Sector Filter Dropdowns
@@ -315,7 +315,7 @@
                 return '<tr>' +
                     '<td class="cell-no">' + (i + 1) + '</td>' +
                     '<td><a href="' + schemeUrl + '"><strong>' + e(r.scheme.scheme_name) + '</strong></a></td>' +
-                    '<td>' + (L.SCHEME_TYPES[r.scheme.scheme_type] || r.scheme.scheme_type) + '</td>' +
+                    '<td>' + e(L.SCHEME_TYPES[r.scheme.scheme_type_id] || '—') + '</td>' +
                     '<td>' + r.sectorsCount + '</td>' +
                     '<td><a href="' + propUrl + '" title="View all plots in ' + e(r.scheme.scheme_name) + '"><strong>' + r.total + '</strong></a></td>' +
                     '<td>' + (r.listed ? '<a href="' + propUrl + '&status=' + ST.LISTED + '" title="View Listed plots"><span class="badge badge-info">' + r.listed + '</span></a>' : '0') + '</td>' +
@@ -363,7 +363,7 @@
                     csvBtn.onclick = function () {
                         const headers = ['S.No', 'Scheme Name', 'Scheme Type', 'Sectors Count', 'Total Plots', 'Listed', 'Under Verification', 'Auction Ready', 'Not Ready', 'Expired', 'Sold/Sent', 'Readiness %'];
                         const dataRows = rows.map(function (r, i) {
-                            return [i + 1, r.scheme.scheme_name, r.scheme.scheme_type, r.sectorsCount, r.total, r.listed, r.underVf, r.ready, r.notReady, r.expired, r.sold, r.readyPct + '%'];
+                            return [i + 1, r.scheme.scheme_name, L.SCHEME_TYPES[r.scheme.scheme_type_id] || '', r.sectorsCount, r.total, r.listed, r.underVf, r.ready, r.notReady, r.expired, r.sold, r.readyPct + '%'];
                         });
                         downloadCsv('Scheme_Sector_Inventory_' + DB.today(), headers, dataRows);
                     };
@@ -643,7 +643,7 @@
         // Summary Aggregates
         const totalCount = rows.length;
         const totalAreaSqm = rows.reduce(function (sum, p) { return sum + (Number(p.area_sqm) || 0); }, 0);
-        const totalReserveVal = rows.reduce(function (sum, p) { return sum + (Number(p.reserve_price) || 0); }, 0);
+        const totalReserveVal = P.schemeReserveTotal(rows); // reserve price is per scheme: each scheme counted once
         const avgValuation = totalCount > 0 ? (totalReserveVal / totalCount) : 0;
 
         // Schemes & Sectors map

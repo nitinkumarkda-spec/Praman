@@ -97,7 +97,8 @@ notifications, and answers with fresh data. `GET /api/state` is polled every min
 Foreign keys, unique keys (codes, names, plot no. per scheme + sector, one task per role per round), CHECK constraints and indexes are in `database/schema.sql`.
 
 **Add Property** (Data Entry) creates a whole grid of plots in one go — plot numbers as From–To ranges, or one by one with prefix / postfix and a description —
-and each plot can be edited or marked **Corner** before saving. Sector, area, reserve price, description and site plan are optional; `properties.sector_key`
+and each plot can be edited or marked **Corner** before saving. Sector, area and description are optional (reserve price and site plan PDF are entered once
+per scheme in the Scheme form; the site plan is an `attachments` row with `scheme_id`); `properties.sector_key`
 (= sector, or 0 without one) keeps a plot no. unique also when no sector is chosen. Add and Edit both post to `/api/property-save` (`PropertyController::save`).
 
 ## 5. Security

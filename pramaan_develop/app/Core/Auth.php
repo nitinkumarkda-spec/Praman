@@ -51,7 +51,7 @@ final class Auth
             return '/login';
         }
         $roleId = (int) ($u['role_id'] ?? 0);
-        if ($roleId === 1 || self::can('role.view', 'user.view', 'master.view', 'settings.view', 'audit.view')) {
+        if ($roleId === 1 || self::can('role.view', 'user.view', 'master.view', 'developer_type.view', 'scheme_type.view', 'sub_plot_type.view', 'road_type.view', 'settings.view', 'audit.view')) {
             return '/admin/dashboard';
         }
         if (self::can('scheme.view', 'property.view')) {

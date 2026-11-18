@@ -8,14 +8,15 @@ use App\Codes\YesNo;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
+use App\Core\Lookups;
 use App\Models\PlotType;
 use App\Models\Property;
+use App\Models\RoadType;
+use App\Models\SubPlotType;
 use App\Models\Scheme;
 use App\Models\Sector;
 use App\Services\Audit;
 use App\Services\PropertyService;
-use App\Services\Uploads;
-use Throwable;
 
 /** Data Entry / Super Admin → Add Property (the whole generated grid at once) / edit one property (only while Listed). */
 final class PropertyController extends Controller
@@ -24,13 +25,18 @@ final class PropertyController extends Controller
     private const MAX_PLOTS = 500;
     /** Where the Property screens live; a save returns to the one it came from. */
     private const LISTS = ['/data-entry/properties', '/admin/masters/properties'];
+    /** Required master dropdowns of every plot: field => [model, label in messages] (facing is a fixed list: Lookups::FACINGS) */
+    private const MASTERS = [
+        'sub_plot_type_id' => [SubPlotType::class, 'sub plot type'],
+        'road_type_id'     => [RoadType::class, 'road type'],
+    ];
 
     /**
      * One function for both screens:
-     *   add  — scheme_id, sector_id?, site_plan?, plots = JSON [{plot_no, plot_type_id, area_value?, unit_id, remarks?, corner}]
-     *   edit — id, sector_id?, site_plan?, confirm_location = YES and that plot's fields
-     *          (plot_no, plot_type_id, area_value?, unit_id, reserve_price?, remarks?, is_corner)
-     * Sector, area, reserve price, description and site plan are optional.
+     *   add  — scheme_id, sector_id?, plots = JSON [{plot_no, plot_type_id, sub_plot_type_id, facing (code), road_type_id,
+     *          area_value?, unit_id, latitude?, longitude?, remarks?, corner}]
+     *   edit — id, sector_id?, confirm_location = YES and that plot's fields (same names; is_corner instead of corner)
+     * Sector, area, latitude / longitude and description are optional. Reserve price and site plan belong to the scheme (Scheme form).
      */
     public function save(): void
     {
@@ -66,11 +72,10 @@ final class PropertyController extends Controller
 
         // the plots to save: the whole grid, or the one property being edited
         if ($prop) {
-            // a form without the reserve price box keeps the price the property already has
-            $price = $in->input('reserve_price') === null ? (string) ($prop['reserve_price'] ?? '') : $in->str('reserve_price');
             $plots = [['plot_no' => $in->str('plot_no'), 'plot_type_id' => $in->str('plot_type_id'), 'area_value' => $in->str('area_value'),
-                'unit_id' => $in->str('unit_id'), 'reserve_price' => $price, 'remarks' => $in->str('remarks'),
-                'corner' => $in->input('is_corner') === '1']];
+                'unit_id' => $in->str('unit_id'), 'remarks' => $in->str('remarks'), 'corner' => $in->input('is_corner') === '1']
+                + array_map(static fn ($k) => $in->str($k), array_combine(array_keys(self::MASTERS), array_keys(self::MASTERS)))
+                + ['facing' => $in->str('facing'), 'latitude' => $in->str('latitude'), 'longitude' => $in->str('longitude')]];
         } else {
             $plots = json_decode($in->str('plots'), true);
             if (!is_array($plots) || !$plots || !array_is_list($plots)) {
@@ -105,6 +110,35 @@ final class PropertyController extends Controller
             if (!$pt || (!$pt['is_active'] && $typeId !== ($prop['plot_type_id'] ?? null))) {
                 $err('Please select an active plot type.', 'plot_type_id', $tag);
             }
+            // facing: required, one of the fixed list
+            $facing = (string) ($p['facing'] ?? '');
+            if (!isset(Lookups::FACINGS[$facing])) {
+                $err('Please select the facing.', 'facing', $tag);
+            }
+            // sub plot type, road type: required, from their masters (an inactive one only when the property already has it)
+            $picked = ['facing' => $facing];
+            foreach (self::MASTERS as $key => [$model, $label]) {
+                $mid = (int) ($p[$key] ?? 0);
+                $row = $mid > 0 ? $model::find($mid) : null;
+                if (!$row || (!$row['is_active'] && $mid !== ($prop[$key] ?? null))) {
+                    $err('Please select an active ' . $label . '.', $key, $tag);
+                }
+                $picked[$key] = $mid;
+            }
+            // latitude / longitude: optional, but both together
+            $lat = trim((string) ($p['latitude'] ?? ''));
+            $lng = trim((string) ($p['longitude'] ?? ''));
+            if (($lat === '') !== ($lng === '')) {
+                $err('Enter both latitude and longitude, or leave both empty.', $lat === '' ? 'latitude' : 'longitude', $tag);
+            }
+            $latV = $lat !== '' ? PropertyService::coordinate($lat, 2, 90) : null;
+            $lngV = $lng !== '' ? PropertyService::coordinate($lng, 3, 180) : null;
+            if ($lat !== '' && $latV === null) {
+                $err('Latitude must be between -90 and 90 with at most 8 decimals.', 'latitude', $tag);
+            }
+            if ($lng !== '' && $lngV === null) {
+                $err('Longitude must be between -180 and 180 with at most 8 decimals.', 'longitude', $tag);
+            }
             $area = str_replace(',', '', trim((string) ($p['area_value'] ?? '')));
             $unit = null;
             if ($area !== '') {
@@ -116,10 +150,6 @@ final class PropertyController extends Controller
                     $err('Please select an active area unit.', 'unit_id', $tag);
                 }
             }
-            $price = str_replace(',', '', trim((string) ($p['reserve_price'] ?? '')));
-            if ($price !== '' && (!preg_match('/^\d{1,12}(\.\d{1,2})?$/', $price) || (float) $price <= 0)) {
-                $err('Reserve price must be greater than zero (up to 2 decimals).', 'reserve_price', $tag);
-            }
             $remarks = trim((string) ($p['remarks'] ?? ''));
             if (mb_strlen($remarks) > 500 || preg_match('/[<>]/', $remarks)) {
                 $err('Description may be at most 500 characters, without < or >.', 'remarks', $tag);
@@ -128,48 +158,23 @@ final class PropertyController extends Controller
             $rows[] = [
                 'scheme_id' => $schemeId, 'sector_id' => $sector['sector_id'] ?? null, 'plot_no' => $plot, 'plot_type_id' => $pt['plot_type_id'],
                 'area_value' => $a, 'unit_id' => $unit, 'area_sqm' => $a !== null ? PropertyService::toSqm($a, $unit) : null,
-                'is_corner' => empty($p['corner']) ? 0 : 1, 'reserve_price' => $price !== '' ? round((float) $price, 2) : null,
-                'remarks' => $remarks !== '' ? $remarks : null,
-            ];
+                'is_corner' => empty($p['corner']) ? 0 : 1, 'latitude' => $latV, 'longitude' => $lngV, 'remarks' => $remarks !== '' ? $remarks : null,
+            ] + $picked;
         }
-        $sitePlan = null;
-        if ($f = $in->file('site_plan')) {
-            $sitePlan = Uploads::checkPdf($f, 'Site plan');
-            if (is_string($sitePlan)) {
-                $this->fail($sitePlan, 'site_plan');
-            }
-        }
-// Role-user mapping is bound when sending properties for verification
-
+        // Role-user mapping is bound when sending properties for verification
         $by = (int) Auth::id();
-        $stored = [];
-        try {
-            Database::transaction(static function () use ($id, $rows, $by, $sitePlan, &$stored): void {
-                if ($id) {
-                    Property::update($id, $rows[0] + ['updated_by' => $by]);
-                    if ($sitePlan) {
-                        $stored[] = Uploads::store($sitePlan, ['property_id' => $id, 'context' => PropertyService::SITE_PLAN, 'by' => $by])['path'];
-                    }
-                    return;
-                }
-                $plan = $sitePlan;
-                foreach ($rows as $data) {
-                    $pid = PropertyService::create($data, $by)['property']['property_id'];
-                    if ($plan) {
-                        // one site plan for the whole grid: every property keeps its own copy
-                        $path = Uploads::store($plan, ['property_id' => $pid, 'context' => PropertyService::SITE_PLAN, 'by' => $by])['path'];
-                        $stored[] = $path;
-                        $plan = ['tmp' => $path, 'stored' => true] + $plan;
-                    }
-                    Audit::log('PROPERTY', $pid, 'CREATED', null, $data + ($plan ? ['site_plan' => $plan['name']] : []), $pid);
-                }
-            });
-        } catch (Throwable $e) {
-            Uploads::discard($stored);
-            throw $e;
-        }
+        Database::transaction(static function () use ($id, $rows, $by): void {
+            if ($id) {
+                Property::update($id, $rows[0] + ['updated_by' => $by]);
+                return;
+            }
+            foreach ($rows as $data) {
+                $pid = PropertyService::create($data, $by)['property']['property_id'];
+                Audit::log('PROPERTY', $pid, 'CREATED', null, $data, $pid);
+            }
+        });
         if ($prop) {
-            Audit::log('PROPERTY', $id, 'UPDATED', array_intersect_key($prop, $rows[0]), $rows[0] + ($sitePlan ? ['site_plan' => $sitePlan['name']] : []), $id);
+            Audit::log('PROPERTY', $id, 'UPDATED', array_intersect_key($prop, $rows[0]), $rows[0], $id);
             $this->done('Property plot ' . $rows[0]['plot_no'] . ' updated.', $list);
         }
         $n = count($rows);

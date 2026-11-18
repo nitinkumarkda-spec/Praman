@@ -16,6 +16,13 @@
     const COLOR_OPTS = function () { return L.STATUS_COLORS; };
     const ICON_OPTS = function () { return L.STATUS_ICONS; };
 
+    /** "Used in" of a master that properties refer to by field. */
+    function propertyUsage(field, id) {
+        const w = { is_active: 1 }; w[field] = id;
+        const n = DB.count('properties', w);
+        return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') };
+    }
+
     /* ---------------- config of the generic masters ---------------- */
     const MASTERS = {
         'plot-types': {
@@ -30,8 +37,81 @@
                 ['name', 'Plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
                 ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
             ],
-            usage: function (r) { const n = DB.count('properties', { plot_type_id: r.plot_type_id, is_active: 1 }); return { n: n, text: n + ' propert' + (n === 1 ? 'y' : 'ies') }; },
+            usage: function (r) {
+                const p = DB.count('properties', { plot_type_id: r.plot_type_id, is_active: 1 }), s = DB.count('schemes', { plot_type_id: r.plot_type_id });
+                return { n: p + s, text: p + ' propert' + (p === 1 ? 'y' : 'ies') + ', ' + s + ' scheme' + (s === 1 ? '' : 's') };
+            },
             search: function (r) { return [r.name, r.description]; }
+        },
+        'sub-plot-types': {
+            table: 'sub_plot_types', pk: 'sub_plot_type_id', title: 'Sub Plot Type Master', one: 'Sub plot type', icon: 'fa-object-group', entity: 'SUB_PLOT_TYPE',
+            perm: 'sub_plot_type', // own module in the Permissions screen (same prefix as MasterController)
+            sub: 'Sub types of plot. Add, edit or remove them here. Inactive sub types are hidden from new entries but kept on existing records.',
+            name: function (r) { return r.name; }, sort: 'name',
+            fields: [
+                { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, capitalize: true, placeholder: 'Enter sub plot type',
+                    hint: 'The first letter of every word is made capital automatically.' },
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
+            ],
+            columns: [
+                ['name', 'Sub plot type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            usage: function (r) { return propertyUsage('sub_plot_type_id', r.sub_plot_type_id); },
+            search: function (r) { return [r.name, r.description]; }
+        },
+        'road-types': {
+            table: 'road_types', pk: 'road_type_id', title: 'Road Type Master', one: 'Road type', icon: 'fa-road', entity: 'ROAD_TYPE',
+            perm: 'road_type', // own module in the Permissions screen (same prefix as MasterController)
+            sub: 'Types / widths of road. Add, edit or remove them here. Inactive road types are hidden from new entries but kept on existing records.',
+            // listed in their order (9, 18, 20 … Meter), not alphabetically ("9 Meter" would come after "60 Meter")
+            name: function (r) { return r.name; }, sort: 'order', sortable: { order: function (r) { return r.sort_order || 0; } },
+            fields: [
+                { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, capitalize: true, placeholder: 'Enter road type',
+                    hint: 'The first letter of every word is made capital automatically.' },
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
+            ],
+            columns: [
+                ['name', 'Road type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            usage: function (r) { return propertyUsage('road_type_id', r.road_type_id); },
+            search: function (r) { return [r.name, r.description]; }
+        },
+        'scheme-types': {
+            table: 'scheme_types', pk: 'scheme_type_id', title: 'Scheme Type Master', one: 'Scheme type', icon: 'fa-layer-group', entity: 'SCHEME_TYPE',
+            perm: 'scheme_type', // own module in the Permissions screen (same prefix as MasterController)
+            sub: 'Types of scheme. Add, edit or remove types here. Inactive types are hidden from new schemes but kept on existing ones.',
+            name: function (r) { return r.name; }, sort: 'name',
+            fields: [
+                { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'Enter scheme type' },
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
+            ],
+            columns: [
+                ['name', 'Scheme type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            usage: function (r) { const n = DB.count('schemes', { scheme_type_id: r.scheme_type_id }); return { n: n, text: n + ' scheme' + (n === 1 ? '' : 's') }; },
+            search: function (r) { return [r.name, r.description]; }
+        },
+        'developer-types': {
+            table: 'developer_types', pk: 'developer_type_id', title: 'Developer Type Master', one: 'Developer type', icon: 'fa-helmet-safety', entity: 'DEVELOPER_TYPE',
+            perm: 'developer_type', // own module in the Permissions screen (same prefix as MasterController)
+            sub: 'Who develops the scheme / property. Add, edit or remove types here. Inactive types are hidden from new entries but kept on existing records.',
+            name: function (r) { return r.name; }, sort: 'name',
+            fields: [
+                { name: 'name', label: 'Name', rules: 'required|min:2|max:60|text', unique: true, placeholder: 'Enter developer type' },
+                { name: 'default_developer', label: 'Default developer', rules: 'max:150|text', placeholder: 'Leave empty to type the developer in the scheme',
+                    hint: 'If filled, the Scheme form selects this developer automatically. If empty, a text box opens to type the developer name.' },
+                { name: 'description', label: 'Description', rules: 'max:150|text' }
+            ],
+            columns: [
+                ['name', 'Developer type', function (r) { return r.name; }, function (r) { return '<strong>' + e(r.name) + '</strong>'; }],
+                ['dev', 'Default developer', function (r) { return r.default_developer; }, function (r) { return r.default_developer ? e(r.default_developer) : '<span class="text-muted">Typed in scheme</span>'; }],
+                ['desc', 'Description', function (r) { return r.description; }, function (r) { return e(r.description || '—'); }]
+            ],
+            usage: function (r) { const n = DB.count('schemes', { developer_type_id: r.developer_type_id }); return { n: n, text: n + ' scheme' + (n === 1 ? '' : 's') }; },
+            search: function (r) { return [r.name, r.default_developer, r.description]; }
         },
         units: {
             table: 'units', pk: 'unit_id', title: 'Unit Master', one: 'Unit', icon: 'fa-ruler-combined', entity: 'UNIT',
@@ -74,6 +154,8 @@
         }
     };
     P.MASTERS = MASTERS;
+    /** Permission code of a master action: <perm>.<action>; masters without their own module use master.* */
+    function can(m, action) { return (m.perm || 'master') + '.' + action; }
 
     /* ---------------- generic list ---------------- */
     function listPage(key, ctx) {
@@ -85,6 +167,7 @@
         if (m.applyFilter) { rows = m.applyFilter(rows, q); }
         const sortable = { usage: function (r) { return r._usage.n; } };
         m.columns.forEach(function (c) { sortable[c[0]] = c[2]; });
+        if (m.sortable) { Object.assign(sortable, m.sortable); } // extra sort keys (e.g. the master's own order)
         const p = P.paginate(rows, ctx, { sort: m.sort, dir: 'asc', filters: ['status'].concat(m.filterKeys || []), search: m.search, sortable: sortable });
         const filters = (m.filters ? m.filters(q) : '') + '<select name="status" class="form-select" aria-label="Status" data-auto-submit>' +
             L.options({ active: 'Active', inactive: 'Inactive' }, q.status, 'All status') + '</select>';
@@ -92,7 +175,7 @@
         return {
             title: m.title,
             html: crumbs(m.title) + P.pageHeader(icon(m.icon) + ' ' + m.title, m.sub,
-                Auth.can('master.create') ? '<a href="' + P.BASE + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>' : '') +
+                Auth.can(can(m, 'create')) ? '<a href="' + P.BASE + BASE + '/' + key + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add ' + e(m.one) + '</span></a>' : '') +
                 '<div class="master-mini"><span>' + icon('fa-database') + ' <strong>' + total + '</strong> total</span><span class="ok">' + icon('fa-circle-check') + ' <strong>' + active + '</strong> active</span>' +
                 '<span class="off">' + icon('fa-circle-pause') + ' <strong>' + (total - active) + '</strong> inactive</span></div>' +
                 '<div class="card">' + P.list_toolbar(p, 'Search ' + m.one.toLowerCase() + '…', filters) +
@@ -103,13 +186,13 @@
                     return '<tr>' + m.columns.map(function (c) { return '<td data-label="' + e(c[1]) + '">' + c[3](r) + '</td>'; }).join('') +
                         '<td data-label="Used in"><span class="badge ' + (r._usage.n ? 'badge-info' : 'badge-muted') + '">' + r._usage.n + '</span><span class="cell-sub">' + e(r._usage.text) + '</span></td>' +
                         '<td data-label="Status">' + P.active_badge(r.is_active) + '</td><td class="actions actions-start"><div class="btn-group">' +
-                        (Auth.can('master.edit') ? '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' : '') +
-                        (!Auth.can('master.toggle') ? '' : locked ?'<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
+                        (Auth.can(can(m, 'edit')) ? '<a href="' + P.BASE + BASE + '/' + key + '/' + id + '/edit" class="btn btn-light btn-sm btn-icon-only" title="' + e('Edit ' + m.name(r)) + '" aria-label="' + e('Edit ' + m.name(r)) + '">' + icon('fa-pen') + '</a>' : '') +
+                        (!Auth.can(can(m, 'toggle')) ? '' : locked ?'<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="' + (key === 'units' ? 'Base unit' : 'System status') + ' — always active">' + icon('fa-lock') + '</span>' :
                             '<form method="post" data-action="master" data-confirm="' + e(on ? 'Deactivate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"? It will be hidden from new entries; existing records keep it.' : 'Activate ' + m.one.toLowerCase() + ' "' + m.name(r) + '"?') + '" data-confirm-variant="' + (on ? 'danger' : 'success') + '">' +
                             '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="toggle"><input type="hidden" name="id" value="' + id + '">' +
                             (on ? '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Deactivate" aria-label="Deactivate">' + icon('fa-toggle-off') + '</button>'
                                 : '<button type="submit" class="btn btn-sm btn-success btn-icon-only" title="Activate" aria-label="Activate">' + icon('fa-toggle-on') + '</button>') + '</form>') +
-                        (!locked && !r._usage.n && Auth.can('master.delete') ? '<form method="post" data-action="master" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
+                        (!locked && !r._usage.n && Auth.can(can(m, 'delete')) ? '<form method="post" data-action="master" data-confirm="' + e('Delete ' + m.one.toLowerCase() + ' "' + m.name(r) + '" permanently? It is not used anywhere.') + '" data-confirm-variant="danger" data-confirm-ok="Yes, delete">' +
                             '<input type="hidden" name="key" value="' + key + '"><input type="hidden" name="do" value="delete"><input type="hidden" name="id" value="' + id + '">' +
                             '<button type="submit" class="btn btn-sm btn-light text-danger btn-icon-only" title="Delete" aria-label="Delete">' + icon('fa-trash-can') + '</button></form>' : '') +
                         '</div></td></tr>';
@@ -127,7 +210,7 @@
         const field = function (f) {
             const ro = isEdit && (f.lockOnEdit || (f.lockIf && f.lockIf(row)));
             const attrs = ' id="' + f.name + '" name="' + f.name + '" data-label="' + e(f.label) + '"' + (ro ? ' readonly' : (f.rules ? ' data-rules="' + f.rules + '"' : '')) +
-                (f.upper ? ' data-uppercase' : '') + (f.placeholder ? ' placeholder="' + e(f.placeholder) + '"' : '') + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '');
+                (f.upper ? ' data-uppercase' : '') + (f.capitalize ? ' data-capitalize' : '') + (f.placeholder ? ' placeholder="' + e(f.placeholder) + '"' : '') + (f.inputmode ? ' inputmode="' + f.inputmode + '"' : '');
             let input;
             if (f.type === 'select') {
                 input = '<select class="form-select"' + attrs + (f.preview ? ' data-master-preview' : '') + '>' + L.options(f.options(val(f)), val(f), 'Select ' + f.label.toLowerCase()) + '</select>';
@@ -181,12 +264,13 @@
     }
 
     Object.keys(MASTERS).forEach(function (key) {
-        P.route(BASE + '/' + key, PANEL, function (ctx) { return listPage(key, ctx); }, 'master.view');
-        P.route(BASE + '/' + key + '/create', PANEL, function () { return formPage(key, null); }, 'master.create');
+        const m = MASTERS[key];
+        P.route(BASE + '/' + key, PANEL, function (ctx) { return listPage(key, ctx); }, can(m, 'view'));
+        P.route(BASE + '/' + key + '/create', PANEL, function () { return formPage(key, null); }, can(m, 'create'));
         P.route(BASE + '/' + key + '/{id}/edit', PANEL, function (ctx) {
-            const r = DB.find(MASTERS[key].table, ctx.params.id);
-            return r ? formPage(key, r) : P.notFound(MASTERS[key].one + ' not found.');
-        }, 'master.edit');
+            const r = DB.find(m.table, ctx.params.id);
+            return r ? formPage(key, r) : P.notFound(m.one + ' not found.');
+        }, can(m, 'edit'));
     });
 
 

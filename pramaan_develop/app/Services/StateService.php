@@ -65,7 +65,7 @@ final class StateService
 
         $t = &$state['tables'];
         $t['roles'] = Role::where([], 'sort_order');
-        foreach (['areas' => 'Area', 'plot_types' => 'PlotType', 'statuses' => 'Status', 'units' => 'Unit',
+        foreach (['areas' => 'Area', 'plot_types' => 'PlotType', 'developer_types' => 'DeveloperType', 'scheme_types' => 'SchemeType', 'sub_plot_types' => 'SubPlotType', 'road_types' => 'RoadType', 'statuses' => 'Status', 'units' => 'Unit',
                  'schemes' => 'Scheme', 'sectors' => 'Sector'] as $key => $model) {
             $t[$key] = ('App\\Models\\' . $model)::where();
         }
@@ -85,8 +85,11 @@ final class StateService
         $t['tasks'] = self::tasks($propertyIds === null ? null : $roundIds);
         $taskIds = array_column($t['tasks'], 'task_id');
         $t['task_assignees'] = $propertyIds === null ? TaskAssignee::where() : TaskAssignee::where(['task_id' => $taskIds]);
+        // task-only users: files of their properties + the site plans of those properties' schemes (all schemes with scheme.view)
         $t['attachments'] = array_map(static fn ($a) => array_diff_key($a, ['stored_name' => 1, 'sha256' => 1]),
-            $propertyIds === null ? Attachment::where() : Attachment::where(['property_id' => $propertyIds]));
+            $propertyIds === null ? Attachment::where() : array_merge(Attachment::where(['property_id' => $propertyIds]),
+                Attachment::where(Auth::can('scheme.view') ? ['scheme_id !=' => null]
+                    : ['scheme_id' => array_values(array_unique(array_column($t['properties'], 'scheme_id')))])));
         $t['audit_logs'] = self::auditLogs($admin, $uid, $propertyIds);
         $t['login_attempts'] = $admin ? self::loginAttempts() : [];
         $t['notifications'] = Notification::latestFor($uid, (int) config('state.notification_limit', 300));

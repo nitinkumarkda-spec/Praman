@@ -40,9 +40,9 @@ $router->group(['csrf'], static function ($r): void {
         $r->post('/api/impersonate', 'User@impersonate', ['can:user.impersonate']);
         $r->post('/api/user-permission-save', 'Permission@userSave', ['can:user.permissions']);
 
-        // every master (key = areas | plot-types | units | statuses | sectors | schemes), every action (do = save | toggle | delete);
+        // every master (key = areas | plot-types | developer-types | scheme-types | sub-plot-types | road-types | units | statuses | sectors | schemes), every action (do = save | toggle | delete);
         // the controller checks the exact permission (master.* or, for schemes, scheme.*)
-        $r->post('/api/master', 'Master@handle', ['can:master.create,master.edit,master.toggle,master.delete,scheme.create,scheme.edit,scheme.toggle']);
+        $r->post('/api/master', 'Master@handle', ['can:master.create,master.edit,master.toggle,master.delete,developer_type.create,developer_type.edit,developer_type.toggle,developer_type.delete,scheme_type.create,scheme_type.edit,scheme_type.toggle,scheme_type.delete,sub_plot_type.create,sub_plot_type.edit,sub_plot_type.toggle,sub_plot_type.delete,road_type.create,road_type.edit,road_type.toggle,road_type.delete,scheme.create,scheme.edit,scheme.toggle']);
         $r->post('/api/scheme-users', 'Master@schemeUsers', ['can:scheme.edit']);
 
         $r->post('/api/publish-direction', 'Insight@publishDirection', ['can:direction.publish']);

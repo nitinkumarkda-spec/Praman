@@ -162,7 +162,7 @@ FileETag None
     Header always set Cross-Origin-Opener-Policy "same-origin" "expr=-z resp('Cross-Origin-Opener-Policy')"
     Header always set Cross-Origin-Resource-Policy "same-origin" "expr=-z resp('Cross-Origin-Resource-Policy')"
     Header always set X-Permitted-Cross-Domain-Policies "none" "expr=-z resp('X-Permitted-Cross-Domain-Policies')"
-    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "expr=-z resp('Content-Security-Policy')"
+    Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" "expr=-z resp('Content-Security-Policy')"
     # old XSS filter is itself exploitable — modern advice is to switch it off; CSP above protects instead
     Header always set X-XSS-Protection "0"
     # HSTS — enable only after HTTPS works (section 9):

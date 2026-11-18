@@ -10,6 +10,7 @@ use App\Core\Password;
 use App\Models\Area;
 use App\Models\LoginAttempt;
 use App\Models\PlotType;
+use App\Models\SchemeType;
 use App\Models\Property;
 use App\Models\Role;
 use App\Models\Round;
@@ -33,7 +34,7 @@ final class Seeder
     private const DAY = 1440;
 
     private const TABLES = ['site_inspections', 'section_checks', 'attachments', 'task_assignees', 'tasks', 'notifications', 'audit_logs', 'login_attempts',
-        'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'statuses', 'units', 'areas', 'user_permissions', 'users', 'roles'];
+        'rounds', 'properties', 'scheme_users', 'sectors', 'schemes', 'plot_types', 'developer_types', 'scheme_types', 'sub_plot_types', 'road_types', 'statuses', 'units', 'areas', 'user_permissions', 'users', 'roles'];
 
     public static function run(): void
     {
@@ -183,6 +184,12 @@ final class Seeder
         $de = self::actor(2);
         $oic = self::actor(3);
 
+        // ---- sample scheme types (Scheme Type master — editable from the Masters screen) ----
+        $schemeType = [];
+        foreach (['Residential', 'Commercial', 'Industrial', 'Mixed', 'Farmhouse'] as $i => $n) {
+            $schemeType[strtoupper($n)] = SchemeType::insert(['name' => $n, 'sort_order' => $i + 1, 'is_active' => 1, 'is_system' => 0, 'created_by' => 1]);
+        }
+
         // ---- schemes (created by Data Entry, 20-16 days ago) ----
         $schemes = [
             ['Ravindra Nagar Awasiya Yojana', 'RESIDENTIAL', 1, ['Sector-1', 'Sector-2', 'Sector-3', 'Sector-4']],
@@ -193,7 +200,7 @@ final class Seeder
         foreach ($schemes as $i => $s) {
             self::loginAt(2, (20 - $i * 2) * self::DAY + 30, 0);
             self::at((20 - $i * 2) * self::DAY);
-            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_type' => $s[1], 'area_id' => $s[2], 'is_active' => 1, 'created_by' => 2]);
+            $sid = Scheme::insert(['scheme_name' => $s[0], 'scheme_type_id' => $schemeType[$s[1]], 'area_id' => $s[2], 'is_active' => 1, 'created_by' => 2]);
             foreach ($s[3] as $j => $name) {
                 Sector::insert(['scheme_id' => $sid, 'sector_name' => $name, 'sort_order' => $j + 1, 'is_active' => 1, 'created_by' => 2]);
             }
@@ -203,11 +210,11 @@ final class Seeder
                     SchemeUser::insert(['scheme_id' => $sid, 'role_id' => $u['role_id'], 'user_id' => $u['user_id'], 'is_active' => 1, 'created_by' => 2]);
                 }
             }
-            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_type' => $s[1],
+            Audit::log('SCHEME', $sid, 'CREATED', null, ['scheme_name' => $s[0], 'scheme_type_id' => $schemeType[$s[1]],
                 'area_id' => $s[2], 'sectors' => implode(', ', $s[3])], null, $de);
         }
         self::at(15 * self::DAY);
-        Audit::log('SCHEME', 1, 'UPDATED', ['scheme_type' => 'MIXED'], ['scheme_type' => 'RESIDENTIAL'], null, $de);
+        Audit::log('SCHEME', 1, 'UPDATED', ['scheme_type_id' => $schemeType['MIXED']], ['scheme_type_id' => $schemeType['RESIDENTIAL']], null, $de);
 
         // ---- properties (10-6 days ago) ----
         $props = [
@@ -225,7 +232,6 @@ final class Seeder
             $res = PropertyService::create([
                 'scheme_id' => $x[0], 'sector_id' => $x[1],
                 'plot_no' => $x[2], 'plot_type_id' => $type[$x[3]], 'area_value' => $x[4], 'unit_id' => $u, 'area_sqm' => PropertyService::toSqm($x[4], $u),
-                'reserve_price' => round(PropertyService::toSqm($x[4], $u) * 15000, -3),
             ], 2);
             $p = $res['property'];
             Audit::log('PROPERTY', $p['property_id'], 'CREATED', null, ['plot_no' => $p['plot_no'],

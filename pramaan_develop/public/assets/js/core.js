@@ -34,11 +34,17 @@
 
     const Lookups = {
         get AREAS() { return masterMap('areas', 'area_id', 'area_name', false); },
-        get SCHEME_TYPES() { return DB.lookup('scheme_types'); },
+        /* Scheme Type master: scheme_type_id => name */
+        get SCHEME_TYPES() { return masterMap('scheme_types', 'scheme_type_id', 'name', false); },
         get STATUS_COLORS() { return DB.lookup('status_colors'); },
         get STATUS_ICONS() { return DB.lookup('status_icons'); },
         /* masters are linked by id: plot_type_id => name, status_id => name */
         get PROPERTY_TYPES() { return masterMap('plot_types', 'plot_type_id', 'name', false); },
+        /* Facing of a plot: fixed list (code => label, App\Core\Lookups::FACINGS) */
+        get FACINGS() { return DB.lookup('facings'); },
+        get ROAD_TYPES() { return masterMap('road_types', 'road_type_id', 'name', false); },
+        get SUB_PLOT_TYPES() { return masterMap('sub_plot_types', 'sub_plot_type_id', 'name', false); },
+        get DEVELOPER_TYPES() { return masterMap('developer_types', 'developer_type_id', 'name', false); },
         get PROPERTY_STATUSES() { return masterMap('statuses', 'status_id', 'name', false); },
         /** Only active rows (+ the current value, so old records still show it) — for entry forms. */
         activeMap: function (table, key, name, current) {
@@ -186,7 +192,7 @@
         home: function () {
             const u = Auth.user();
             if (!u) { return '/login'; }
-            if (Number(u.role_id) === 1 || Auth.can('role.view', 'user.view', 'master.view', 'settings.view', 'audit.view')) {
+            if (Number(u.role_id) === 1 || Auth.can('role.view', 'user.view', 'master.view', 'developer_type.view', 'scheme_type.view', 'sub_plot_type.view', 'road_type.view', 'settings.view', 'audit.view')) {
                 return '/admin/dashboard';
             }
             const roleId = Number(u.role_id);
@@ -227,7 +233,7 @@
      * POST an action to the server. body: FormData or plain object.
      * Resolves with the JSON reply ({ ok, message, field, flashes, go, state }).
      */
-    Praman.api = function (action, body) {
+    Praman.api = function (action, body, retried) {
         let fd = body;
         if (!(body instanceof FormData)) {
             fd = new FormData();
@@ -240,7 +246,11 @@
             return res.json().catch(function () { return { ok: false, message: 'Unexpected server response (' + res.status + ').' }; }).then(function (json) {
                 json.status = res.status;
                 if (json.state) { applyState(json.state); }
-                // signed out, or CSRF token out of date (e.g. another tab logged in again): take the fresh session + token
+                // CSRF token out of date (page left open, or another tab logged in / out): take the fresh token and send it once more
+                if (json.csrf && !retried) {
+                    return Praman.refreshState().then(function (fresh) { return fresh && fresh.state ? Praman.api(action, fd, true) : json; });
+                }
+                // signed out: take the fresh session
                 if (res.status === 401 || json.csrf) { return Praman.refreshState().then(function () { return json; }); }
                 return json;
             });
@@ -453,9 +463,13 @@
         { section: 'Schemes & Properties', requiresAny: ['scheme.view', 'property.view', 'verification.view', 'property.create'] },
         ['Schemes', 'fa-map', '/admin/masters/schemes', 'scheme.view'],
         ['Property Register', 'fa-building', '/admin/masters/properties', ['property.view', 'verification.view']],
-        { section: 'Masters', requiresAny: ['master.view'] },
+        { section: 'Masters', requiresAny: ['master.view', 'scheme_type.view', 'sub_plot_type.view', 'road_type.view', 'developer_type.view'] },
         ['Sector', 'fa-table-cells', '/admin/masters/sectors', 'master.view'],
         ['Plot Type', 'fa-shapes', '/admin/masters/plot-types', 'master.view'],
+        ['Sub Plot Type', 'fa-object-group', '/admin/masters/sub-plot-types', 'sub_plot_type.view'],
+        ['Road Type', 'fa-road', '/admin/masters/road-types', 'road_type.view'],
+        ['Scheme Type', 'fa-layer-group', '/admin/masters/scheme-types', 'scheme_type.view'],
+        ['Developer Type', 'fa-helmet-safety', '/admin/masters/developer-types', 'developer_type.view'],
         ['Unit', 'fa-ruler-combined', '/admin/masters/units', 'master.view'],
         ['Status', 'fa-flag', '/admin/masters/statuses', 'master.view'],
 

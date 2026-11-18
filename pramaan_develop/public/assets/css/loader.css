@@ -55,7 +55,7 @@ html.pl-lock, html.pl-lock body { overflow: hidden; }
 
 /* seal: emblem + rings */
 .pl-seal {
-    position: relative; width: 148px; height: 148px; display: grid; place-items: center;
+    position: relative; width: 184px; height: 184px; display: grid; place-items: center;
     margin-bottom: 26px;
     animation: plFade .5s ease both;
 }
@@ -81,10 +81,10 @@ html.pl-lock, html.pl-lock body { overflow: hidden; }
     animation: plSpin 2.2s linear infinite;
 }
 .pl-emblem {
-    position: relative; width: 92px; height: 92px; border-radius: 50%; background: #fff; display: grid; place-items: center;
+    position: relative; width: 136px; height: 136px; border-radius: 50%; background: #fff; display: grid; place-items: center;
     box-shadow: 0 0 0 4px rgba(217, 184, 74, .25), 0 14px 36px -10px rgba(0, 0, 0, .6);
 }
-.pl-emblem img { width: 80%; height: 80%; object-fit: contain; }
+.pl-emblem img { width: 88%; height: 88%; object-fit: contain; } /* full KDA Pramaan logo */
 
 /* Green verified tick badge completely removed */
 .pl-tick {
@@ -162,8 +162,8 @@ html.pl-lock, html.pl-lock body { overflow: hidden; }
 
 /* ---- small screens ---- */
 @media (max-width: 575.98px) {
-    .pl-seal { width: 120px; height: 120px; margin-bottom: 22px; }
-    .pl-emblem { width: 76px; height: 76px; }
+    .pl-seal { width: 156px; height: 156px; margin-bottom: 22px; }
+    .pl-emblem { width: 114px; height: 114px; }
     .pl-tag { gap: 10px; }
     .pl-tag span { letter-spacing: .24em; padding-left: .24em; }
 }
@@ -172,8 +172,8 @@ html.pl-lock, html.pl-lock body { overflow: hidden; }
     .pl-tag span { white-space: normal; }
 }
 @media (max-height: 480px) and (orientation: landscape) {
-    .pl-seal { width: 96px; height: 96px; margin-bottom: 12px; }
-    .pl-emblem { width: 62px; height: 62px; }
+    .pl-seal { width: 120px; height: 120px; margin-bottom: 12px; }
+    .pl-emblem { width: 86px; height: 86px; }
     .pl-progress { margin-top: 16px; }
 }
 

@@ -33,4 +33,14 @@ final class TaskAssignee extends Model
             [$userId, $propertyId]
         ) !== null;
     }
+
+    /** Has the user (had) a task on any property of the scheme? (they may see the scheme's site plan) */
+    public static function userOnScheme(int $userId, int $schemeId): bool
+    {
+        return Database::value(
+            'SELECT 1 FROM {task_assignees} a JOIN {tasks} t ON t.task_id = a.task_id JOIN {rounds} r ON r.round_id = t.round_id
+             JOIN {properties} p ON p.property_id = r.property_id WHERE a.user_id = ? AND p.scheme_id = ? LIMIT 1',
+            [$userId, $schemeId]
+        ) !== null;
+    }
 }

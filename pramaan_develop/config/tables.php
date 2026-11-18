@@ -18,6 +18,10 @@ return [
     // masters
     'areas'            => 'areas',
     'plot_types'       => 'plot_types',
+    'developer_types'  => 'developer_types',
+    'scheme_types'     => 'scheme_types',
+    'sub_plot_types'   => 'sub_plot_types',
+    'road_types'       => 'road_types',
     'statuses'         => 'statuses',
     'units'            => 'units',
     // schemes

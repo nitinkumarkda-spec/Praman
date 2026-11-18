@@ -12,7 +12,9 @@ use App\Codes\Section;
 final class Lookups
 {
     public const PANELS = [];
-    public const SCHEME_TYPES = ['RESIDENTIAL' => 'Residential', 'COMMERCIAL' => 'Commercial', 'INDUSTRIAL' => 'Industrial', 'MIXED' => 'Mixed', 'FARMHOUSE' => 'Farmhouse'];
+    /** Direction a plot faces (properties.facing) — a fixed list, not a master. */
+    public const FACINGS = ['EAST' => 'East', 'NORTH' => 'North', 'NORTH_EAST' => 'North-East', 'NORTH_WEST' => 'North-West',
+        'SOUTH' => 'South', 'SOUTH_EAST' => 'South-East', 'SOUTH_WEST' => 'South-West', 'WEST' => 'West'];
     public const STATUS_COLORS = ['info' => 'Blue', 'warning' => 'Amber', 'success' => 'Green', 'danger' => 'Red', 'primary' => 'Navy', 'gold' => 'Gold', 'dark' => 'Dark', 'muted' => 'Grey'];
     public const STATUS_ICONS = ['fa-list' => 'List', 'fa-hourglass-half' => 'Hourglass', 'fa-circle-check' => 'Check', 'fa-circle-xmark' => 'Cross', 'fa-gavel' => 'Gavel',
         'fa-handshake' => 'Handshake', 'fa-pause' => 'Pause', 'fa-box-archive' => 'Archive', 'fa-flag' => 'Flag', 'fa-clock' => 'Clock', 'fa-ban' => 'Ban', 'fa-star' => 'Star'];
@@ -20,7 +22,7 @@ final class Lookups
     public static function all(): array
     {
         return [
-            'panels' => self::PANELS, 'scheme_types' => self::SCHEME_TYPES,
+            'panels' => self::PANELS, 'facings' => self::FACINGS,
             'status_colors' => self::STATUS_COLORS, 'status_icons' => self::STATUS_ICONS,
             'verification_forms' => Section::FORMS,
         ];

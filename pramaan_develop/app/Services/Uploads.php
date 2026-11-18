@@ -84,7 +84,7 @@ final class Uploads
         return $out;
     }
 
-    /** Move one checked file into storage and add its row. */
+    /** Move one checked file into storage and add its row. $ctx: property_id or scheme_id, context, by, task_id?, round_id? */
     public static function store(array $f, array $ctx): array
     {
         $sub = date('Y/m');
@@ -100,7 +100,8 @@ final class Uploads
         }
         @chmod($path, 0600);
         $id = Attachment::insert([
-            'task_id' => $ctx['task_id'] ?? null, 'round_id' => $ctx['round_id'] ?? null, 'property_id' => $ctx['property_id'],
+            'task_id' => $ctx['task_id'] ?? null, 'round_id' => $ctx['round_id'] ?? null,
+            'property_id' => $ctx['property_id'] ?? null, 'scheme_id' => $ctx['scheme_id'] ?? null,
             'context' => $ctx['context'] ?? AttachmentContext::TASK_RESPONSE, 'file_name' => $f['name'], 'stored_name' => $stored, 'mime' => $f['mime'],
             'size' => $f['size'], 'sha256' => hash_file('sha256', $path), 'uploaded_by' => $ctx['by'],
         ]);

@@ -8,18 +8,16 @@ use App\Codes\PropertyStatus;
 use App\Core\Database;
 use App\Models\Attachment;
 use App\Models\Property;
-
 use App\Models\Scheme;
 use App\Models\Sector;
 use App\Models\Unit;
-use Throwable;
 
 /**
  * Property register rules shared by the Data Entry screens and the seeder.
  */
 final class PropertyService
 {
-    /** Site plan PDF uploaded by Data Entry (latest one is current; older uploads stay as history). */
+    /** Site plan PDF of a scheme, uploaded in the Scheme form (latest one is current; older uploads stay as history). */
     public const SITE_PLAN = AttachmentContext::SITE_PLAN;
 
     /** Area in square metres, using the factor from the Unit Master. */
@@ -34,6 +32,12 @@ final class PropertyService
         return $from === $to ? $value : $value * (Unit::factor($from) ?? 1.0) / (Unit::factor($to) ?? 1.0);
     }
 
+    /** Latitude ($intDigits 2, $max 90) / longitude (3, 180) with at most 8 decimals; null when not valid. */
+    public static function coordinate(string $raw, int $intDigits, int $max): ?float
+    {
+        return preg_match('/^-?\d{1,' . $intDigits . '}(\.\d{1,8})?$/', $raw) && abs((float) $raw) <= $max ? round((float) $raw, 8) : null;
+    }
+
     /** Active unit for a new entry (or the unit the record already has); null when invalid. */
     public static function validUnit(int $unitId, ?int $current = null): ?int
     {
@@ -41,10 +45,10 @@ final class PropertyService
         return $u && ($u['is_active'] || $unitId === $current) ? $u['unit_id'] : null;
     }
 
-    /** Latest uploaded document of a kind (SITE_PLAN …). */
-    public static function doc(int $propertyId, string $context): ?array
+    /** Latest site plan of a scheme (null when none was uploaded). */
+    public static function schemeSitePlan(int $schemeId): ?array
     {
-        return Attachment::first(['property_id' => $propertyId, 'context' => $context], 'attachment_id DESC');
+        return Attachment::first(['scheme_id' => $schemeId, 'context' => self::SITE_PLAN], 'attachment_id DESC');
     }
 
     /** Mandatory active roles that have no active, correctly-mapped user in the scheme. */
@@ -55,31 +59,21 @@ final class PropertyService
     }
 
     /**
-     * Create a Listed property and copy the scheme's role users onto it (snapshot).
-     * @param array|null $sitePlan checked site plan PDF (Uploads::checkPdf)
-     * @return array{property: array, snap: int}
+     * Create a Listed property and tell the verification users. Its site plan and reserve price come from the scheme.
+     * @return array{property: array}
      */
-    public static function create(array $d, int $by, ?array $sitePlan = null): array
+    public static function create(array $d, int $by): array
     {
-        $stored = [];
-        try {
-            return Database::transaction(static function () use ($d, $by, $sitePlan, &$stored): array {
-                $id = Property::insert($d + ['remarks' => null, 'status_id' => PropertyStatus::LISTED, 'is_active' => 1, 'created_by' => $by]);
-                if ($sitePlan) {
-                    $stored[] = Uploads::store($sitePlan, ['property_id' => $id, 'context' => self::SITE_PLAN, 'by' => $by])['path'];
-                }
-                $p = Property::find($id);
-                $scheme = Scheme::find($d['scheme_id']);
-                $sector = $p['sector_id'] ? Sector::find($p['sector_id']) : null;
-                Notify::send(Notify::permissionUsers('verification.view'), [
-                    'type' => 'PROPERTY', 'icon' => 'fa-building-circle-check', 'title' => 'New property listed — Plot ' . $p['plot_no'],
-                    'message' => $scheme['scheme_name'] . ($sector ? ' / ' . $sector['sector_name'] : '') . ' · ready to be sent for verification.', 'link' => '/admin/masters/properties/' . $id,
-                ]);
-                return ['property' => $p, 'snap' => $snap];
-            });
-        } catch (Throwable $e) {
-            Uploads::discard($stored);
-            throw $e;
-        }
+        return Database::transaction(static function () use ($d, $by): array {
+            $id = Property::insert($d + ['remarks' => null, 'status_id' => PropertyStatus::LISTED, 'is_active' => 1, 'created_by' => $by]);
+            $p = Property::find($id);
+            $scheme = Scheme::find($d['scheme_id']);
+            $sector = $p['sector_id'] ? Sector::find($p['sector_id']) : null;
+            Notify::send(Notify::permissionUsers('verification.view'), [
+                'type' => 'PROPERTY', 'icon' => 'fa-building-circle-check', 'title' => 'New property listed — Plot ' . $p['plot_no'],
+                'message' => $scheme['scheme_name'] . ($sector ? ' / ' . $sector['sector_name'] : '') . ' · ready to be sent for verification.', 'link' => '/admin/masters/properties/' . $id,
+            ]);
+            return ['property' => $p];
+        });
     }
 }

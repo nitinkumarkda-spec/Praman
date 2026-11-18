@@ -359,15 +359,15 @@
     function schemeListPage(ctx, base, crumbs) {
         const q = ctx.query;
         let rows = schemeRows();
-        if (q.type) { rows = rows.filter(function (s) { return s.scheme_type === q.type; }); }
+        if (q.type) { rows = rows.filter(function (s) { return String(s.scheme_type_id) === q.type; }); }
         if (q.status === 'active') { rows = rows.filter(function (s) { return s.is_active; }); }
         if (q.status === 'inactive') { rows = rows.filter(function (s) { return !s.is_active; }); }
         const p = P.paginate(rows, ctx, {
             sort: 'name', dir: 'asc', filters: ['type', 'status'],
-            search: function (s) { return [s.scheme_name, s.sector_names]; },
+            search: function (s) { return [s.scheme_name, s.sector_names, s.developer_name, s.scheme_landmark, s.rera_registration_no]; },
             sortable: {
                 name: function (s) { return s.scheme_name; },
-                type: function (s) { return s.scheme_type; },
+                type: function (s) { return L.SCHEME_TYPES[s.scheme_type_id] || ''; },
                 sectors: function (s) { return s.sector_count; },
                 properties: function (s) { return s.property_count; }
             }
@@ -390,7 +390,7 @@
                         (s.mapped_users > 0
                             ? '<span class="cell-sub text-muted" title="' + s.mapped_users + ' role user(s) assigned across ' + s.mapped_roles + ' role(s)">' + icon('fa-users-gear') + ' ' + s.mapped_users + ' role user' + (s.mapped_users === 1 ? '' : 's') + '</span>'
                             : '<span class="cell-sub text-muted">' + icon('fa-user-slash') + ' No role users</span>') + '</td>' +
-                        '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type] || s.scheme_type) + '</td>' +
+                        '<td data-label="Type">' + e(L.SCHEME_TYPES[s.scheme_type_id] || '—') + '</td>' +
                         '<td data-label="Sectors"><span class="badge badge-info">' + s.sector_count + '</span>' +
                         '<span class="cell-sub truncate" title="' + e(s.sector_names) + '">' + e(s.sector_names || '—') + '</span></td>' +
                         '<td data-label="Properties">' + (s.property_count > 0 ? '<a href="' + P.BASE + propBase + '?scheme_id=' + s.scheme_id + '" class="badge badge-info" title="View properties in this scheme">' + s.property_count + '</a>' : '0') + '</td><td data-label="Status">' + P.active_badge(s.is_active) + '</td>' +
@@ -420,8 +420,23 @@
     }
     function schemeForm(scheme, base, crumbs) {
         const isEdit = !!scheme;
-        const v = function (k) { return isEdit ? scheme[k] : ''; };
+        const v = function (k) { return isEdit && scheme[k] != null ? scheme[k] : ''; };
         const sectors = isEdit ? DB.Scheme.sectors(scheme.scheme_id) : [];
+        // required dropdown filled from a master table: active rows + the one this scheme already has
+        const masterSelect = function (name, label, table, nameCol, attrs) {
+            return '<div class="form-group"><label class="form-label" for="' + name + '">' + e(label) + ' <span class="required">*</span></label>' +
+                '<select id="' + name + '" name="' + name + '" class="form-select" data-rules="required" data-label="' + e(label) + '"' + (attrs || '') + '>' +
+                L.options(L.activeMap(table, name, nameCol, v(name)), v(name), 'Select ' + label.toLowerCase()) + '</select><div class="invalid-feedback"></div></div>';
+        };
+        // text box; the * is shown when its rules say "required"
+        // o: {placeholder, hint, upper (typed in capitals)}
+        const textInput = function (name, label, rules, max, o) {
+            o = o || {};
+            return '<div class="form-group"><label class="form-label" for="' + name + '">' + e(label) + (/(^|\|)required(\||$)/.test(rules) ? ' <span class="required">*</span>' : '') + '</label>' +
+                '<input type="text" id="' + name + '" name="' + name + '" class="form-control' + (o.upper ? ' mono' : '') + '" maxlength="' + max + '" value="' + e(v(name)) + '"' +
+                (o.placeholder ? ' placeholder="' + e(o.placeholder) + '"' : '') + (o.upper ? ' data-uppercase autocomplete="off"' : '') + ' data-rules="' + rules + '" data-label="' + e(label) + '">' +
+                (o.hint ? '<div class="form-hint">' + e(o.hint) + '</div>' : '') + '<div class="invalid-feedback"></div></div>';
+        };
 
         let html = (crumbs ? crumbs('Schemes', isEdit ? 'Edit' : 'Add') : '') + P.pageHeader(icon('fa-map') + ' ' + (isEdit ? 'Edit Scheme' : 'Create Scheme'),
             isEdit ? 'Update scheme details and manage its sectors.'
@@ -432,11 +447,26 @@
             '<input type="hidden" name="key" value="schemes"><input type="hidden" name="do" value="save">' +
             '<input type="hidden" name="back" value="' + e(base) + '">' + (isEdit ? '<input type="hidden" name="id" value="' + scheme.scheme_id + '">' : '') +
             // 1. details
+            // two per row, in this order (same order the server checks them in MasterController)
             '<div class="card"><div class="card-header"><h3 class="card-title"><span class="step-no">1</span> Scheme details</h3></div><div class="card-body"><div class="form-grid">' +
-            '<div class="form-group"><label class="form-label" for="scheme_name">Scheme name <span class="required">*</span></label>' +
-            '<input type="text" id="scheme_name" name="scheme_name" class="form-control" maxlength="150" value="' + e(v('scheme_name')) + '" placeholder="e.g. Ravindra Nagar Awasiya Yojana" data-rules="required|min:3|max:150|text" data-label="Scheme name"><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="scheme_type">Scheme type <span class="required">*</span></label>' +
-            '<select id="scheme_type" name="scheme_type" class="form-select" data-rules="required" data-label="Scheme type">' + L.options(L.SCHEME_TYPES, v('scheme_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
+            // developer type + developer: the type's default developer is selected, otherwise it is typed (developerPicker)
+            masterSelect('developer_type_id', 'Developer type', 'developer_types', 'name', ' data-developer-type') +
+            '<div class="form-group"><label class="form-label" for="developer_name">Developer <span class="required">*</span></label>' +
+            '<div data-developer-box></div><div class="invalid-feedback"></div></div>' +
+            masterSelect('scheme_type_id', 'Scheme type', 'scheme_types', 'name') +
+            masterSelect('plot_type_id', 'Plot type', 'plot_types', 'name') +
+            textInput('scheme_name', 'Scheme name', 'required|min:3|max:150|text', 150) +
+            // optional
+            textInput('scheme_landmark', 'Scheme landmark', 'max:255|text', 255, { placeholder: 'Nearby landmark of the scheme' }) +
+            P.dateField({ id: 'approve_date', name: 'approve_date', label: 'Approve date', value: v('approve_date'), required: false, max: DB.today() }) +
+            textInput('rera_registration_no', 'Rera registration number', 'ucode', 30, { upper: true, placeholder: 'e.g. RAJ/P/2019/1234',
+                hint: 'As on the Rera certificate — capital letters, digits and / _ - only. Each scheme has its own number.' }) +
+            // reserve price (₹, shown in lakh / crore as it is typed) + site plan PDF — both optional
+            '<div class="form-group"><label class="form-label" for="reserve_price">Reserve price (₹)</label>' +
+            '<input type="text" id="reserve_price" name="reserve_price" class="form-control" inputmode="decimal" maxlength="13" value="' + e(v('reserve_price')) + '"' +
+            ' placeholder="e.g. 1250000" autocomplete="off" data-rules="decimal:2|positive" data-label="Reserve price" data-rupee>' +
+            '<div class="form-hint" data-rupee-preview></div><div class="invalid-feedback"></div></div>' +
+            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)', current: isEdit ? P.schemeSitePlan(scheme.scheme_id) : null }) +
             '</div></div></div>' +
             // 2. sectors
             '<div class="card"><div class="card-header"><h3 class="card-title"><span class="step-no">2</span> Sectors <span class="pb-opt">(optional)</span></h3>' +
@@ -455,7 +485,38 @@
             '<div class="form-actions sticky-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…">' + icon('fa-floppy-disk') +
             ' <span>' + (isEdit ? 'Update Scheme' : 'Create Scheme') + '</span></button>' +
             '<a href="' + P.BASE + base + '" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
-        return { title: isEdit ? 'Edit Scheme' : 'Create Scheme', html: html };
+        return { title: isEdit ? 'Edit Scheme' : 'Create Scheme', html: html, after: function (root) { developerPicker(root, v('developer_name')); } };
+    }
+
+    /** Developer box next to Developer type: the type's default developer is selected automatically; a type without one opens a text box. */
+    function developerPicker(root, current) {
+        const typeSel = root.querySelector('[data-developer-type]');
+        const box = root.querySelector('[data-developer-box]');
+        if (!typeSel || !box) { return; }
+        let typed = current || ''; // what was typed for a type without a default (kept while switching types)
+        function draw() {
+            const input = box.querySelector('input[name="developer_name"]');
+            if (input) { typed = input.value; }
+            const t = typeSel.value ? DB.find('developer_types', typeSel.value) : null;
+            const def = t && t.default_developer ? String(t.default_developer).trim() : '';
+            if (!t) {
+                box.innerHTML = '<select id="developer_name" class="form-select" disabled><option>Select developer type first</option></select>';
+            } else if (def) {
+                box.innerHTML = '<select id="developer_name" name="developer_name" class="form-select" data-rules="required" data-label="Developer">' +
+                    '<option value="' + e(def) + '" selected>' + e(def) + '</option></select>';
+            } else {
+                box.innerHTML = '<input type="text" id="developer_name" name="developer_name" class="form-control" maxlength="150" value="' + e(typed) + '"' +
+                    ' placeholder="Enter developer name" data-rules="required|min:2|max:150|text" data-label="Developer">';
+            }
+            const fb = box.parentNode.querySelector('.invalid-feedback');
+            if (fb) { fb.textContent = ''; }
+        }
+        typeSel.addEventListener('change', function () {
+            draw();
+            const input = box.querySelector('input[name="developer_name"]');
+            if (input) { input.focus(); }
+        });
+        draw();
     }
 
     /* ================= Unified Scheme Details ================= */
@@ -504,7 +565,7 @@
 
         let html = (crumbs ? crumbs('Schemes', scheme.scheme_name) : '') +
             P.pageHeader(icon('fa-map') + ' ' + e(scheme.scheme_name) + ' ' + P.active_badge(scheme.is_active),
-                'Scheme Overview &middot; ' + (L.SCHEME_TYPES[scheme.scheme_type] || scheme.scheme_type) + (scheme.area_id ? ' &middot; ' + DB.areaName(scheme.area_id) : ''),
+                'Scheme Overview &middot; ' + e(L.SCHEME_TYPES[scheme.scheme_type_id] || '—') + (scheme.area_id ? ' &middot; ' + DB.areaName(scheme.area_id) : ''),
                 headerActions);
 
         // 1. Equal-Height KPI Stat Cards Grid (4 Columns)
@@ -529,7 +590,14 @@
             '<span class="badge badge-info">' + icon('fa-map-location-dot') + ' Master Record</span></div>' +
             '<div class="card-body"><dl class="detail-list scheme-detail-dl">' +
             '<dt>Scheme Name</dt><dd><strong>' + e(scheme.scheme_name) + '</strong></dd>' +
-            '<dt>Scheme Type</dt><dd><span class="badge badge-navy">' + e(L.SCHEME_TYPES[scheme.scheme_type] || scheme.scheme_type) + '</span></dd>' +
+            '<dt>Scheme Type</dt><dd><span class="badge badge-navy">' + e(L.SCHEME_TYPES[scheme.scheme_type_id] || '—') + '</span></dd>' +
+            (scheme.plot_type_id ? '<dt>Plot Type</dt><dd>' + e(L.PROPERTY_TYPES[scheme.plot_type_id] || '—') + '</dd>' : '') +
+            (scheme.developer_type_id ? '<dt>Developer Type</dt><dd>' + e(L.DEVELOPER_TYPES[scheme.developer_type_id] || '—') + '</dd>' : '') +
+            (scheme.developer_name ? '<dt>Developer</dt><dd>' + e(scheme.developer_name) + '</dd>' : '') +
+            (scheme.scheme_landmark ? '<dt>Landmark</dt><dd>' + e(scheme.scheme_landmark) + '</dd>' : '') +
+            (scheme.approve_date ? '<dt>Approve Date</dt><dd>' + e(P.fmt_date(scheme.approve_date)) + '</dd>' : '') +
+            (scheme.rera_registration_no ? '<dt>Rera Registration No.</dt><dd><span class="mono">' + e(scheme.rera_registration_no) + '</span></dd>' : '') +
+            P.schemePriceRows(scheme) +
             (scheme.area_id ? '<dt>Area / Zone</dt><dd>' + e(DB.areaName(scheme.area_id)) + '</dd>' : '') +
             '<dt>Status</dt><dd>' + P.active_badge(scheme.is_active) + '</dd>' +
             '<dt>Total Sectors</dt><dd><strong>' + sectors.length + '</strong> sectors <small class="text-muted">(' + activeSectors.length + ' active)</small></dd>' +
@@ -925,6 +993,7 @@
             }
             return Object.assign({}, p, {
                 scheme_name: sc ? sc.scheme_name : '—', sector_name: se ? se.sector_name : '—',
+                reserve_price: sc ? sc.reserve_price : null, // the scheme's reserve price (Scheme form)
                 type_name: L.PROPERTY_TYPES[p.plot_type_id] || '—', status_name: P.statusName(p.status_id),
                 area: sc ? DB.areaName(sc.area_id) : '—',
                 created_by_name: cu ? cu.name : '', round_no: round ? round.round_no : null,
@@ -968,18 +1037,67 @@
             (r.unit_id !== L.BASE_UNIT ? '<span class="cell-sub">= ' + P.fmt_num(r.area_sqm, 2) + ' ' + e(L.unitSymbol(L.BASE_UNIT)) + '</span>' : '');
     };
 
-    /* Reserve price + site plan (entered by Data Entry), shown on the detail pages */
-    P.propertyDoc = function (propertyId, context) {
-        const rows = P.attachmentsFor({ property_id: propertyId, context: context });
+    /* Reserve price + site plan belong to the scheme (Scheme form); property pages show its scheme's */
+    /** Latest site plan PDF of a scheme (older uploads stay as history), or null. */
+    P.schemeSitePlan = function (schemeId) {
+        const rows = P.attachmentsFor({ scheme_id: Number(schemeId), context: 'SITE_PLAN' });
         return rows.length ? rows[rows.length - 1] : null;
     };
     P.fmt_rupees = function (v) {
         return v ? '₹' + Number(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
     };
-    P.propertyPriceRows = function (prop) {
-        const plan = P.propertyDoc(prop.property_id, 'SITE_PLAN');
-        const priceRow = (prop && prop.reserve_price) ? '<dt>Reserve price</dt><dd>' + e(P.fmt_rupees(prop.reserve_price)) + '</dd>' : '';
-        return priceRow + '<dt>Site plan</dt><dd>' + (plan ? P.attachmentChips([plan]) : '<span class="text-muted">—</span>') + '</dd>';
+    /** <dt>/<dd> rows: reserve price + site plan of a scheme (for the scheme page and its properties' pages). */
+    P.schemePriceRows = function (scheme) {
+        const plan = scheme ? P.schemeSitePlan(scheme.scheme_id) : null;
+        return '<dt>Reserve price</dt><dd>' + (scheme && scheme.reserve_price ? e(P.fmt_rupees(scheme.reserve_price)) : '<span class="text-muted">—</span>') + '</dd>' +
+            '<dt>Site plan</dt><dd>' + (plan ? P.attachmentChips([plan]) : '<span class="text-muted">—</span>') + '</dd>';
+    };
+    /* Sub plot type, facing, road type of a property: required dropdowns (shared by Add, Edit and the grid's Edit popup).
+       Sub plot type and road type come from their masters; facing is a fixed list (Lookups.FACINGS). */
+    P.PROPERTY_MASTERS = [
+        // [field, label, options(current value) => {value: label}, name(value) => label]
+        ['sub_plot_type_id', 'Sub plot type', function (cur) { return L.activeMap('sub_plot_types', 'sub_plot_type_id', 'name', cur); }, function (id) { return L.SUB_PLOT_TYPES[id]; }],
+        ['facing', 'Facing', function () { return L.FACINGS; }, function (code) { return L.FACINGS[code]; }],
+        ['road_type_id', 'Road type', function (cur) { return L.activeMap('road_types', 'road_type_id', 'name', cur); }, function (id) { return L.ROAD_TYPES[id]; }]
+    ];
+    /** The three dropdowns. v: current values {field: id}. o: {step: first step number, pb: Add Property defaults, idPrefix: for the popup} */
+    P.propertyMasterSelects = function (v, o) {
+        o = o || {};
+        return P.PROPERTY_MASTERS.map(function (m, i) {
+            const id = (o.idPrefix || '') + m[0], cur = v[m[0]] == null ? '' : v[m[0]];
+            return '<div class="form-group"><label class="form-label" for="' + id + '">' + (o.step ? '<span class="step-no">' + (o.step + i) + '</span> ' : '') +
+                e(m[1]) + ' <span class="required">*</span></label>' +
+                '<select id="' + id + '"' + (o.idPrefix ? '' : ' name="' + m[0] + '"') + ' class="form-select" data-rules="required" data-label="' + e(m[1]) + '"' +
+                (o.pb ? ' data-pb-default="' + m[0] + '"' : '') + '>' + L.options(m[2](cur), cur, 'Select ' + m[1].toLowerCase()) + '</select>' +
+                '<div class="invalid-feedback"></div></div>';
+        }).join('');
+    };
+    /** Latitude + longitude inputs (optional, both together). idPrefix: for the popup (no name, read by script) */
+    P.propertyGeoInputs = function (v, idPrefix) {
+        const f = function (k, label, max, ph, rule) {
+            const id = (idPrefix || '') + k;
+            return '<div class="form-group"><label class="form-label" for="' + id + '">' + label + ' <span class="pb-opt">(optional)</span></label>' +
+                '<input type="text" id="' + id + '"' + (idPrefix ? '' : ' name="' + k + '"') + ' class="form-control mono" inputmode="decimal" maxlength="' + max + '" value="' + e(v[k] == null ? '' : v[k]) + '"' +
+                ' placeholder="' + ph + '" autocomplete="off" data-decimals="8" data-signed data-rules="' + rule + '" data-label="' + label + '"><div class="invalid-feedback"></div></div>';
+        };
+        return f('latitude', 'Latitude', 12, 'e.g. 25.18254610', 'latitude') + f('longitude', 'Longitude', 13, 'e.g. 75.83273620', 'longitude');
+    };
+    /** <dt>/<dd> rows for the property detail page. */
+    P.propertyMasterRows = function (prop) {
+        const geo = prop.latitude != null ? Number(prop.latitude).toFixed(8) + ', ' + Number(prop.longitude).toFixed(8) : null;
+        return P.PROPERTY_MASTERS.map(function (m) { return '<dt>' + e(m[1]) + '</dt><dd>' + e((prop[m[0]] && m[3](prop[m[0]])) || '—') + '</dd>'; }).join('') +
+            '<dt>Latitude, Longitude</dt><dd>' + (geo ? '<span class="mono">' + geo + '</span> <a href="https://www.google.com/maps?q=' + geo.replace(' ', '') +
+                '" target="_blank" rel="noopener noreferrer" class="small">' + icon('fa-map-location-dot') + ' Open map</a>' : '<span class="text-muted">—</span>') + '</dd>';
+    };
+    P.propertyPriceRows = function (prop) { return P.schemePriceRows(prop ? DB.find('schemes', prop.scheme_id) : null); };
+    /** Sum of reserve prices of the schemes of these property rows — each scheme counted once. */
+    P.schemeReserveTotal = function (rows) {
+        const seen = {};
+        return rows.reduce(function (sum, p) {
+            if (seen[p.scheme_id]) { return sum; }
+            seen[p.scheme_id] = true;
+            return sum + (Number(p.reserve_price) || 0);
+        }, 0);
     };
 
     /* ================= Verification Indicators & Mapped Role Modal ================= */
@@ -1131,7 +1249,7 @@
             '<input type="text" class="form-control" value="' + e(sc.scheme_name) + '" readonly id="scheme_id" data-scheme-label="' + e(sc.scheme_name) + '">' +
             '<div class="form-hint">Scheme cannot be changed after creation.</div><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector' + optional + '</label>' +
-            '<select id="sector_id" name="sector_id" class="form-select"' + (sectors.length ? '' : ' disabled') + '><option value="">No sector</option>' + sectors.map(function (s) {
+            '<select id="sector_id" name="sector_id" class="form-select"' + (sectors.length ? '' : ' disabled') + '><option value="">' + (sectors.length ? 'Select sector' : 'No active sector') + '</option>' + sectors.map(function (s) {
                 return '<option value="' + s.sector_id + '"' + (s.sector_id === prop.sector_id ? ' selected' : '') + '>' + e(s.sector_name) + '</option>';
             }).join('') + '</select><div class="invalid-feedback"></div></div></div>' +
             '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property stay in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
@@ -1141,7 +1259,7 @@
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-ruler-combined') + ' Plot details</h3></div><div class="card-body"><div class="form-grid">' +
             '<div class="form-group"><label class="form-label" for="plot_no">Plot no. <span class="required">*</span></label><input type="text" id="plot_no" name="plot_no" class="form-control" maxlength="30" value="' + e(v('plot_no')) + '" placeholder="e.g. 112-A" data-uppercase data-rules="required|plotno" data-label="Plot no."><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="plot_type_id">Plot type <span class="required">*</span></label><select id="plot_type_id" name="plot_type_id" class="form-select" data-rules="required" data-label="Plot type">' + L.options(L.activeMap('plot_types', 'plot_type_id', 'name', v('plot_type_id')), v('plot_type_id'), 'Select plot type') + '</select><div class="invalid-feedback"></div></div>' +
-            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)', current: P.propertyDoc(prop.property_id, 'SITE_PLAN') }) +
+            P.propertyMasterSelects(prop) +
             '<div class="form-group span-2"><label class="form-label">Area' + optional + '</label>' +
             '<div class="dim-row">' +
             '<div class="form-group"><label class="form-label text-muted" for="area_length">Length</label><input type="text" id="area_length" class="form-control" inputmode="decimal" maxlength="10" placeholder="e.g. 30.00" data-decimals="2" data-rules="decimal:2|positive" data-label="Length" autocomplete="off"><div class="invalid-feedback"></div></div>' +
@@ -1152,6 +1270,7 @@
             '<div class="form-hint" data-area-preview></div><div class="invalid-feedback"></div></div></div>' +
             '<div class="form-hint" data-area-calc-hint>Enter Length and Width — Area is auto-calculated and non-editable.</div></div>' +
             '<div class="form-group"><span class="form-label">Corner plot</span><label class="check"><input type="checkbox" name="is_corner" value="1"' + (prop.is_corner ? ' checked' : '') + '> <span>This is a <strong>corner</strong> plot</span></label></div>' +
+            P.propertyGeoInputs(prop) +
             '<div class="form-group span-2"><label class="form-label" for="remarks">Description' + optional + '</label><textarea id="remarks" name="remarks" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot" data-rules="max:500|text" data-label="Description">' + e(v('remarks')) + '</textarea><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
 
@@ -1187,8 +1306,9 @@
             '<div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="pb_type"><span class="step-no">3</span> Plot type <span class="required">*</span></label>' +
             '<select id="pb_type" name="plot_type_id" class="form-select" data-rules="required" data-label="Plot type" data-pb-default="plot_type_id">' + L.options(L.activeMap('plot_types', 'plot_type_id', 'name'), '', 'Select plot type') + '</select><div class="invalid-feedback"></div></div>' +
-            P.pdfField({ name: 'site_plan', label: 'Site plan (PDF)' }) +
-            '<div class="form-group span-2"><label class="form-label"><span class="step-no">4</span> Area' + optional + '</label>' +
+            // sub plot type, facing, road type: defaults for every plot of the grid (each plot can be changed with Edit)
+            P.propertyMasterSelects({}, { step: 4, pb: true }) +
+            '<div class="form-group span-2"><label class="form-label"><span class="step-no">7</span> Area' + optional + '</label>' +
             '<div class="dim-row">' +
             '<div class="form-group"><label class="form-label text-muted" for="pb_length">Length</label>' +
             '<input type="text" id="pb_length" class="form-control" inputmode="decimal" maxlength="10" placeholder="e.g. 30.00" data-decimals="2" data-rules="decimal:2|positive" data-label="Length" data-pb-length autocomplete="off"><div class="invalid-feedback"></div></div>' +
@@ -1203,11 +1323,12 @@
             '</div>' +
             '</div></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-list-ol') + ' Plot numbers</h3></div><div class="card-body">' +
-            '<div class="form-group pb-question"><p class="confirm-question"><span class="step-no">5</span> Are the plot numbers in a running range?</p>' +
+            '<div class="form-group pb-question"><p class="confirm-question"><span class="step-no">8</span> Are the plot numbers in a running range?</p>' +
             '<div class="radio-row"><label class="check"><input type="radio" name="pb_range" value="YES" checked> <span><strong>Yes</strong>, from – to (e.g. 1 to 50)</span></label>' +
             '<label class="check"><input type="radio" name="pb_range" value="NO"> <span><strong>No</strong>, I will enter each plot no.</span></label></div></div>' +
             '<div data-pb-mode="YES"><div class="pb-rows" data-pb-rows></div>' +
-            '<p class="form-hint">Leading zeros are kept: 001 to 050 gives 001, 002 … 050.</p></div>' +
+            '<p class="form-hint">Leading zeros are kept: 001 to 050 gives 001, 002 … 050. Prefix and postfix (optional) are added to every number: ' +
+            '<span class="mono">A-</span> + <span class="mono">1</span> to <span class="mono">50</span> + <span class="mono">/B</span> → <span class="mono">A-1/B</span> … <span class="mono">A-50/B</span>.</p></div>' +
             '<div data-pb-mode="NO" hidden><div class="pb-rows" data-pb-rows></div>' +
             '<p class="form-hint">Prefix and postfix are joined exactly as typed: <span class="mono">A-</span> + <span class="mono">12</span> + <span class="mono">/B</span> → <span class="mono">A-12/B</span>.</p></div>' +
             '<div class="pb-row-actions"><button type="button" class="btn btn-light btn-sm" data-pb-add>' + icon('fa-plus') + ' <span>Add more</span></button>' +
@@ -1299,6 +1420,7 @@
             (prop.area && prop.area !== '—' ? '<dt>Area</dt><dd>' + e(prop.area) + '</dd>' : '') +
             '<dt>Sector</dt><dd>' + e(prop.sector_name) + '</dd><dt>Plot no.</dt><dd>' + e(prop.plot_no) + '</dd>' +
             '<dt>Plot type</dt><dd>' + e(prop.type_name) + '</dd>' +
+            P.propertyMasterRows(prop) +
             '<dt>Corner plot</dt><dd>' + (prop.is_corner ? '<span class="badge badge-warning">Corner</span>' : 'No') + '</dd>' +
             '<dt>Plot area</dt><dd>' + e(L.area(prop.area_value, prop.unit_id, prop.area_sqm)) + '</dd>' +
             P.propertyPriceRows(prop) +

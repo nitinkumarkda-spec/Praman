@@ -30,7 +30,7 @@
             round_no: vr.round_no, round_status: vr.round_status, initiated_at: vr.initiated_at, resend_reason: vr.resend_reason,
             property_id: p.property_id, plot_no: p.plot_no, plot_type_id: p.plot_type_id, type_name: L.PROPERTY_TYPES[p.plot_type_id] || '—', is_corner: p.is_corner,
             area_value: p.area_value, unit_id: p.unit_id, area_sqm: p.area_sqm, property_remarks: p.remarks,
-            scheme_name: sc.scheme_name, scheme_type: sc.scheme_type, sector_name: se ? se.sector_name : '—',
+            scheme_name: sc.scheme_name, scheme_type_id: sc.scheme_type_id, sector_name: se ? se.sector_name : '—',
             area: sc ? DB.areaName(sc.area_id) : '—',
             role_name: r.role_name, form: r.verification_form, responded_by_name: ru ? ru.name : null,
             initiated_by_name: iu ? iu.name : '', initiated_by_mobile: iu ? iu.mobile : ''
@@ -410,7 +410,7 @@
         html += '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Scheme</dt><dd>' + e(task.scheme_name) + '</dd>' +
             '<dt>Area</dt><dd>' + e(task.area) + '</dd>' +
-            '<dt>Scheme type</dt><dd>' + e(L.SCHEME_TYPES[task.scheme_type]) + '</dd><dt>Sector</dt><dd>' + e(task.sector_name) + '</dd>' +
+            '<dt>Scheme type</dt><dd>' + e(L.SCHEME_TYPES[task.scheme_type_id] || '—') + '</dd><dt>Sector</dt><dd>' + e(task.sector_name) + '</dd>' +
             '<dt>Plot no.</dt><dd><strong>' + e(task.plot_no) + '</strong></dd><dt>Plot type</dt><dd>' + e(task.type_name) + '</dd><dt>Corner plot</dt><dd>' + (task.is_corner ? 'Yes' : 'No') + '</dd>' +
             '<dt>Plot area</dt><dd>' + e(L.area(task.area_value, task.unit_id, task.area_sqm)) + '</dd>' +
             P.propertyPriceRows(DB.find('properties', task.property_id)) +
