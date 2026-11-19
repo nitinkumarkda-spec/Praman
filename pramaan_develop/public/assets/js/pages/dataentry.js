@@ -1184,7 +1184,8 @@
                 '<td class="actions"><div class="btn-group' + (r.my_pending_task_id ? '' : ' btn-group-icons') + '">' +
                 (r.my_pending_task_id ? '<button type="button" class="btn btn-primary btn-sm" data-update-status="' + r.my_pending_task_id + '" data-plot-no="' + e(r.plot_no) + '" data-scheme-name="' + e(r.scheme_name) + '" data-sector-name="' + e(r.sector_name) + '" data-role-name="' + e(r.my_pending_role_name || '') + '" data-status-name="' + e(r.status_name || '') + '" data-current-status-id="' + r.status_id + '" data-property-id="' + r.property_id + '" title="Update Status &amp; Description">' + icon('fa-pen-to-square') + ' <span>Update Status</span></button>' : '') +
                 '<a href="' + view + '" class="btn btn-light btn-sm btn-icon-only" title="View details &amp; status" aria-label="View details">' + icon('fa-eye') + '</a>' +
-                '<a href="' + view + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
+                // Action timeline button hidden for now
+                // '<a href="' + view + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
                 (canEdit ? (st === ST.LISTED ? '<a href="' + view + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit" aria-label="Edit">' + icon('fa-pen') + '</a>'
                     : '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="Locked — only Listed properties can be edited">' + icon('fa-lock') + '</span>') : '') +
                 (!canSend ? '' : st === ST.LISTED ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
