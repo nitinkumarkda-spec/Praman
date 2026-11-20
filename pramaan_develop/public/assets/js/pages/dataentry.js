@@ -740,7 +740,8 @@
         backdrop.setAttribute('aria-modal', 'true');
         backdrop.setAttribute('aria-labelledby', 'status-modal-title');
 
-        const curPath = window.location.pathname;
+        // Route path without the app base (the server adds the base when it redirects back)
+        const curPath = P.currentPath() + window.location.search;
 
         // Fetch dynamic statuses from Status Master (Master Admin)
         const allStatuses = (DB.all('statuses') || [])
@@ -869,9 +870,8 @@
         backdrop.querySelectorAll('[data-modal-close]').forEach(function (btn) {
             btn.addEventListener('click', closeModal);
         });
-        backdrop.addEventListener('click', function (ev) {
-            if (ev.target === backdrop) { closeModal(); }
-        });
+        // Closes only with the × / Cancel buttons (not on an outside click), and by itself after a successful update
+        backdrop.addEventListener('praman:done', closeModal);
 
         // Dropdown selection logic
         const statusSelect = backdrop.querySelector('#modal_status_select');

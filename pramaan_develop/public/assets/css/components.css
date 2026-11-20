@@ -1841,6 +1841,7 @@ body.sidebar-collapsed .sidebar-nav::-webkit-scrollbar { width: 0; }
     word-wrap: break-word;
     box-shadow: 0 8px 24px -2px rgba(0, 0, 0, 0.45), 0 3px 8px rgba(0, 0, 0, 0.25);
     letter-spacing: 0.01em;
+    white-space: pre-line;
 }
 
 .ngb-tooltip .tooltip-arrow {
@@ -1864,6 +1865,81 @@ body.sidebar-collapsed .sidebar-nav::-webkit-scrollbar { width: 0; }
     margin-left: -6px;
     border-width: 0 6px 6px 6px;
     border-color: transparent transparent #0b1120 transparent;
+}
+
+/* Tooltip List Presentation (for multi-item / multi-line tooltips) */
+.ngb-tooltip.ngb-tooltip-list .tooltip-inner {
+    max-width: min(520px, calc(100vw - 20px));
+    width: max-content;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background-color: #0b1120;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.35);
+    white-space: normal;
+}
+
+.tooltip-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.tooltip-list-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 12px;
+    line-height: 1.45;
+    padding-bottom: 7px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tooltip-list-item:last-child {
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.tooltip-bullet {
+    font-size: 16px;
+    line-height: 1;
+    margin-top: 1px;
+    flex-shrink: 0;
+}
+
+.tooltip-item-content {
+    flex: 1 1 auto;
+    word-break: break-word;
+}
+
+.tooltip-item-title {
+    color: #f8fafc;
+    font-weight: 600;
+    margin-right: 4px;
+    letter-spacing: 0.01em;
+}
+
+.tooltip-item-desc {
+    color: #cbd5e1;
+}
+
+.tooltip-item-sep {
+    color: rgba(255, 255, 255, 0.35);
+    margin: 0 4px;
+}
+
+.tooltip-item-remark {
+    color: #fde047;
+    font-style: italic;
+    background: rgba(253, 224, 71, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 2px;
 }
 
 /* ---------- Yes/No, conditional blocks, dd/mm/yyyy date, PDF field, ₹ (property form + cell task sections) ---------- */

@@ -753,6 +753,8 @@
             if (res.status === 401) { unlock(form); flash('warning', res.message || 'Please login to continue.'); return go('/login'); }
             if (!res.ok) { return fail(form, res.field, res.message || 'The request could not be completed.'); }
             (res.flashes || []).forEach(function (f) { flash(f.type, f.message); });
+            // tell the form it succeeded (e.g. a popup closes itself)
+            form.dispatchEvent(new CustomEvent('praman:done', { bubbles: true, detail: res }));
             // switching user: play the loader while the next panel is drawn
             // (not on login: the dashboard opens straight away)
             const SWITCH = { logout: 'Signing you out securely…', impersonate: 'Opening the user panel…',
@@ -839,8 +841,49 @@
             ensureTip();
             clearTimeout(hideTimer);
             activeTarget = target;
-            innerEl.textContent = text.trim();
-            tipEl.className = 'ngb-tooltip';
+
+            // Check if text has multiple items / lines (list-wise)
+            const rawLines = text.replace(/<br\s*\/?>/gi, '\n').split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+            const isList = rawLines.length > 1;
+
+            if (isList) {
+                tipEl.className = 'ngb-tooltip ngb-tooltip-list';
+                innerEl.innerHTML = '<ul class="tooltip-list">' + rawLines.map(function (l) {
+                    let head = '', body = l;
+                    const sepIdx = l.indexOf(' — ');
+                    if (sepIdx !== -1) {
+                        head = l.substring(0, sepIdx).trim();
+                        body = l.substring(sepIdx + 3).trim();
+                    }
+
+                    let bulletColor = '#38bdf8';
+                    if (/^approved/i.test(body)) { bulletColor = '#4ade80'; }
+                    else if (/^rejected/i.test(body)) { bulletColor = '#f87171'; }
+                    else if (/^pending/i.test(body)) { bulletColor = '#fbbf24'; }
+
+                    let bodyHtml = '';
+                    const dotIdx = body.lastIndexOf(' · ');
+                    if (dotIdx !== -1) {
+                        const mainPart = body.substring(0, dotIdx);
+                        const remarkPart = body.substring(dotIdx + 3);
+                        bodyHtml = e(mainPart) + ' <span class="tooltip-item-sep">·</span> <span class="tooltip-item-remark">' + e(remarkPart) + '</span>';
+                    } else {
+                        bodyHtml = e(body);
+                    }
+
+                    return '<li class="tooltip-list-item">' +
+                        '<span class="tooltip-bullet" style="color:' + bulletColor + '">•</span>' +
+                        '<div class="tooltip-item-content">' +
+                            (head ? '<strong class="tooltip-item-title">' + e(head) + ':</strong> ' : '') +
+                            '<span class="tooltip-item-desc">' + bodyHtml + '</span>' +
+                        '</div>' +
+                    '</li>';
+                }).join('') + '</ul>';
+            } else {
+                tipEl.className = 'ngb-tooltip';
+                innerEl.textContent = text.trim();
+            }
+
             tipEl.style.display = 'block';
             tipEl.style.visibility = 'hidden';
             tipEl.style.left = '0px';
@@ -863,7 +906,7 @@
                 placement = 'top';
             }
 
-            tipEl.className = 'ngb-tooltip ngb-tooltip-' + placement;
+            tipEl.className = 'ngb-tooltip ngb-tooltip-' + placement + (isList ? ' ngb-tooltip-list' : '');
             tipEl.style.left = Math.round(left) + 'px';
             tipEl.style.top = Math.round(top) + 'px';
             tipEl.style.visibility = 'visible';
