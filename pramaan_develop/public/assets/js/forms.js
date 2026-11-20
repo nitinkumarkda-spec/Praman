@@ -313,8 +313,14 @@
         function sectorText() { return sector && sector.value ? sector.options[sector.selectedIndex].text : 'No sector'; }
 
         function updateConfirm() {
-            box.querySelector('[data-confirm-scheme]').textContent = '[' + schemeText() + ']';
-            box.querySelector('[data-confirm-sector]').textContent = '[' + sectorText() + ']';
+            if (!box) {
+                form.querySelectorAll('[data-requires-yes]').forEach(function (b) { b.disabled = false; });
+                return;
+            }
+            const sEl = box.querySelector('[data-confirm-scheme]');
+            if (sEl) { sEl.textContent = '[' + schemeText() + ']'; }
+            const secEl = box.querySelector('[data-confirm-sector]');
+            if (secEl) { secEl.textContent = '[' + sectorText() + ']'; }
             const choice = form.querySelector('input[name="confirm_location"]:checked');
             const yes = choice && choice.value === 'YES';
             const ready = !scheme || scheme.tagName !== 'SELECT' || !!scheme.value; // sector is optional
@@ -322,6 +328,7 @@
             if (noHint) { noHint.hidden = !(choice && choice.value === 'NO'); }
         }
         function resetConfirm() {
+            if (!box) { return; }
             form.querySelectorAll('input[name="confirm_location"]').forEach(function (r) { r.checked = false; });
             updateConfirm();
         }
@@ -384,7 +391,9 @@
             if (scheme.value) { loadSectors(true); }
         }
         if (sector) { sector.addEventListener('change', resetConfirm); }
-        form.addEventListener('change', function (e) { if (e.target.name === 'confirm_location') { updateConfirm(); } });
+        if (box) {
+            form.addEventListener('change', function (e) { if (e.target.name === 'confirm_location') { updateConfirm(); } });
+        }
         const lenEl = form.querySelector('#area_length');
         const widEl = form.querySelector('#area_width');
         const calcHint = form.querySelector('[data-area-calc-hint]');
@@ -424,7 +433,7 @@
             unit.addEventListener('change', updateArea);
             updateArea();
         }
-        if (V()) {
+        if (V() && box) {
             V().addCheck(form, function () {
                 const choice = form.querySelector('input[name="confirm_location"]:checked');
                 if (choice && choice.value !== 'YES') {

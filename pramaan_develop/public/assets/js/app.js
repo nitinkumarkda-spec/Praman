@@ -171,6 +171,7 @@
                 title: src.getAttribute('data-confirm-title') || 'Please confirm',
                 message: confirmMsg,
                 okText: src.getAttribute('data-confirm-ok') || 'Yes, continue',
+                cancelText: src.getAttribute('data-confirm-cancel') || 'No, cancel',
                 variant: src.getAttribute('data-confirm-variant') || 'primary'
             }).then(function (yes) {
                 if (!yes) { return; }

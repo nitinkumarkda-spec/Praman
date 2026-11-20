@@ -1243,20 +1243,16 @@
         const sectors = DB.Scheme.sectors(prop.scheme_id, true);
         let html = (crumbs ? crumbs('Property Register', 'Edit') : '') + P.pageHeader(icon('fa-building-circle-check') + ' Edit Property', e('Plot ' + prop.plot_no + ' · ' + sc.scheme_name + ' · ' + P.statusName(prop.status_id)),
             '<a href="' + P.BASE + base + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to list</span></a>');
-        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form><input type="hidden" name="id" value="' + prop.property_id + '">' +
+        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form data-confirm="Are you sure you want to update this property?" data-confirm-title="Confirm Update" data-confirm-ok="Yes" data-confirm-cancel="No"><input type="hidden" name="id" value="' + prop.property_id + '">' +
             '<input type="hidden" name="back" value="' + e(base) + '">' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-location-dot') + ' Location</h3></div><div class="card-body"><div class="form-grid">' +
-            '<div class="form-group"><label class="form-label" for="scheme_id"><span class="step-no">1</span> Scheme</label>' +
+            '<div class="form-group"><label class="form-label" for="scheme_id">Scheme</label>' +
             '<input type="text" class="form-control" value="' + e(sc.scheme_name) + '" readonly id="scheme_id" data-scheme-label="' + e(sc.scheme_name) + '">' +
             '<div class="form-hint">Scheme cannot be changed after creation.</div><div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector' + optional + '</label>' +
+            '<div class="form-group"><label class="form-label" for="sector_id">Sector' + optional + '</label>' +
             '<select id="sector_id" name="sector_id" class="form-select"' + (sectors.length ? '' : ' disabled') + '><option value="">' + (sectors.length ? 'Select sector' : 'No active sector') + '</option>' + sectors.map(function (s) {
                 return '<option value="' + s.sector_id + '"' + (s.sector_id === prop.sector_id ? ' selected' : '') + '>' + e(s.sector_name) + '</option>';
-            }).join('') + '</select><div class="invalid-feedback"></div></div></div>' +
-            '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property stay in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
-            '<div class="radio-row"><label class="check"><input type="radio" name="confirm_location" value="YES" data-rules="required" data-label="the confirmation (Yes / No)"> <span><strong>Yes</strong>, that is correct</span></label>' +
-            '<label class="check"><input type="radio" name="confirm_location" value="NO"> <span><strong>No</strong>, I need to change it</span></label></div><div class="invalid-feedback"></div>' +
-            '<p class="form-hint" data-confirm-no hidden>' + icon('fa-circle-info') + ' Please change the sector above. Save stays disabled until you answer <strong>Yes</strong>.</p></div></div></div>' +
+            }).join('') + '</select><div class="invalid-feedback"></div></div></div></div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-ruler-combined') + ' Plot details</h3></div><div class="card-body"><div class="form-grid">' +
             '<div class="form-group"><label class="form-label" for="plot_no">Plot no. <span class="required">*</span></label><input type="text" id="plot_no" name="plot_no" class="form-control" maxlength="30" value="' + e(v('plot_no')) + '" placeholder="e.g. 112-A" data-uppercase data-rules="required|plotno" data-label="Plot no."><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="plot_type_id">Plot type <span class="required">*</span></label><select id="plot_type_id" name="plot_type_id" class="form-select" data-rules="required" data-label="Plot type">' + L.options(L.activeMap('plot_types', 'plot_type_id', 'name', v('plot_type_id')), v('plot_type_id'), 'Select plot type') + '</select><div class="invalid-feedback"></div></div>' +
@@ -1275,7 +1271,7 @@
             '<div class="form-group span-2"><label class="form-label" for="remarks">Description' + optional + '</label><textarea id="remarks" name="remarks" class="form-control" maxlength="500" rows="2" placeholder="Optional notes about this plot" data-rules="max:500|text" data-label="Description">' + e(v('remarks')) + '</textarea><div class="invalid-feedback"></div></div>' +
             '</div></div></div>' +
 
-            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-floppy-disk') + ' <span>Update Property</span></button>' +
+            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-confirm="Are you sure you want to update this property?" data-confirm-title="Confirm Update" data-confirm-ok="Yes" data-confirm-cancel="No">' + icon('fa-floppy-disk') + ' <span>Update Property</span></button>' +
             '<a href="' + P.BASE + base + '" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
         return { title: 'Edit Property', html: html };
     }

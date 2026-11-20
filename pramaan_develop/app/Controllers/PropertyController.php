@@ -35,7 +35,7 @@ final class PropertyController extends Controller
      * One function for both screens:
      *   add  — scheme_id, sector_id?, plots = JSON [{plot_no, plot_type_id, sub_plot_type_id, facing (code), road_type_id,
      *          area_value?, unit_id, latitude?, longitude?, remarks?, corner}]
-     *   edit — id, sector_id?, confirm_location = YES and that plot's fields (same names; is_corner instead of corner)
+     *   edit — id, sector_id? and that plot's fields (same names; is_corner instead of corner)
      * Sector, area, latitude / longitude and description are optional. Reserve price and site plan belong to the scheme (Scheme form).
      */
     public function save(): void
@@ -53,9 +53,6 @@ final class PropertyController extends Controller
             if ($prop['status_id'] !== PropertyStatus::LISTED) {
                 $this->flash('error', 'This property was sent for verification meanwhile and can no longer be edited.');
                 $this->done(null, $list);
-            }
-            if ($in->str('confirm_location') !== YesNo::YES) {
-                $this->fail('Please confirm the scheme and sector (answer "Yes").', 'confirm_location');
             }
         }
         $schemeId = $prop ? (int) $prop['scheme_id'] : $this->id('scheme_id');

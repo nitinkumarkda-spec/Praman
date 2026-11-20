@@ -3098,6 +3098,7 @@ html.lp-lock { overflow: hidden; }
                 title: src.getAttribute('data-confirm-title') || 'Please confirm',
                 message: confirmMsg,
                 okText: src.getAttribute('data-confirm-ok') || 'Yes, continue',
+                cancelText: src.getAttribute('data-confirm-cancel') || 'No, cancel',
                 variant: src.getAttribute('data-confirm-variant') || 'primary'
             }).then(function (yes) {
                 if (!yes) { return; }
@@ -4236,8 +4237,14 @@ html.lp-lock { overflow: hidden; }
         function sectorText() { return sector && sector.value ? sector.options[sector.selectedIndex].text : '—'; }
 
         function updateConfirm() {
-            box.querySelector('[data-confirm-scheme]').textContent = '[' + schemeText() + ']';
-            box.querySelector('[data-confirm-sector]').textContent = '[' + sectorText() + ']';
+            if (!box) {
+                form.querySelectorAll('[data-requires-yes]').forEach(function (b) { b.disabled = false; });
+                return;
+            }
+            const sEl = box.querySelector('[data-confirm-scheme]');
+            if (sEl) { sEl.textContent = '[' + schemeText() + ']'; }
+            const secEl = box.querySelector('[data-confirm-sector]');
+            if (secEl) { secEl.textContent = '[' + sectorText() + ']'; }
             const choice = form.querySelector('input[name="confirm_location"]:checked');
             const yes = choice && choice.value === 'YES';
             const ready = !!(sector && sector.value) && (!scheme || scheme.tagName !== 'SELECT' || !!scheme.value);
@@ -4245,6 +4252,7 @@ html.lp-lock { overflow: hidden; }
             if (noHint) { noHint.hidden = !(choice && choice.value === 'NO'); }
         }
         function resetConfirm() {
+            if (!box) { return; }
             form.querySelectorAll('input[name="confirm_location"]').forEach(function (r) { r.checked = false; });
             updateConfirm();
         }
@@ -4302,13 +4310,15 @@ html.lp-lock { overflow: hidden; }
             if (scheme.value) { loadSectors(true); }
         }
         if (sector) { sector.addEventListener('change', resetConfirm); }
-        form.addEventListener('change', function (e) { if (e.target.name === 'confirm_location') { updateConfirm(); } });
+        if (box) {
+            form.addEventListener('change', function (e) { if (e.target.name === 'confirm_location') { updateConfirm(); } });
+        }
         if (area && unit) {
             area.addEventListener('input', updateArea);
             unit.addEventListener('change', updateArea);
             updateArea();
         }
-        if (V()) {
+        if (V() && box) {
             V().addCheck(form, function () {
                 const choice = form.querySelector('input[name="confirm_location"]:checked');
                 if (choice && choice.value !== 'YES') {
@@ -6415,22 +6425,22 @@ html.lp-lock { overflow: hidden; }
             return '<option value="' + s.sector_id + '"' + (s.sector_id === prop.sector_id ? ' selected' : '') + '>' + e(s.sector_name) + '</option>';
         }).join('') : '<option value="">Select scheme first</option>';
         const roleUsers = isEdit ? DB.Property.roleUsers(prop.property_id) : [];
-        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form>' + (isEdit ? '<input type="hidden" name="id" value="' + prop.property_id + '">' : '') +
+        html += '<form method="post" data-action="property-save" novalidate data-validate data-property-form' + (isEdit ? ' data-confirm="Are you sure you want to update this property?" data-confirm-title="Confirm Update" data-confirm-ok="Yes" data-confirm-cancel="No"' : '') + '>' + (isEdit ? '<input type="hidden" name="id" value="' + prop.property_id + '">' : '') +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-location-dot') + ' Location</h3></div><div class="card-body"><div class="form-grid">' +
-            '<div class="form-group"><label class="form-label" for="scheme_id"><span class="step-no">1</span> Scheme <span class="required">*</span></label>' +
+            '<div class="form-group"><label class="form-label" for="scheme_id">' + (isEdit ? '' : '<span class="step-no">1</span> ') + 'Scheme <span class="required">*</span></label>' +
             (isEdit ? '<input type="text" class="form-control" value="' + e(sc.scheme_name + ' (' + sc.scheme_code + ')') + '" readonly id="scheme_id" data-scheme-label="' + e(sc.scheme_name) + '">' +
                 '<div class="form-hint">Scheme cannot be changed after creation (role users were assigned from it).</div>'
                 : '<select id="scheme_id" name="scheme_id" class="form-select" data-rules="required" data-label="Scheme" data-sector-source="local" data-sector-target="sector_id">' +
                 '<option value="">Select scheme</option>' + schemes.map(function (s) { return '<option value="' + s.scheme_id + '">' + e(s.scheme_name + ' (' + s.scheme_code + ')') + '</option>'; }).join('') +
                 '</select><div class="form-hint">Only schemes with at least one active sector are listed.</div>') + '<div class="invalid-feedback"></div></div>' +
-            '<div class="form-group"><label class="form-label" for="sector_id"><span class="step-no">2</span> Sector <span class="required">*</span></label>' +
+            '<div class="form-group"><label class="form-label" for="sector_id">' + (isEdit ? '' : '<span class="step-no">2</span> ') + 'Sector <span class="required">*</span></label>' +
             '<select id="sector_id" name="sector_id" class="form-select" data-rules="required" data-label="Sector" data-selected="' + e(v('sector_id')) + '"' + (isEdit ? '' : ' disabled') + '>' + sectorOpts + '</select>' +
             '<div class="form-hint" data-sector-hint>Sectors load from the selected scheme.</div><div class="invalid-feedback"></div></div>' +
             '</div>' +
-            '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property be created in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
+            (isEdit ? '' : '<div class="form-group confirm-box" data-confirm-box><p class="confirm-question"><span class="step-no">3</span> Should this property be created in Scheme <strong data-confirm-scheme>[—]</strong>, Sector <strong data-confirm-sector>[—]</strong>?</p>' +
             '<div class="radio-row"><label class="check"><input type="radio" name="confirm_location" value="YES" data-rules="required" data-label="the confirmation (Yes / No)"> <span><strong>Yes</strong>, that is correct</span></label>' +
             '<label class="check"><input type="radio" name="confirm_location" value="NO"> <span><strong>No</strong>, I need to change it</span></label></div><div class="invalid-feedback"></div>' +
-            '<p class="form-hint" data-confirm-no hidden>' + icon('fa-circle-info') + ' Please change the scheme / sector above. Save stays disabled until you answer <strong>Yes</strong>.</p></div></div></div>' +
+            '<p class="form-hint" data-confirm-no hidden>' + icon('fa-circle-info') + ' Please change the scheme / sector above. Save stays disabled until you answer <strong>Yes</strong>.</p></div>') + '</div></div>' +
             '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-ruler-combined') + ' Plot details</h3></div><div class="card-body"><div class="form-grid">' +
             '<div class="form-group"><label class="form-label" for="plot_no">Plot no. <span class="required">*</span></label><input type="text" id="plot_no" name="plot_no" class="form-control" maxlength="30" value="' + e(v('plot_no')) + '" placeholder="e.g. 112-A" data-uppercase data-rules="required|plotno" data-label="Plot no."><div class="invalid-feedback"></div></div>' +
             '<div class="form-group"><label class="form-label" for="property_type">Plot type <span class="required">*</span></label><select id="property_type" name="property_type" class="form-select" data-rules="required" data-label="Plot type">' + L.options(L.activeMap('master_plot_types', 'code', 'name', v('property_type')), v('property_type'), 'Select type') + '</select><div class="invalid-feedback"></div></div>' +
@@ -6440,7 +6450,7 @@ html.lp-lock { overflow: hidden; }
             '</div></div></div>' +
             (roleUsers.length ? '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-tie') + ' Assigned role users (snapshot)</h3></div><div class="card-body"><div class="chip-list">' +
                 roleUsers.map(function (ru) { return '<span class="chip"><strong>' + e(ru.role_name) + ':</strong> ' + e(ru.name) + '</span>'; }).join('') + '</div></div></div>' : '') +
-            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Property' : 'Save Property') + '</span></button>' +
+            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…"' + (isEdit ? ' data-confirm="Are you sure you want to update this property?" data-confirm-title="Confirm Update" data-confirm-ok="Yes" data-confirm-cancel="No"' : ' data-requires-yes') + '>' + icon('fa-floppy-disk') + ' <span>' + (isEdit ? 'Update Property' : 'Save Property') + '</span></button>' +
             (isEdit ? '' : '<button type="submit" name="save_and_new" value="1" class="btn btn-gold btn-lg" data-loading-text="Saving…" data-requires-yes>' + icon('fa-plus') + ' <span>Save &amp; add another</span></button>') +
             '<a href="#/data-entry/properties" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
         return {
@@ -6482,7 +6492,7 @@ html.lp-lock { overflow: hidden; }
     P.actions['property-save'] = function (d, form) {
         const id = d.id ? Number(d.id) : null;
         const prop = id ? DB.find('properties', id) : null;
-        if (d.confirm_location !== 'YES') { return P.fail(form, null, 'Please confirm the scheme and sector (answer "Yes").'); }
+        if (!id && d.confirm_location !== 'YES') { return P.fail(form, null, 'Please confirm the scheme and sector (answer "Yes").'); }
         const schemeId = id ? prop.scheme_id : Number(d.scheme_id);
         const sectorId = Number(d.sector_id);
         const sector = DB.find('scheme_sectors', sectorId);
