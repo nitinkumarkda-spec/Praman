@@ -53,6 +53,7 @@ $router->group(['csrf'], static function ($r): void {
         $r->post('/api/permission-save', 'Permission@save', ['can:permission.edit']);
 
         $r->post('/api/property-save', 'Property@save', ['can:property.create,property.edit']);
+        $r->post('/api/allotment-save', 'Allotment@save', ['can:allotment.edit']);
         $r->post('/api/oic-send', 'Verification@send', ['can:verification.send']);
         $r->post('/api/task-respond', 'Task@respond');
     });

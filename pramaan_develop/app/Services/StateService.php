@@ -83,13 +83,24 @@ final class StateService
         $t['rounds'] = $propertyIds === null ? Round::where() : Round::where(['property_id' => $propertyIds]);
         $roundIds = array_column($t['rounds'], 'round_id');
         $t['tasks'] = self::tasks($propertyIds === null ? null : $roundIds);
-        $taskIds = array_column($t['tasks'], 'task_id');
+        // site check filled when the property was sent for verification (one per round)
+        $t['site_inspections'] = \App\Models\SiteInspection::where($propertyIds === null ? ['round_id !=' => null] : ['round_id' => $roundIds]);        $taskIds = array_column($t['tasks'], 'task_id');
         $t['task_assignees'] = $propertyIds === null ? TaskAssignee::where() : TaskAssignee::where(['task_id' => $taskIds]);
         // task-only users: files of their properties + the site plans of those properties' schemes (all schemes with scheme.view)
         $t['attachments'] = array_map(static fn ($a) => array_diff_key($a, ['stored_name' => 1, 'sha256' => 1]),
             $propertyIds === null ? Attachment::where() : array_merge(Attachment::where(['property_id' => $propertyIds]),
                 Attachment::where(Auth::can('scheme.view') ? ['scheme_id !=' => null]
                     : ['scheme_id' => array_values(array_unique(array_column($t['properties'], 'scheme_id')))])));
+        // allotment details (and the OTLC documents) only for users with the Allotment Details permissions,
+        // and for the Sale section, which fills them in Update Property Status
+        $myRole = $roleId > 1 ? Role::find($roleId) : null;
+        $allot = Auth::can('allotment.view', 'allotment.edit') || ($myRole && $myRole['verification_form'] === \App\Codes\Section::SALE);
+        $where = $propertyIds === null ? [] : ['property_id' => $propertyIds];
+        $t['property_allotments'] = $allot ? \App\Models\PropertyAllotment::where($where) : [];
+        $t['property_transfers'] = $allot ? \App\Models\PropertyTransfer::where($where, 'property_id, sale_no') : [];
+        if (!$allot) {
+            $t['attachments'] = array_values(array_filter($t['attachments'], static fn ($a) => $a['context'] !== \App\Codes\AttachmentContext::OTLC));
+        }
         $t['audit_logs'] = self::auditLogs($admin, $uid, $propertyIds);
         $t['login_attempts'] = $admin ? self::loginAttempts() : [];
         $t['notifications'] = Notification::latestFor($uid, (int) config('state.notification_limit', 300));

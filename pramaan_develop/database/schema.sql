@@ -360,6 +360,50 @@ CREATE TABLE properties (
     CONSTRAINT ck_properties_area_unit CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))
 ) ENGINE=InnoDB;
 
+-- Allotment details of a property (one row per property; Property Register → Allotment).
+-- Lease deed issued = Yes: OTLC details (the OTLC PDF is an attachment of the property, context OTLC); No: amount + date.
+CREATE TABLE property_allotments (
+    allotment_id         INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    property_id          INT UNSIGNED      NOT NULL,
+    is_allottee          TINYINT(1)        NOT NULL DEFAULT 0,
+    allotment_date       DATE              NULL,
+    allottee_name        VARCHAR(100)      NULL,
+    possession_date      DATE              NULL,
+    annual_lease_rate    DECIMAL(14,2)     NULL,     -- rupees per 1 lease_unit_id per year
+    lease_unit_id        INT UNSIGNED      NULL,     -- Unit Master (sq m, sq ft …)
+    allotment_price      DECIMAL(14,2)     NULL,     -- rupees
+    times_sold           SMALLINT UNSIGNED NOT NULL DEFAULT 0,  -- one property_transfers row per sale
+    is_lease_deed_issued TINYINT(1)        NULL,
+    otlc_ref_no          VARCHAR(50)       NULL,     -- One Time Lease Certificate
+    otlc_issue_date      DATE              NULL,
+    otlc_amount          DECIMAL(14,2)     NULL,
+    lease_amount         DECIMAL(14,2)     NULL,     -- lease deed not issued: amount + date
+    lease_amount_date    DATE              NULL,
+    created_by           INT UNSIGNED      NULL,
+    created_at           DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_by           INT UNSIGNED      NULL,
+    updated_at           DATETIME          NULL ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (allotment_id),
+    UNIQUE KEY uq_property_allotments_property (property_id),
+    KEY ix_property_allotments_unit (lease_unit_id),
+    CONSTRAINT fk_property_allotments_property FOREIGN KEY (property_id)   REFERENCES properties (property_id) ON DELETE RESTRICT,
+    CONSTRAINT fk_property_allotments_unit     FOREIGN KEY (lease_unit_id) REFERENCES units (unit_id)           ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
+-- Each time an allotted property was sold on: 1st, 2nd … sale with the transferee
+CREATE TABLE property_transfers (
+    transfer_id      INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+    property_id      INT UNSIGNED      NOT NULL,
+    sale_no          SMALLINT UNSIGNED NOT NULL,      -- 1 = 1st sale …
+    sold_on          DATE              NOT NULL,
+    transferee_name  VARCHAR(100)      NOT NULL,
+    created_by       INT UNSIGNED      NULL,
+    created_at       DATETIME          NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (transfer_id),
+    UNIQUE KEY uq_property_transfers_sale (property_id, sale_no),
+    CONSTRAINT fk_property_transfers_property FOREIGN KEY (property_id) REFERENCES properties (property_id) ON DELETE RESTRICT
+) ENGINE=InnoDB;
+
 
 -- ---------------------------------------------------------------------
 -- 5. Verification: rounds -> one task per role -> assignees
@@ -424,11 +468,13 @@ CREATE TABLE task_assignees (
     CONSTRAINT fk_task_assignees_user FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE RESTRICT
 ) ENGINE=InnoDB;
 
--- Engineering Cell: physical site check (length × width, encroachment, road, corner, geo location), filled with the decision.
--- Site photos are attachments of the task (context SITE_PHOTO).
+-- Physical site check (length × width, encroachment, road, corner, geo location).
+-- Filled when a property is sent for verification (round_id, task_id NULL; photos: attachments of the round, context SITE_PHOTO)
+-- or, on older rounds, by the Engineering Cell with its decision (task_id; photos: attachments of the task).
 CREATE TABLE site_inspections (
     inspection_id         INT UNSIGNED  NOT NULL AUTO_INCREMENT,
-    task_id               INT UNSIGNED  NOT NULL,
+    task_id               INT UNSIGNED  NULL,
+    round_id              INT UNSIGNED  NULL,
     length_value          DECIMAL(10,2) NULL,                 -- as measured at the site, in the length of the unit
     width_value           DECIMAL(10,2) NULL,
     area_value            DECIMAL(12,2) NOT NULL,             -- length × width
@@ -451,7 +497,9 @@ CREATE TABLE site_inspections (
     measured_at           DATETIME      NOT NULL,
     PRIMARY KEY (inspection_id),
     UNIQUE KEY uq_site_inspections_task (task_id),
+    UNIQUE KEY uq_site_inspections_round (round_id),
     CONSTRAINT fk_site_inspections_task FOREIGN KEY (task_id)     REFERENCES tasks (task_id) ON DELETE CASCADE,
+    CONSTRAINT fk_site_inspections_round FOREIGN KEY (round_id)   REFERENCES rounds (round_id) ON DELETE CASCADE,
     CONSTRAINT fk_site_inspections_user FOREIGN KEY (measured_by) REFERENCES users (user_id) ON DELETE RESTRICT,
     CONSTRAINT fk_site_inspections_unit FOREIGN KEY (unit_id) REFERENCES units (unit_id) ON DELETE RESTRICT,
     CONSTRAINT fk_site_inspections_recorded_unit FOREIGN KEY (recorded_unit_id) REFERENCES units (unit_id) ON DELETE RESTRICT

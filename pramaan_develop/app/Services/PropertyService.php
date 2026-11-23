@@ -51,6 +51,12 @@ final class PropertyService
         return Attachment::first(['scheme_id' => $schemeId, 'context' => self::SITE_PLAN], 'attachment_id DESC');
     }
 
+    /** Latest file of a property with this context (e.g. its OTLC document); null when none was uploaded. */
+    public static function latestAttachment(int $propertyId, string $context): ?array
+    {
+        return Attachment::first(['property_id' => $propertyId, 'context' => $context], 'attachment_id DESC');
+    }
+
     /** Mandatory active roles that have no active, correctly-mapped user in the scheme. */
     public static function missingMandatoryRoles(int $schemeId): array
     {

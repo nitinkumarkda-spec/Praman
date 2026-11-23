@@ -10,4 +10,6 @@ final class AttachmentContext
     public const SITE_PLAN = 'SITE_PLAN';
     public const SITE_PHOTO = 'SITE_PHOTO';
     public const ALLOTMENT_LETTER = 'ALLOTMENT_LETTER';
+    /** One Time Lease Certificate of an allotted property (Property Register → Allotment). */
+    public const OTLC = 'OTLC';
 }

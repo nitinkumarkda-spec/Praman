@@ -56,7 +56,7 @@ foreach ([['notifications', 'deleted_at', 'DATETIME NULL AFTER read_at'],
              ['site_inspections', 'is_corner', 'TINYINT(1) NULL AFTER road_width_unit'],
              ['site_inspections', 'latitude', 'DECIMAL(10,8) NULL AFTER is_corner'],
              ['site_inspections', 'longitude', 'DECIMAL(11,8) NULL AFTER latitude'],
-             ['properties', 'sector_key', 'INT UNSIGNED AS (IFNULL(sector_id, 0)) STORED AFTER sector_id'],
+             ['site_inspections', 'round_id', 'INT UNSIGNED NULL AFTER task_id'], // site check filled when the property is sent for verification             ['properties', 'sector_key', 'INT UNSIGNED AS (IFNULL(sector_id, 0)) STORED AFTER sector_id'],
              ['properties', 'is_corner', 'TINYINT(1) NOT NULL DEFAULT 0 AFTER area_sqm'],
              ['developer_types', 'default_developer', 'VARCHAR(150) NULL AFTER name'],
              ['schemes', 'developer_type_id', 'INT UNSIGNED NULL AFTER area_id'],
@@ -94,7 +94,8 @@ foreach ([['properties', 'sector_id', 'INT UNSIGNED NULL'], ['properties', 'area
              ['properties', 'area_unit', 'VARCHAR(20) NULL'], ['properties', 'area_sqm', 'DECIMAL(14,4) NULL'],
              ['site_inspections', 'recorded_value', 'DECIMAL(12,2) NULL'], ['site_inspections', 'recorded_unit', 'VARCHAR(20) NULL'],
              ['site_inspections', 'variance', "ENUM('SAME','LESS','MORE') NULL"],
-             ['attachments', 'property_id', 'INT UNSIGNED NULL']] as [$key, $col, $def]) { // a scheme's site plan has no property
+             ['attachments', 'property_id', 'INT UNSIGNED NULL'], // a scheme's site plan has no property
+             ['site_inspections', 'task_id', 'INT UNSIGNED NULL']] as [$key, $col, $def]) { // a site check filled at send belongs to the round
     $nullable->execute([Table::name($key), $col]);
     if ($nullable->fetchColumn() === 'NO') {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' MODIFY `' . $col . '` ' . $def);
@@ -251,7 +252,8 @@ foreach ([['properties', 'fk_properties_type', 'FOREIGN KEY (plot_type_id) REFER
              ['attachments', 'ck_attachments_owner', 'CHECK (property_id IS NOT NULL OR scheme_id IS NOT NULL)'],
              ['properties', 'ck_properties_area_unit', 'CHECK ((area_value IS NULL) = (unit_id IS NULL) AND (area_value IS NULL) = (area_sqm IS NULL))'],
              ['site_inspections', 'fk_site_inspections_unit', 'FOREIGN KEY (unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
-             ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT']] as [$key, $name, $def]) {
+             ['site_inspections', 'fk_site_inspections_recorded_unit', 'FOREIGN KEY (recorded_unit_id) REFERENCES ' . Table::q('units') . ' (unit_id) ON DELETE RESTRICT'],
+             ['site_inspections', 'fk_site_inspections_round', 'FOREIGN KEY (round_id) REFERENCES ' . Table::q('rounds') . ' (round_id) ON DELETE CASCADE']] as [$key, $name, $def]) {
     $fk->execute([Table::name($key), $name]);
     if (!$fk->fetch()) {
         $pdo->exec('ALTER TABLE ' . Table::q($key) . ' ADD CONSTRAINT ' . $name . ' ' . $def);

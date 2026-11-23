@@ -301,6 +301,8 @@
             });
         }
         if (sortable[sort]) { list = list.slice().sort(by(sortable[sort], dir)); }
+        // opt.pin(row): rows kept on top, in the same order (e.g. the properties waiting for my response)
+        if (opt.pin) { list = list.filter(opt.pin).concat(list.filter(function (r) { return !opt.pin(r); })); }
 
         const total = list.length;
         const pages = Math.max(1, Math.ceil(total / perPage));

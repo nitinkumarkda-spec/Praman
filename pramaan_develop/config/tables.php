@@ -30,6 +30,8 @@ return [
     'scheme_users'     => 'scheme_users',
     // property register
     'properties'       => 'properties',
+    'property_allotments' => 'property_allotments',
+    'property_transfers'  => 'property_transfers',
     // verification
     'rounds'           => 'rounds',
     'tasks'            => 'tasks',

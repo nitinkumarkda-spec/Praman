@@ -178,7 +178,7 @@ final class Verification
             Audit::log('ROUND', $roundId, $roundNo > 1 ? 'REINITIATED' : 'ROUND_INITIATED', ['status' => $prevStatus],
                 ['round_no' => $roundNo, 'role' => $firstRole['role_name'], 'status' => $statusName, 'reason' => $reason ?: null], $p['property_id']);
 
-            return ['ok' => true, 'message' => $lbl . ': sent to ' . $firstRole['role_name'] . ' (Status: ' . $statusName . ').', 'round_no' => $roundNo];
+            return ['ok' => true, 'message' => $lbl . ': sent to ' . $firstRole['role_name'] . ' (Status: ' . $statusName . ').', 'round_no' => $roundNo, 'round_id' => $roundId];
         });
     }
 

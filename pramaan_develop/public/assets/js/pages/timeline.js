@@ -13,7 +13,8 @@
     const KIND = {
         PROPERTY_CREATED: ['data', 'fa-building-circle-check', 'info'],
         PROPERTY_UPDATED: ['data', 'fa-pen-to-square', 'info'],
-        ROUND_INITIATED: ['verification', 'fa-paper-plane', 'navy'],
+        PROPERTY_ALLOTMENT_SAVED: ['data', 'fa-file-contract', 'info'],
+        PROPERTY_SITE_INSPECTION: ['data', 'fa-ruler-combined', 'info'],        ROUND_INITIATED: ['verification', 'fa-paper-plane', 'navy'],
         REINITIATED: ['verification', 'fa-rotate', 'warning'],
         TASK_APPROVED: ['decision', 'fa-circle-check', 'success'],
         TASK_REJECTED: ['decision', 'fa-circle-xmark', 'danger'],
@@ -60,6 +61,18 @@
                 }).join('') + '</tbody></table>' : '<p>Details saved (no field changed).</p>';
                 break;
             }
+            case 'PROPERTY_ALLOTMENT_SAVED':
+                title = 'Allotment details saved';
+                // the details only for users who may see allotments
+                body = !(P.canAllotment && P.canAllotment()) ? '' : !n.is_allottee ? '<p>Is allottee: <strong>No</strong></p>'
+                    : '<p>Allotted to <strong>' + e(n.allottee_name || '') + '</strong> on ' + e(P.fmt_date(n.allotment_date)) +
+                    ' · sold ' + (n.times_sold || 0) + ' time(s) · lease deed ' + (n.is_lease_deed_issued ? 'issued (OTLC ' + e(n.otlc_ref_no || '') + ')' : 'not issued') + '</p>';
+                break;
+            case 'PROPERTY_SITE_INSPECTION':
+                title = 'Site inspection recorded (sent for verification)';
+                body = '<p>Area ' + P.fmt_num(n.area_value, 2) + ' ' + e(L.unitSymbol(n.unit_id)) + ' · encroachment <strong>' + (n.encroachment === 'YES' ? 'Yes' : 'No') + '</strong>' +
+                    (n.photos && n.photos.length ? ' · ' + n.photos.length + ' photo(s)' : '') + '</p>';
+                break;
             case 'ROUND_INITIATED':
             case 'REINITIATED':
                 title = (a.action === 'REINITIATED' ? 'Re-sent for verification' : 'Sent for verification') + ' — Round R' + n.round_no;

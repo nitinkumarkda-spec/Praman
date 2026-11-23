@@ -29,7 +29,8 @@ final class RoleController extends Controller
             $rules['sla_days'] = ['SLA days', 'integer|between:1,365'];
         }
         $d = $this->validate($rules);
-        $form = $this->request->str('verification_form', Section::GENERAL);
+        // not sent: keep the role's current form (a save must never reset it to General)
+        $form = $this->request->str('verification_form', $id ? (string) (Role::find($id)['verification_form'] ?? Section::GENERAL) : Section::GENERAL);
         if (!isset(Section::FORMS[$form])) {
             $form = Section::GENERAL;
         }

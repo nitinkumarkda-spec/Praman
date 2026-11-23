@@ -163,6 +163,14 @@
         syncArea();
         syncCount();
     }
+    // also used by the Engineering section in Update Property Status (dataentry.js)
+    P.siteCheckHtml = siteCheckHtml;
+    P.initSiteCheck = initSiteCheck;
+    /** Site check filled when this round was sent for verification (null for older rounds). */
+    P.roundSiteInspection = function (roundId) { return DB.first('site_inspections', { round_id: Number(roundId) }); };
+    /** Read-only <dt>/<dd> rows of a site check. */
+    P.siteSummaryRows = function (si) { return siteSummaryRows(si); };
+
     /** On top of the Engineering task: what the Sale Cell found in this round. */
     function saleResultAlert(task) {
         const role = DB.first('roles', { verification_form: SALE_ROLE });
@@ -180,7 +188,9 @@
         const r = { variance: si.variance, diff: si.difference, pct: si.difference_pct, unit: si.recorded_unit_id };
         const sym = lengthSymbol(si.unit_id);
         const yes = function (v) { return v ? '<span class="badge badge-danger">Yes</span>' : '<span class="badge badge-success">No</span>'; };
-        const photos = P.attachmentsFor({ task_id: si.task_id, context: 'SITE_PHOTO' });
+        // filled at send: photos belong to the round; filled by Engineering on its task: to the task
+        const photos = si.task_id ? P.attachmentsFor({ task_id: si.task_id, context: 'SITE_PHOTO' })
+            : P.attachmentsFor({ round_id: si.round_id, context: 'SITE_PHOTO' });
         return '<dt>Actual area</dt><dd>' + (si.length_value ? P.fmt_num(si.length_value, 2) + ' ' + e(sym) + ' × ' + P.fmt_num(si.width_value, 2) + ' ' + e(sym) + ' = ' : '') +
             '<strong>' + e(L.area(si.area_value, si.unit_id)) + '</strong><span class="site-variance-inline is-' + (si.variance || 'none').toLowerCase() + '">' + varianceHtml(r) + '</span></dd>' +
             '<dt>Encroachment</dt><dd>' + (si.encroachment === 'YES' ? '<span class="badge badge-danger">Yes</span> ' + (si.encroachment_type ? '<strong>' + e(ENCROACH_TYPES[si.encroachment_type]) + '</strong> — ' : '') + e(si.encroachment_details || '')
@@ -287,6 +297,9 @@
         }
         sync(false);
     }
+    // also used by the General section in Update Property Status (dataentry.js)
+    P.sectionChecksHtml = sectionChecksHtml;
+    P.initSectionChecks = initSectionChecks;
     /** Read-only rows of the section answers (task page). */
     P.sectionCheckRows = function (sc) {
         const yes = '<span class="badge badge-danger">Yes</span> ', no = '<span class="badge badge-success">No</span>';
@@ -406,7 +419,13 @@
         } else if (late) {
             html += '<div class="alert alert-warning">' + icon('fa-stopwatch', 'fa-shake') + '<span>SLA due date ' + e(P.fmt_date(task.sla_due_date)) + ' has passed. Please respond as soon as possible.</span></div>';
         }
+        // site check already filled when the property was sent for verification: shown, not asked again
+        const roundSite = task.form === SITE_ROLE ? P.roundSiteInspection(task.round_id) : null;
         if (task.form === SITE_ROLE) { html += saleResultAlert(task); }
+        if (roundSite) {
+            html += '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-ruler-combined') + ' Site inspection (filled when sent for verification)</h3></div>' +
+                '<div class="card-body"><dl class="detail-list">' + siteSummaryRows(roundSite) + '</dl></div></div>';
+        }
         html += '<div class="grid-2"><div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-building') + ' Property details</h3></div><div class="card-body"><dl class="detail-list">' +
             '<dt>Scheme</dt><dd>' + e(task.scheme_name) + '</dd>' +
             '<dt>Area</dt><dd>' + e(task.area) + '</dd>' +
@@ -432,7 +451,7 @@
                     : isSale ? icon('fa-file-signature') + ' Sale check' : isAuction ? icon('fa-gavel') + ' Auction check' : icon('fa-building-columns') + ' General check') +
                 '</h3><span class="text-muted small">Once submitted, the response cannot be changed.</span></div><div class="card-body">' +
                 '<form method="post" data-action="task-respond" novalidate data-validate data-response-form data-confirm="' + (isSite ? 'Submit the site report? It cannot be changed afterwards.' : 'Submit your report? It cannot be changed afterwards.') + '" data-confirm-ok="Yes, submit">' +
-                '<input type="hidden" name="id" value="' + task.task_id + '">' + (isSite ? siteCheckHtml(task) : '') + sectionChecksHtml(task, 0) +
+                '<input type="hidden" name="id" value="' + task.task_id + '">' + (isSite && !roundSite ? siteCheckHtml(task) : '') + sectionChecksHtml(task, 0) +
                 '<div class="form-group"><label class="form-label" for="remarks">Remark <small class="text-muted">(optional)</small></label>' +
                 '<textarea id="remarks" name="remarks" class="form-control" rows="3" maxlength="1000" placeholder="Optional remark — e.g. Record clear, file no. 123" data-rules="max:1000|text" data-label="Remark"></textarea><div class="invalid-feedback"></div></div>' +
                 P.uploaderHtml('Supporting documents / photos') +

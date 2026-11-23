@@ -766,6 +766,16 @@
             }
         }
         const nextRole = (currentRoleIdx !== -1 && currentRoleIdx + 1 < rolesWithStatus.length) ? rolesWithStatus[currentRoleIdx + 1] : null;
+        const taskRole = currentRoleId ? DB.find('roles', currentRoleId) : null;
+        const taskProp = taskObj ? DB.find('properties', propertyId || (DB.find('rounds', taskObj.round_id) || {}).property_id) : null;
+        // Sale section (verification_form = SALE): "Is allottee?" + allotment details are filled here with the status
+        const saleProp = taskRole && taskRole.verification_form === 'SALE' ? taskProp : null;
+        // Engineering section (verification_form = SITE): the site inspection is filled here with the status;
+        // encroachment "Yes" goes as an Objection (the server records it so)
+        const siteProp = taskRole && taskRole.verification_form === 'SITE' && P.siteCheckHtml ? taskProp : null;
+        // General section (verification_form = GENERAL): allotment to an organisation / institution; "Yes" goes as an Objection
+        const isGeneral = !!(taskRole && taskRole.verification_form === 'GENERAL' && P.sectionChecksHtml);
+        const extraForm = !!(saleProp || siteProp || isGeneral);
         const defaultStatusId = nextRole ? nextRole.status_id : (allStatuses.length ? allStatuses[0].status_id : null);
 
         // Build dynamic options for Status Master dropdown
@@ -797,7 +807,7 @@
             '<div class="modal-subtitle">Plot <strong class="text-plot">' + e(plotNo) + '</strong> &bull; ' + e(schemeName) + (sectorName && sectorName !== '—' ? ' &bull; ' + e(sectorName) : '') + '</div></div></div>' +
             '<button type="button" class="btn btn-light btn-sm btn-icon-only modal-close-btn" data-modal-close aria-label="Close">' + icon('fa-xmark') + '</button></div>' +
 
-            '<form method="post" data-action="task-respond" id="status-update-form" class="status-modal-form">' +
+            '<form method="post" data-action="task-respond" id="status-update-form" class="status-modal-form"' + (extraForm ? ' novalidate data-validate' : '') + '>' +
             '<input type="hidden" name="id" value="' + taskId + '">' +
             '<input type="hidden" name="back" value="' + e(curPath) + '">' +
             '<input type="hidden" name="decision" id="modal_decision" value="APPROVED">' +
@@ -839,6 +849,16 @@
             '<div id="banner_text" class="banner-desc"></div>' +
             '</div></div>' +
 
+            // Sale section: allotment details
+            (saleProp ? '<div class="status-allot-section"><p class="form-section">' + icon('fa-file-contract') + ' Allotment details (Sale)</p>' +
+                P.allotmentFieldsHtml(saleProp) + '</div>' : '') +
+            // Engineering section: the site inspection filled when the property was sent (read-only)
+            (siteProp ? '<div class="status-allot-section"><p class="form-section">' + icon('fa-ruler-combined') + ' Site inspection (Engineering)</p>' +
+                P.siteCheckHtml({ area_value: siteProp.area_value, unit_id: siteProp.unit_id }) + '</div>' : '') +
+            // General section: General check
+            (isGeneral ? '<div class="status-allot-section"><p class="form-section">' + icon('fa-building-columns') + ' General check</p>' +
+                P.sectionChecksHtml({ form: 'GENERAL' }, 0) + '</div>' : '') +
+
             // Description / Remarks Textarea
             '<div class="form-group remarks-form-group">' +
             '<div class="remarks-header-row">' +
@@ -862,6 +882,13 @@
 
         document.body.appendChild(backdrop);
         document.body.classList.add('modal-open');
+        if (extraForm) { P.initForms(backdrop); } // Yes / No blocks, dates, ₹ preview, OTLC PDF, sale rows
+        if (siteProp) {
+            const sf = backdrop.querySelector('#status-update-form');
+            P.initUploader(sf); // site photos
+            P.initSiteCheck(sf); // area × variance, encroachment counter, geo location
+        }
+        if (isGeneral) { P.initSectionChecks(backdrop.querySelector('#status-update-form')); } // result line + auto remark
 
         const closeModal = function () {
             backdrop.remove();
@@ -928,6 +955,15 @@
             statusSelect.addEventListener('change', updateFromSelect);
             updateFromSelect();
         }
+        // Engineering: encroachment "Yes" / General: allotment "Yes" goes as an Objection (the server records it so); "No" returns to the recommended status
+        const objectionOn = siteProp ? 'encroachment' : (isGeneral ? 'is_inst_allotted' : null);
+        if (objectionOn && statusSelect) {
+            backdrop.addEventListener('change', function (ev) {
+                if (ev.target.name !== objectionOn) { return; }
+                statusSelect.value = ev.target.value === 'YES' ? '__OBJECTION__' : String(defaultStatusId || '');
+                updateFromSelect();
+            });
+        }
 
         // Character counter
         const ta = backdrop.querySelector('#modal_status_remarks');
@@ -937,6 +973,12 @@
                 counter.textContent = ta.value.length + ' / 1000';
             });
             setTimeout(function () { ta.focus(); }, 120);
+        }
+
+        // the General check fills the remark by itself: keep the counter right
+        if (isGeneral && ta && counter) {
+            backdrop.addEventListener('change', function () { counter.textContent = ta.value.length + ' / 1000'; });
+            counter.textContent = ta.value.length + ' / 1000';
         }
 
         // Validate description
@@ -1150,15 +1192,18 @@
         const q = ctx.query;
         const p = P.paginate(P.filterProperties(P.propertyRows(), q), ctx, {
             sort: 'created', dir: 'desc', filters: ['scheme_id', 'sector_id', 'type', 'status'],
-            search: P.propertySearch, sortable: P.propertySortable
+            search: P.propertySearch, sortable: P.propertySortable,
+            pin: function (r) { return Boolean(r.my_pending_task_id); } // my tasks first: Update Status right away
         });
         const sendable = DB.Verification.SENDABLE;
         const canSend = Auth.can('verification.send');
         const canCreate = Auth.can('property.create');
         const canEdit = Auth.can('property.edit');
+        const showAllot = P.canAllotment();
         const ST = P.ST;
 
         const rows = p.items.map(function (r, i) {
+            const allot = showAllot ? P.allotmentOf(r.property_id) : null;
             const st = r.status_id;
             const can = canSend && sendable.indexOf(st) !== -1;
             const due = DB.Verification.isDue(r);
@@ -1170,7 +1215,8 @@
                     (can ? '<input type="checkbox" name="ids[]" value="' + r.property_id + '" aria-label="Select plot ' + e(r.plot_no) + '" data-status="' + st + '">'
                         : '<input type="checkbox" disabled aria-label="Not sendable">') + '</td>' : '') +
                 '<td data-label="S.No" class="cell-no">' + (p.from() + i) + '</td>' +
-                '<td data-label="Plot no." class="cell-title"><a href="' + view + '"><strong>' + e(r.plot_no) + '</strong></a>' + (r.is_corner ? '<span class="cell-sub">Corner</span>' : '') + '</td>' +
+                '<td data-label="Plot no." class="cell-title"><a href="' + view + '"><strong>' + e(r.plot_no) + '</strong></a>' + (r.is_corner ? '<span class="cell-sub">Corner</span>' : '') +
+                    (allot && allot.is_allottee ? '<span class="cell-sub">' + icon('fa-file-contract') + ' Allotted</span>' : '') + '</td>' +
                 '<td data-label="Scheme" class="nowrap">' + e(r.scheme_name) + '</td><td data-label="Sector">' + e(r.sector_name) + '</td>' +
                 '<td data-label="Plot type">' + e(r.type_name) + '</td>' +
                 '<td data-label="Area" class="nowrap">' + P.areaCell(r) + '</td>' +
@@ -1182,17 +1228,23 @@
                     ? '<span class="cell-sub' + (due || st === ST.EXPIRED ? ' text-danger' : '') + '">' + (st === ST.EXPIRED ? 'Expired ' : 'Valid till ') +
                     e(P.fmt_date(r.valid_till)) + (due ? ' (' + P.dueText(r.valid_till) + ')' : '') + '</span>' : '') + '</td>' +
                 '<td class="actions"><div class="btn-group' + (r.my_pending_task_id ? '' : ' btn-group-icons') + '">' +
-                (r.my_pending_task_id ? '<button type="button" class="btn btn-primary btn-sm" data-update-status="' + r.my_pending_task_id + '" data-plot-no="' + e(r.plot_no) + '" data-scheme-name="' + e(r.scheme_name) + '" data-sector-name="' + e(r.sector_name) + '" data-role-name="' + e(r.my_pending_role_name || '') + '" data-status-name="' + e(r.status_name || '') + '" data-current-status-id="' + r.status_id + '" data-property-id="' + r.property_id + '" title="Update Status &amp; Description">' + icon('fa-pen-to-square') + ' <span>Update Status</span></button>' : '') +
                 '<a href="' + view + '" class="btn btn-light btn-sm btn-icon-only" title="View details &amp; status" aria-label="View details">' + icon('fa-eye') + '</a>' +
                 // Action timeline button hidden for now
                 // '<a href="' + view + '#timeline" class="btn btn-light btn-sm btn-icon-only" title="Action timeline" aria-label="Action timeline">' + icon('fa-timeline') + '</a>' +
                 (canEdit ? (st === ST.LISTED ? '<a href="' + view + '/edit" class="btn btn-light btn-sm btn-icon-only" title="Edit" aria-label="Edit">' + icon('fa-pen') + '</a>'
-                    : '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="Locked — only Listed properties can be edited">' + icon('fa-lock') + '</span>') : '') +
-                (!canSend ? '' : st === ST.LISTED ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
+                    : '<span class="btn btn-sm btn-light btn-icon-only is-disabled" title="Locked — only Listed properties can be edited">' + icon('fa-lock') + '</span>') : '') +                (!canSend ? '' : st === ST.LISTED ? '<button type="submit" form="send-' + r.property_id + '" class="btn btn-primary btn-sm btn-icon-only" title="Send for verification" data-loading-text="Sending…">' + icon('fa-paper-plane') + '<span class="sr-only">Send for verification</span></button>'
                     : st === ST.NOT_READY ? '<a href="' + view + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-send for verification" aria-label="Re-send for verification">' + icon('fa-rotate') + '</a>'
                         : st === ST.EXPIRED || due ? '<a href="' + view + '#resend" class="btn btn-warning btn-sm btn-icon-only" title="Re-verify (periodic)" aria-label="Re-verify">' + icon('fa-calendar-check') + '</a>' : '') +
+                // my pending task: Update Status in the place of Send for verification
+                (r.my_pending_task_id ? '<button type="button" class="btn btn-primary btn-sm" data-update-status="' + r.my_pending_task_id + '" data-plot-no="' + e(r.plot_no) + '" data-scheme-name="' + e(r.scheme_name) + '" data-sector-name="' + e(r.sector_name) + '" data-role-name="' + e(r.my_pending_role_name || '') + '" data-status-name="' + e(r.status_name || '') + '" data-current-status-id="' + r.status_id + '" data-property-id="' + r.property_id + '" title="Update Status &amp; Description">' + icon('fa-pen-to-square') + ' <span>Update Status</span></button>' : '') +
                 '</div></td></tr>';
         }).join('');
+
+
+        const colCount = canSend ? 11 : 10;
+        const bulkBar = canSend ? '<div class="bulk-bar"><span class="bulk-count">' + icon('fa-square-check') + ' <strong data-bulk-count="ids[]">0</strong> selected</span>' +
+            '<input type="text" name="reason" class="form-control form-control-sm bulk-reason" maxlength="255" placeholder="Re-verification reason (required for Not Ready, optional for Validity Expired)" aria-label="Re-verification reason" data-rules="max:255|text" data-label="Re-verification reason" data-bulk-reason>' +
+            '<button type="submit" class="btn btn-primary btn-sm" data-bulk-requires="ids[]" disabled data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send selected for verification</span></button></div>' : '';
 
         const single = p.items.filter(function (r) { return canSend && r.status_id === ST.LISTED; }).map(function (r) {
             return '<form method="post" data-action="oic-send" id="send-' + r.property_id + '" hidden data-confirm="' +
@@ -1200,28 +1252,11 @@
                 '<input type="hidden" name="ids[]" value="' + r.property_id + '"></form>';
         }).join('');
 
-        const colCount = canSend ? 11 : 10;
-        const bulkBar = canSend ? '<div class="bulk-bar"><span class="bulk-count">' + icon('fa-square-check') + ' <strong data-bulk-count="ids[]">0</strong> selected</span>' +
-            '<input type="text" name="reason" class="form-control form-control-sm bulk-reason" maxlength="255" placeholder="Re-verification reason (required for Not Ready, optional for Validity Expired)" aria-label="Re-verification reason" data-rules="max:255|text" data-label="Re-verification reason" data-bulk-reason>' +
-            '<button type="submit" class="btn btn-primary btn-sm" data-bulk-requires="ids[]" disabled data-loading-text="Sending…">' + icon('fa-paper-plane') + ' <span>Send selected for verification</span></button></div>' : '';
-
-        const myPendingTotal = P.propertyRows().filter(function (pr) { return Boolean(pr.my_pending_task_id); }).length;
-        const myPendingAlert = myPendingTotal > 0 ? (
-            '<div class="alert alert-info mb-3" style="display:flex; align-items:center; justify-content:space-between; gap:16px;">' +
-            '<div style="display:flex; align-items:center; gap:12px;">' +
-            '<span style="font-size:20px; color:var(--primary);">' + icon('fa-clipboard-check') + '</span>' +
-            '<div><strong style="font-size:14px;">Action Required: You have ' + myPendingTotal + ' property verification ' + (myPendingTotal === 1 ? 'task' : 'tasks') + ' assigned to you.</strong>' +
-            '<div class="text-muted" style="font-size:12px; margin-top:2px;">You can update status and submit your description directly using the <strong>Update Status</strong> button on any assigned plot.</div></div></div>' +
-            (q.status !== 'MY_PENDING' ? '<a href="' + P.BASE + base + '?status=MY_PENDING" class="btn btn-primary btn-sm">' + icon('fa-filter') + ' <span>Filter My Pending (' + myPendingTotal + ')</span></a>' : '<a href="' + P.BASE + base + '" class="btn btn-light btn-sm">' + icon('fa-xmark') + ' <span>Clear Filter</span></a>') +
-            '</div>'
-        ) : '';
-
         return {
             title: 'Property Register',
             html: (crumbs ? crumbs('Property Register') : '') + P.pageHeader(icon('fa-building') + ' Property Register',
                 'Comprehensive property register, verification workflow progress, and auction readiness.',
                 canCreate ? '<a href="' + P.BASE + base + '/create" class="btn btn-primary">' + icon('fa-plus') + ' <span>Add Property</span></a>' : '') +
-                myPendingAlert +
                 '<div class="card">' + P.list_toolbar(p, 'Search plot no., scheme, sector, plot type…', P.propertyFilters(q, { REVERIFY_DUE: '⚠ Re-verification due' })) +
                 '<form method="post" data-action="oic-send" id="bulk-send-form" data-confirm="Send the selected properties for verification? A new round will be created for each." data-confirm-ok="Yes, send" data-bulk-form data-validate novalidate>' +
                 bulkBar +
@@ -1423,6 +1458,7 @@
             P.propertyPriceRows(prop) +
             '<dt>Created</dt><dd>' + e(P.fmt_datetime(prop.created_at) + ' · ' + prop.created_by_name) + '</dd>' +
             (prop.remarks ? '<dt>Description</dt><dd>' + e(prop.remarks) + '</dd>' : '') + '</dl></div></div>';
+        html += allotmentCard(prop, base);
 
         if (st !== ST.LISTED && canSend && DB.Verification.canSend(prop)) {
             const need = st === ST.NOT_READY;
@@ -1460,6 +1496,10 @@
                         (t.section_check ? '<span class="cell-sub">' + icon('fa-file-signature') + ' ' + e(P.sectionCheckText(t.section_check)) + '</span>' : '') + '</td><td data-label="Attachments">' + (P.attachmentChips(P.attachmentsFor({ task_id: t.task_id })) || '—') + '</td><td data-label="Date">' +
                         (t.responded_at ? e(P.fmt_datetime(t.responded_at)) + '<span class="cell-sub">' + e(t.responded_by_name || '') + '</span>' : '<span class="text-muted">SLA ' + e(P.fmt_date(t.sla_due_date)) + '</span>') + '</td></tr>';
                 }).join('') + '</tbody></table></div>' +
+                (function () { // site check filled when this round was sent
+                    const si = P.roundSiteInspection ? P.roundSiteInspection(round.round_id) : null;
+                    return si ? '<div class="card-body"><p class="form-section">' + icon('fa-ruler-combined') + ' Site inspection (filled when sent)</p><dl class="detail-list">' + P.siteSummaryRows(si) + '</dl></div>' : '';
+                })() +
                 (round.result === 'NOT_READY' && round.result_note ? '<div class="card-footer"><strong>Result:</strong> ' + e(round.result_note).replace(/\n/g, '<br>') + '</div>'
                     : round.result === 'READY' ? '<div class="card-footer"><strong>Result:</strong> All roles approved · valid ' + e(P.fmt_date(round.valid_from)) + ' – ' + e(P.fmt_date(round.valid_till)) + '</div>' : '') +
                 '</details>';
@@ -1468,8 +1508,158 @@
         return { title: 'Property ' + prop.plot_no, html: html };
     }
 
+    /* ================= Allotment details (Property Register → Allotment) ================= */
+    P.MAX_SALES = 50; // same as App\Controllers\AllotmentController::MAX_SALES
+    /** May see allotment details: Allotment Details permission, or a user of the Sale section (fills them in Update Property Status). */
+    P.canAllotment = function () {
+        const me = Auth.user(), role = me && me.role_id ? DB.find('roles', me.role_id) : null;
+        return Auth.can('allotment.view') || Auth.can('allotment.edit') || !!(role && role.verification_form === 'SALE');
+    };
+    /** 1 → "1st", 2 → "2nd", 11 → "11th" … */
+    P.ordinal = function (n) {
+        return n + ([11, 12, 13].indexOf(n % 100) !== -1 ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] || 'th'));
+    };
+    P.allotmentOf = function (propertyId) { return DB.first('property_allotments', { property_id: Number(propertyId) }); };
+    P.transfersOf = function (propertyId) {
+        return DB.where('property_transfers', { property_id: Number(propertyId) }).sort(function (a, b) { return a.sale_no - b.sale_no; });
+    };
+    /** Latest OTLC PDF of a property (older uploads stay as history), or null. */
+    P.otlcDocument = function (propertyId) {
+        const rows = P.attachmentsFor({ property_id: Number(propertyId), context: 'OTLC' });
+        return rows.length ? rows[rows.length - 1] : null;
+    };
+    /** Annual lease of the whole plot: rate (₹ per 1 unit) × plot area in that unit; null when the plot has no area. */
+    P.plotLease = function (prop, rate, unitId) {
+        if (!prop || prop.area_value == null || !rate || !unitId) { return null; }
+        return rate * L.convert(Number(prop.area_value), prop.unit_id, Number(unitId));
+    };
+    function personInput(id, label, value) {
+        return '<div class="form-group"><label class="form-label" for="' + id + '">' + e(label) + ' <span class="required">*</span></label>' +
+            '<input type="text" id="' + id + '" name="' + id + '" class="form-control" maxlength="100" value="' + e(value || '') + '" placeholder="e.g. Ramesh Kumar Sharma" autocomplete="off" ' +
+            'data-rules="required|min:3|max:100|name" data-label="' + e(label) + '"><div class="invalid-feedback"></div></div>';
+    }
+    function rupeeInput(id, label, value) {
+        return '<div class="form-group"><label class="form-label" for="' + id + '">' + e(label) + ' (₹) <span class="required">*</span></label>' +
+            '<input type="text" id="' + id + '" name="' + id + '" class="form-control" inputmode="decimal" maxlength="13" value="' + e(value == null ? '' : value) + '" placeholder="e.g. 250000" ' +
+            'autocomplete="off" data-decimals="2" data-rules="required|decimal:2|positive" data-label="' + e(label) + '" data-rupee><div class="form-hint" data-rupee-preview></div><div class="invalid-feedback"></div></div>';
+    }
+    /** One "n-th sale" block of the allotment form (drawn by forms.js for the number of times sold). */
+    P.allotmentSaleRow = function (n) {
+        return '<div class="sale-row" data-sale="' + n + '"><p class="form-section">' + icon('fa-right-left') + ' ' + P.ordinal(n) + ' sale</p><div class="form-grid">' +
+            P.dateField({ id: 'sold_on_' + n, name: 'sold_on_' + n, label: P.ordinal(n) + ' Sold on', required: true, max: DB.today() }) +
+            personInput('transferee_' + n, 'Name of Transferee') + '</div></div>';
+    };
+
+    /**
+     * "Is allottee?" + every allotment field, pre-filled from the saved details. Used by the Sale section in
+     * Update Property Status (modal) and by Property Register → Allotment. forms.js wires it ([data-allot-box]).
+     */
+    P.allotmentFieldsHtml = function (prop) {
+        const a = P.allotmentOf(prop.property_id) || {};
+        const yn = function (v) { return v == null ? '' : (v ? 'YES' : 'NO'); };
+        const today = DB.today();
+        const sales = {};
+        P.transfersOf(prop.property_id).forEach(function (t) {
+            sales['sold_on_' + t.sale_no] = String(t.sold_on).slice(0, 10).split('-').reverse().join('/');
+            sales['transferee_' + t.sale_no] = t.transferee_name;
+        });
+        return '<div class="allot-box" data-allot-box data-plot-area="' + (prop.area_value == null ? '' : prop.area_value) + '" data-plot-unit="' + (prop.unit_id || '') + '">' +
+            P.yesNoField({ name: 'is_allottee', label: 'Is allottee?', value: yn(a.is_allottee) }) +
+            '<div class="reveal-box" data-reveal="is_allottee=YES"><div class="form-grid">' +
+            P.dateField({ id: 'allotment_date', name: 'allotment_date', label: 'Date of allotment', value: a.allotment_date, required: true, max: today }) +
+            personInput('allottee_name', 'Name of allottee', a.allottee_name) +
+            P.dateField({ id: 'possession_date', name: 'possession_date', label: 'Date of possession', value: a.possession_date, required: true, max: today }) +
+            '<div class="form-group"><label class="form-label" for="annual_lease_rate">Annual lease rate (₹ per unit) <span class="required">*</span></label>' +
+            '<div class="pb-area"><input type="text" id="annual_lease_rate" name="annual_lease_rate" class="form-control" inputmode="decimal" maxlength="13" value="' + e(a.annual_lease_rate == null ? '' : a.annual_lease_rate) + '" ' +
+            'placeholder="e.g. 25.50" autocomplete="off" data-decimals="2" data-rules="required|decimal:2|positive" data-label="Annual lease rate" data-lease-rate>' +
+            '<select id="lease_unit_id" name="lease_unit_id" class="form-select" aria-label="Lease rate per unit" data-rules="required" data-label="Lease rate unit" data-lease-unit>' +
+            L.options(L.activeMap('units', 'unit_id', 'name', a.lease_unit_id), a.lease_unit_id || L.BASE_UNIT) + '</select></div>' +
+            '<div class="form-hint" data-lease-preview></div><div class="invalid-feedback"></div></div>' +
+            rupeeInput('allotment_price', 'Allotment price', a.allotment_price) +
+            '<div class="form-group"><label class="form-label" for="times_sold">Number of times sold <span class="required">*</span></label>' +
+            '<input type="text" id="times_sold" name="times_sold" class="form-control" inputmode="numeric" maxlength="2" value="' + (a.times_sold || 0) + '" autocomplete="off" ' +
+            'data-digits-only data-rules="required|between:0,' + P.MAX_SALES + '" data-label="Number of times sold" data-sold-count>' +
+            '<div class="form-hint">Enter 0 if never sold. A block opens for every sale (1st, 2nd …).</div><div class="invalid-feedback"></div></div>' +
+            '<div class="span-2" data-sold-rows data-sold-values="' + e(JSON.stringify(sales)) + '"></div>' +
+            '</div>' +
+            P.yesNoField({ name: 'is_lease_deed_issued', label: 'Lease deed issued?', value: yn(a.is_lease_deed_issued) }) +
+            '<div class="reveal-box reveal-nested" data-reveal="is_lease_deed_issued=YES"><p class="form-section">' + icon('fa-certificate') + ' OTLC (One Time Lease Certificate)</p><div class="form-grid">' +
+            '<div class="form-group"><label class="form-label" for="otlc_ref_no">OTLC reference number <span class="required">*</span></label>' +
+            '<input type="text" id="otlc_ref_no" name="otlc_ref_no" class="form-control" maxlength="50" value="' + e(a.otlc_ref_no || '') + '" placeholder="Reference number on the certificate" autocomplete="off" data-uppercase ' +
+            'data-rules="required|max:50|text" data-label="OTLC reference number"><div class="invalid-feedback"></div></div>' +
+            P.dateField({ id: 'otlc_issue_date', name: 'otlc_issue_date', label: 'OTLC issued date', value: a.otlc_issue_date, required: true, max: today }) +
+            rupeeInput('otlc_amount', 'OTLC amount', a.otlc_amount) +
+            '<div class="span-2">' + P.pdfField({ name: 'otlc_document', label: 'OTLC document (PDF)', required: true, current: P.otlcDocument(prop.property_id) }) + '</div>' +
+            '</div></div>' +
+            '<div class="reveal-box reveal-nested" data-reveal="is_lease_deed_issued=NO"><div class="form-grid">' +
+            rupeeInput('lease_amount', 'Amount', a.lease_amount) +
+            P.dateField({ id: 'lease_amount_date', name: 'lease_amount_date', label: 'Date', value: a.lease_amount_date, required: true, max: today }) +
+            '</div></div>' +
+            '</div></div>';
+    };
+
+    function allotmentForm(prop, base, crumbs) {
+        const view = P.BASE + base + '/' + prop.property_id;
+        let html = (crumbs ? crumbs('Property Register', 'Allotment') : '') +
+            P.pageHeader(icon('fa-file-contract') + ' Allotment details', e('Plot ' + prop.plot_no + ' · ' + prop.scheme_name + (prop.sector_id ? ' · ' + prop.sector_name : '')),
+                '<a href="' + view + '" class="btn btn-light">' + icon('fa-arrow-left') + ' <span>Back to property</span></a>');
+        html += '<form method="post" data-action="allotment-save" novalidate data-validate' +
+            ' data-confirm="' + e('Save the allotment details of plot ' + prop.plot_no + '?') + '" data-confirm-title="Confirm" data-confirm-ok="Yes, submit" data-confirm-cancel="No">' +
+            '<input type="hidden" name="property_id" value="' + prop.property_id + '"><input type="hidden" name="back" value="' + e(base) + '">' +
+            '<div class="card"><div class="card-header"><h3 class="card-title">' + icon('fa-user-check') + ' Allottee</h3></div><div class="card-body">' +
+            P.allotmentFieldsHtml(prop) + '</div></div>' +
+            '<div class="form-actions"><button type="submit" class="btn btn-primary btn-lg" data-loading-text="Saving…">' + icon('fa-check') + ' <span>Submit</span></button>' +
+            '<a href="' + view + '" class="btn btn-light btn-lg">' + icon('fa-xmark') + ' <span>Cancel</span></a></div></form>';
+        return { title: 'Allotment · Plot ' + prop.plot_no, html: html };
+    }
+
+    /** Allotment card on the property page (users with an Allotment Details permission). */
+    function allotmentCard(prop, base) {
+        if (!P.canAllotment()) { return ''; }
+        const a = P.allotmentOf(prop.property_id);
+        const canEdit = Auth.can('allotment.edit');
+        const btn = canEdit ? '<a href="' + P.BASE + base + '/' + prop.property_id + '/allotment" class="btn btn-primary btn-sm">' + icon(a ? 'fa-pen' : 'fa-plus') +
+            ' <span>' + (a ? 'Edit allotment' : 'Add allotment') + '</span></a>' : '';
+        const d = function (v) { return v ? e(P.fmt_date(v)) : '—'; };
+        let body;
+        if (!a) {
+            body = '<p class="text-muted mb-0">Allotment details are not recorded yet.</p>';
+        } else if (!a.is_allottee) {
+            body = '<dl class="detail-list"><dt>Is allottee</dt><dd>No</dd></dl>';
+        } else {
+            const sym = L.unitSymbol(a.lease_unit_id);
+            const plotLease = P.plotLease(prop, a.annual_lease_rate, a.lease_unit_id);
+            const sales = P.transfersOf(prop.property_id);
+            const doc = P.otlcDocument(prop.property_id);
+            body = '<dl class="detail-list">' +
+                '<dt>Is allottee</dt><dd><span class="badge badge-success">Yes</span></dd>' +
+                '<dt>Date of allotment</dt><dd>' + d(a.allotment_date) + '</dd>' +
+                '<dt>Name of allottee</dt><dd>' + e(a.allottee_name || '—') + '</dd>' +
+                '<dt>Date of possession</dt><dd>' + d(a.possession_date) + '</dd>' +
+                '<dt>Annual lease rate</dt><dd>' + e(P.fmt_rupees(a.annual_lease_rate)) + ' per ' + e(sym) + ' per year' +
+                (plotLease != null ? '<span class="cell-sub">For this plot: ' + e(P.fmt_rupees(plotLease)) + ' per year</span>' : '') + '</dd>' +
+                '<dt>Allotment price</dt><dd>' + e(P.fmt_rupees(a.allotment_price)) + '</dd>' +
+                '<dt>Number of times sold</dt><dd>' + (a.times_sold || 0) + '</dd>' +
+                sales.map(function (s) {
+                    return '<dt>' + P.ordinal(s.sale_no) + ' sold on</dt><dd>' + d(s.sold_on) + ' · Transferee: <strong>' + e(s.transferee_name) + '</strong></dd>';
+                }).join('') +
+                '<dt>Lease deed issued</dt><dd>' + (a.is_lease_deed_issued ? 'Yes' : 'No') + '</dd>' +
+                (a.is_lease_deed_issued
+                    ? '<dt>OTLC reference no.</dt><dd class="mono">' + e(a.otlc_ref_no || '—') + '</dd><dt>OTLC issued date</dt><dd>' + d(a.otlc_issue_date) + '</dd>' +
+                    '<dt>OTLC amount</dt><dd>' + e(P.fmt_rupees(a.otlc_amount)) + '</dd><dt>OTLC document</dt><dd>' + (doc ? P.attachmentChips([doc]) : '—') + '</dd>'
+                    : '<dt>Amount</dt><dd>' + e(P.fmt_rupees(a.lease_amount)) + '</dd><dt>Date</dt><dd>' + d(a.lease_amount_date) + '</dd>') +
+                '</dl>';
+        }
+        return '<div class="card mb-3" id="allotment"><div class="card-header"><h3 class="card-title">' + icon('fa-file-contract') + ' Allotment details</h3>' + btn + '</div>' +
+            '<div class="card-body">' + body + '</div></div>';
+    }
+
     /** Property list + add + view + edit under any base path. Permission-checked. */
     P.registerPropertyScreens = function (base, panel, crumbs) {
+        P.route(base + '/{id}/allotment', panel, function (ctx) {
+            const prop = P.propertyRows().find(function (r) { return r.property_id === ctx.params.id; });
+            return prop ? allotmentForm(prop, base, crumbs) : P.notFound('Property not found.');
+        }, 'allotment.edit');
         P.route(base, panel, function (ctx) { return propertyListPage(ctx, base, crumbs); }, ['property.view', 'verification.view']);
         P.route(base + '/create', panel, function () { return propertyBulkForm(base, crumbs); }, 'property.create');
         P.route(base + '/{id}', panel, function (ctx) { return propertyDetail(ctx, base, crumbs); }, ['property.view', 'verification.view']);

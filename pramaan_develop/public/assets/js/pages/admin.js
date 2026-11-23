@@ -117,6 +117,10 @@
                 '<option value="">No status assigned</option>' +
                 L.options(activeStatuses, v('status_id')) +
                 '</select><div class="form-hint">Select the property status associated with this role in the workflow.</div><div class="invalid-feedback"></div></div>' +
+                '<div class="form-group"><label class="form-label" for="verification_form">Verification form</label>' +
+                '<select id="verification_form" name="verification_form" class="form-select" data-label="Verification form">' +
+                L.options(DB.lookup('verification_forms'), v('verification_form') || 'GENERAL') +
+                '</select><div class="form-hint">What this section fills when it updates a property’s status (Sale register also asks “Is allottee?” and the allotment details).</div><div class="invalid-feedback"></div></div>' +
                 input('description', 'Description', false, 'type="text" class="form-control" maxlength="255" placeholder="Purpose or responsibility of this role" data-rules="max:255|text" data-label="Description"', v('description')) +
                 '<div class="form-group"><label class="check"><input type="checkbox" name="is_active" value="1"' + (!isEdit || role.is_active ? ' checked' : '') + (isAdmin ? ' disabled checked' : '') + '>' +
                 '<span><strong>Active</strong><br><small class="text-muted">Inactive roles cannot be assigned to new users.</small></span></label></div>' +

@@ -80,6 +80,10 @@ final class Permissions
             'property.create' => ['Add property'],
             'property.edit'   => ['Edit property'],
         ]],
+        'allotment' => ['Allotment Details', 'fa-file-contract', [
+            'allotment.view' => ['View allotment details'],
+            'allotment.edit' => ['Add / edit allotment details'],
+        ]],
         'verification' => ['Verification', 'fa-list-check', [
             'verification.view' => ['View properties for verification'],
             'verification.send' => ['Send / re-send for verification'],

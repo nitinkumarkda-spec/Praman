@@ -13,14 +13,12 @@ use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Database;
 use App\Core\Validator;
-use App\Models\Property;
 use App\Models\Role;
 use App\Models\Round;
 use App\Models\SectionCheck;
 use App\Models\SiteInspection;
 use App\Models\Task;
 use App\Models\TaskAssignee;
-use App\Services\PropertyService;
 use App\Services\Uploads;
 use App\Services\Verification;
 use Throwable;
@@ -28,7 +26,8 @@ use Throwable;
 /** Role User → give No Objection / Objection on a task (+ section checks and attachments). */
 final class TaskController extends Controller
 {
-    private const ENCROACH_MAX = 300;
+    use SiteCheckFields;
+    use AllotmentFields;
 
     public function respond(): void
     {
@@ -47,19 +46,25 @@ final class TaskController extends Controller
         }
         $role = Role::find($t['role_id']);
         $explicitDecision = $this->request->str('decision');
-        $site = ($explicitDecision === '' && $role['verification_form'] === Section::SITE) ? $this->siteCheck($round['property_id'], $me) : null;
+        $isSite = $role['verification_form'] === Section::SITE;
+        // Engineering fills the site check with its response (task page or Update Property Status);
+        // a site check already recorded for the round is used instead
+        $roundSite = $isSite ? SiteInspection::first(['round_id' => $round['round_id']]) : null;
+        $site = $isSite && !$roundSite ? $this->siteCheck($round['property_id'], $me) : null;
         $photos = $site ? $this->sitePhotos() : [];
-        if ($site) {
-            // Engineering gives a site report, not a decision: encroachment = Objection, otherwise No Objection
-            $decision = $site['encroachment'] === YesNo::YES ? TaskStatus::REJECTED : TaskStatus::APPROVED;
+        $report = $site ?? $roundSite;
+        if ($isSite) {
+            // Engineering: encroachment = Objection, otherwise No Objection
+            $decision = $report && $report['encroachment'] === YesNo::YES ? TaskStatus::REJECTED : TaskStatus::APPROVED;
             if ($decision === TaskStatus::REJECTED) {
-                $found = SiteCode::ENCROACHMENT_TYPES[$site['encroachment_type']] . ' found — ' . $site['encroachment_details'];
+                $found = SiteCode::ENCROACHMENT_TYPES[$report['encroachment_type']] . ' found — ' . $report['encroachment_details'];
                 $remarks = mb_substr($found . ($remarks !== '' ? ' ' . $remarks : ''), 0, 1000);
             }
             $section = null;
             $letters = [];
         } else {
-            $section = $explicitDecision === '' ? $this->sectionCheck($role['verification_form'], $me) : null;
+            // section answers: on the task page; in Update Property Status only the General check is asked
+            $section = $explicitDecision === '' || $role['verification_form'] === Section::GENERAL ? $this->sectionCheck($role['verification_form'], $me) : null;
             $letters = $section ? $this->letters($section) : [];
             $taken = $section && (!empty($section['is_sale_allotted']) || !empty($section['is_auctioned']) || !empty($section['is_inst_allotted']) || !empty($section['is_inst_in_process']));
             $decision = $taken ? TaskStatus::REJECTED : TaskStatus::APPROVED;
@@ -72,6 +77,14 @@ final class TaskController extends Controller
             }
             $decision = $explicitDecision;
         }
+        if ($isSite && $report && $report['encroachment'] === YesNo::YES) {
+            $decision = TaskStatus::REJECTED; // encroachment always goes as an Objection (Not Ready)
+        }
+        if (!$isSite && !empty($taken)) {
+            $decision = TaskStatus::REJECTED; // allotted / in progress (section answer "Yes"): not available → Objection
+        }
+        // Sale section: "Is allottee?" + allotment details, filled in Update Property Status (required there)
+        $allot = $role['verification_form'] === Section::SALE && $explicitDecision !== '' ? $this->allotmentInput((int) $round['property_id']) : null;
 
         $statusId = $this->id('status_id') ?: null;
         if ($statusId) {
@@ -89,7 +102,7 @@ final class TaskController extends Controller
 
         $stored = [];
         try {
-            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $photos, $section, $letters, $checked, $statusId, &$stored) {
+            $res = Database::transaction(function () use ($t, $round, $decision, $remarks, $me, $site, $photos, $section, $letters, $checked, $statusId, $allot, &$stored) {
                 $saved = [];
                 $ctx = ['task_id' => $t['task_id'], 'round_id' => $t['round_id'], 'property_id' => $round['property_id'], 'by' => $me];
                 foreach ($photos as $f) {
@@ -117,7 +130,9 @@ final class TaskController extends Controller
                 if ($section) {
                     SectionCheck::insert(['task_id' => $t['task_id']] + $section);
                 }
-                return $res + ['files' => count($saved)];
+                if ($allot) {
+                    self::storeAllotment($allot, $me, $stored, (int) $t['task_id']);
+                }                return $res + ['files' => count($saved)];
             });
         } catch (\DomainException $e) {
             Uploads::discard($stored);
@@ -131,106 +146,21 @@ final class TaskController extends Controller
         $this->done($res['message'] . ($res['files'] ? ' ' . $res['files'] . ' attachment(s) uploaded.' : ''), $target);
     }
 
-    /**
-     * Engineering Cell: physical site check — length × width (area), encroachment (partial / complete + details),
-     * road width, corner plot and geo coordinates. Site photos are checked separately (sitePhotos()).
-     */
-    private function siteCheck(int $propertyId, int $by): array
+    /** Allotment / mutation letter PDF, required when the Sale answer is "Yes". */
+    private function letters(array $check): array
     {
-        $len = $this->measure('site_length', 'Length');
-        $wid = $this->measure('site_width', 'Width');
-        $unit = PropertyService::validUnit($this->id('site_area_unit'));
-        if (!$unit) {
-            $this->fail('Select an active unit from the Unit Master.', 'site_area_unit');
+        if (empty($check['is_sale_allotted'])) {
+            return [];
         }
-        $value = round($len * $wid, 2);
-        if ($value > 9999999999.99) {
-            $this->fail('Length × width is too large — check the measurement.', 'site_length');
+        $f = $this->request->file('allotment_letter');
+        if (!$f) {
+            $this->fail('Upload the allotment letter / mutation letter (PDF, max 5 MB).', 'allotment_letter');
         }
-
-        $enc = $this->request->str('encroachment');
-        if (!in_array($enc, YesNo::ALL, true)) {
-            $this->fail('Select Yes or No for encroachment.', 'encroachment');
-        }
-        $type = null;
-        $text = '';
-        if ($enc === YesNo::YES) {
-            $type = $this->request->str('encroachment_type');
-            if (!isset(SiteCode::ENCROACHMENT_TYPES[$type])) {
-                $this->fail('Select partial or complete encroachment.', 'encroachment_type');
-            }
-            $text = preg_replace('/\s+/u', ' ', $this->request->str('encroachment_details'));
-            if (mb_strlen($text) < 5) {
-                $this->fail('Enter the details of the encroachment (at least 5 characters).', 'encroachment_details');
-            }
-            if (mb_strlen($text) > self::ENCROACH_MAX) {
-                $this->fail('Details of encroachment may be at most ' . self::ENCROACH_MAX . ' characters.', 'encroachment_details');
-            }
-            if (preg_match('/[<>]/', $text)) {
-                $this->fail('Details of encroachment may not contain < or >.', 'encroachment_details');
-            }
-        }
-
-        $road = $this->request->str('road_width');
-        if (!preg_match('/^\d{1,3}$/', $road) || (int) $road < 1) {
-            $this->fail('Enter the road size as a whole number (1–999, no decimals).', 'road_width');
-        }
-        $roadUnit = $this->request->str('road_width_unit');
-        if (!isset(SiteCode::ROAD_UNITS[$roadUnit])) {
-            $this->fail('Select feet or meter for the road size.', 'road_width_unit');
-        }
-        $corner = $this->yesNo('is_corner', 'Select Yes or No for “Corner plot”.');
-        $lat = $this->coordinate('latitude', 'Latitude', 2, 90);
-        $lng = $this->coordinate('longitude', 'Longitude', 3, 180);
-
-        $p = Property::find($propertyId);
-        // a property entered without an area has nothing to compare with: difference 0, variance empty
-        $recorded = $p['area_value'] !== null;
-        $diff = $recorded ? round(round(PropertyService::convert($value, $unit, $p['unit_id']), 2) - (float) $p['area_value'], 2) : 0.0;
-        return [
-            'length_value' => $len, 'width_value' => $wid,
-            'area_value' => $value, 'unit_id' => $unit, 'area_sqm' => PropertyService::toSqm($value, $unit),
-            'recorded_value' => $p['area_value'], 'recorded_unit_id' => $p['unit_id'], 'difference' => abs($diff),
-            'difference_pct' => $p['area_value'] ? round(abs($diff) / (float) $p['area_value'] * 100, 2) : 0,
-            'variance' => !$recorded ? null : (abs($diff) < 0.01 ? SiteCode::SAME : ($diff < 0 ? SiteCode::LESS : SiteCode::MORE)),
-            'encroachment' => $enc, 'encroachment_type' => $type, 'encroachment_details' => $text !== '' ? $text : null,
-            'road_width' => (int) $road, 'road_width_unit' => $roadUnit, 'is_corner' => $corner,
-            'latitude' => $lat, 'longitude' => $lng, 'measured_by' => $by, 'measured_at' => now(),
-        ];
-    }
-
-    /** Site photos: at least one JPG / JPEG / PNG (max 5 MB each, up to 10). */
-    private function sitePhotos(): array
-    {
-        $files = $this->request->files('site_photos');
-        if (!$files) {
-            $this->fail('Upload at least one site photo (JPG, JPEG or PNG).', 'site_photos');
-        }
-        $checked = Uploads::checkImages($files, 'Site photos');
+        $checked = Uploads::checkPdf($f, 'Allotment letter / mutation letter');
         if (is_string($checked)) {
-            $this->fail($checked, 'site_photos');
+            $this->fail($checked, 'allotment_letter');
         }
-        return $checked;
-    }
-
-    /** Positive number with at most 2 decimals. */
-    private function measure(string $field, string $label): float
-    {
-        $raw = $this->request->str($field);
-        if (!preg_match('/^\d{1,7}(\.\d{1,2})?$/', $raw) || (float) $raw <= 0) {
-            $this->fail($label . ': enter a positive number with at most 2 decimals.', $field);
-        }
-        return round((float) $raw, 2);
-    }
-
-    /** Decimal degrees, up to 8 digits after the decimal point, within ±$max. */
-    private function coordinate(string $field, string $label, int $intDigits, int $max): float
-    {
-        $raw = $this->request->str($field);
-        if (!preg_match('/^-?\d{1,' . $intDigits . '}(\.\d{1,8})?$/', $raw) || abs((float) $raw) > $max) {
-            $this->fail($label . ': enter a number between -' . $max . ' and ' . $max . ' with at most 8 decimals.', $field);
-        }
-        return round((float) $raw, 8);
+        return [AttachmentContext::ALLOTMENT_LETTER => $checked];
     }
 
     /**
@@ -269,23 +199,6 @@ final class TaskController extends Controller
             return null; // Engineering: site inspection only
         }
         return $out;
-    }
-
-    /** Allotment / mutation letter PDF, required when the Sale answer is "Yes". */
-    private function letters(array $check): array
-    {
-        if (empty($check['is_sale_allotted'])) {
-            return [];
-        }
-        $f = $this->request->file('allotment_letter');
-        if (!$f) {
-            $this->fail('Upload the allotment letter / mutation letter (PDF, max 5 MB).', 'allotment_letter');
-        }
-        $checked = Uploads::checkPdf($f, 'Allotment letter / mutation letter');
-        if (is_string($checked)) {
-            $this->fail($checked, 'allotment_letter');
-        }
-        return [AttachmentContext::ALLOTMENT_LETTER => $checked];
     }
 
     private function yesNo(string $field, string $message): int

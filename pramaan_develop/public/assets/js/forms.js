@@ -1013,6 +1013,52 @@
         show();
     }
 
+    /* ---------- Property Register → Allotment: lease-rate preview in every unit, one block per sale ---------- */
+    /* allot: the [data-allot-box] block (Praman.allotmentFieldsHtml) — on its own page or in the Sale section's Update Property Status */
+    function initAllotmentBox(allot) {
+        const form = allot.closest('form');
+        const L = Praman.Lookups;
+        const money = function (n) { return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+        // annual lease rate: the same rate in the other active units of the Unit Master + the lease of the whole plot
+        const rate = allot.querySelector('[data-lease-rate]'), unit = allot.querySelector('[data-lease-unit]'), out = allot.querySelector('[data-lease-preview]');
+        const areaV = parseFloat(allot.getAttribute('data-plot-area')), areaU = Number(allot.getAttribute('data-plot-unit'));
+        function lease() {
+            const r = parseFloat(rate.value), u = Number(unit.value), sym = L.unitSymbol(u) || 'unit';
+            if (isNaN(r) || r <= 0 || !u) { out.textContent = 'Rupees per 1 ' + sym + ' per year.'; return; }
+            const others = Praman.DB.where('units', function (x) { return x.is_active && x.unit_id !== u; })
+                .sort(function (a, b) { return (a.sort_order || 0) - (b.sort_order || 0); })
+                .map(function (x) { return money(r * Number(x.to_sqm) / L.unitFactor(u)) + ' per ' + x.symbol; });
+            let t = money(r) + ' per ' + sym + ' per year' + (others.length ? ' = ' + others.join(' = ') : '');
+            if (!isNaN(areaV) && areaV > 0 && areaU) {
+                const inUnit = L.convert(areaV, areaU, u);
+                t += ' · This plot: ' + Praman.fmt_num(inUnit, 2) + ' ' + sym + ' → ' + money(r * inUnit) + ' per year';
+            }
+            out.textContent = t;
+        }
+        rate.addEventListener('input', lease);
+        unit.addEventListener('change', lease);
+        lease();
+
+        // number of times sold → that many "n-th Sold on + Name of Transferee" blocks (typed values are kept)
+        const count = allot.querySelector('[data-sold-count]'), box = allot.querySelector('[data-sold-rows]');
+        let values = {};
+        try { values = JSON.parse(box.getAttribute('data-sold-values') || '{}'); } catch (err) { values = {}; }
+        const max = Number(Praman.MAX_SALES || 50);
+        function draw() {
+            box.querySelectorAll('input[name]').forEach(function (i) { values[i.name] = i.value; });
+            const n = Math.min(Math.max(parseInt(count.value, 10) || 0, 0), max);
+            if (box.querySelectorAll('[data-sale]').length === n) { return; }
+            let h = '';
+            for (let i = 1; i <= n; i++) { h += Praman.allotmentSaleRow(i); }
+            box.innerHTML = h;
+            box.querySelectorAll('input[name]').forEach(function (i) { if (values[i.name] != null) { i.value = values[i.name]; } });
+            box.querySelectorAll('[data-date-field]').forEach(initDateField);
+            syncReveal(form); // rows of a hidden block stay disabled
+        }
+        count.addEventListener('input', draw);
+        draw();
+    }
+
     // called by core.js after every page render
     Praman.initForms = function (root) {
         root.querySelectorAll('form').forEach(initReveal);
@@ -1029,5 +1075,6 @@
         root.querySelectorAll('form[data-property-bulk]').forEach(initPropertyBulk);
         root.querySelectorAll('form[data-bulk-form]').forEach(initBulkForm);
         root.querySelectorAll('form[data-sector-form]').forEach(initSectorForm);
+        root.querySelectorAll('form [data-allot-box]').forEach(initAllotmentBox);
     };
 })(window, document);
